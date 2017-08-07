@@ -52,3 +52,10 @@ def unk_emb_stats(sentences, emb):
     stats["types"] = len(all_types)
 
     return stats
+
+
+def to_word_indexes(tokens, keyedvectors, unk=None):
+    if unk is None:
+        return [keyedvectors.vocab[token].index for token in tokens] 
+    unk = keyedvectors.vocab[unk]
+    return [keyedvectors.vocab.get(token, unk).index for token in tokens]
