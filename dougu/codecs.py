@@ -23,18 +23,24 @@ class NgramCodec(object):
             self,
             order,
             vocab_size,
-            pad_symbol="<pad>",
+            left_pad_symbol="<^>",
+            right_pad_symbol="<$>",
             unk_symbol="<unk>"):
 
         self.order = order
         self.vocab_size = vocab_size
-        self.pad_symbol = pad_symbol
         self.unk_symbol = unk_symbol
         self.special_symbols = []
-        if pad_symbol is not None:
-            self.special_symbols.append(pad_symbol)
-        if unk_symbol is not None:
+        if left_pad_symbol:
+            self.special_symbols.append(left_pad_symbol)
+            self.left_pad = [left_pad_symbol]
+        if right_pad_symbol:
+            self.special_symbols.append(right_pad_symbol)
+            self.right_pad = [right_pad_symbol]
+        if unk_symbol:
             self.special_symbols.append(unk_symbol)
+        self.pad_len_left = 1 if left_pad_symbol else 0
+        self.pad_len_right = 1 if right_pad_symbol else 0
         self.vocab_size = vocab_size + len(self.special_symbols)
         log.info(
             "ngram order: %s. ngram vocab size: %s. special symbols %s",
@@ -47,11 +53,11 @@ class NgramCodec(object):
             strings = [strings]
         o = self.order
         ngrams = [
-            s[i:i + o]
-            for s in strings
-            for i, _ in enumerate(s)]
+            "".join(s[i:i + o])
+            for s in map(self._pad, strings)
+            for i in range(len(s) - o + 1)]
 
-        n_most_common = self.vocab_size - len(self.special_symbols)
+        n_most_common = self.vocab_size + len(self.special_symbols)
         most_common_ngrams = [
             ngram
             for ngram, count
@@ -63,26 +69,20 @@ class NgramCodec(object):
             idx: ngram for idx, ngram in enumerate(self.classes_)}
         return self
 
-    def transform(self, strings, pad_left=False, pad_right=False):
+    def _pad(self, s):
+        return self.left_pad + list(s) + self.right_pad
+
+    def transform(self, strings):
         if isinstance(strings, str):
             strings = [strings]
-        if self.pad_symbol:
-            pad = [self.pad_symbol] * self.order
-        else:
-            pad = []
-        pad_len_left = len(pad) * int(pad_left)
-        pad_len_right = len(pad) * int(pad_right)
         o = self.order
         unk = self.ngram2idx[self.unk_symbol]
         transformed = []
-        left_padding = pad if pad_left else []
-        right_padding = pad if pad_right else []
         for s in strings:
-            s = left_padding + list(s) + right_padding
-            last_char = len(s) - pad_len_right
+            s = self._pad(s)
             idxs = [
                 self.ngram2idx.get("".join(s[i:i + o]), unk)
-                for i, _ in enumerate(s[pad_len_left:last_char])]
+                for i in range(len(s) - o + 1)]
             transformed.append(idxs)
         return transformed
 
@@ -92,7 +92,9 @@ class NgramCodec(object):
 
     def inverse_transform(self, idxss):
         return [
-            "".join([self.idx2ngram[idx] for idx in idxs])
+            "".join([
+                self.idx2ngram[idx]
+                for idx in idxs])
             for idxs in idxss]
 
 
@@ -102,20 +104,23 @@ class MultiNgramCodec(object):
     def __init__(
             self, orders=[1, 2, 3],
             vocab_sizes=[100, 1000, 10000],
-            pad_symbol="<pad>",
+            left_pad_symbol="<^>",
+            right_pad_symbol="<$>",
             unk_symbol="<unk>"):
         assert len(orders) == len(vocab_sizes)
         self.order2codec = {
-            order: NgramCodec(order, vocab_size, pad_symbol, unk_symbol)
+            order: NgramCodec(
+                order, vocab_size,
+                left_pad_symbol, right_pad_symbol, unk_symbol)
             for order, vocab_size in zip(orders, vocab_sizes)}
 
     def fit(self, strings):
         for codec in self.order2codec.values():
             codec.fit(strings)
 
-    def transform(self, strings, pad_left=False, pad_right=True):
+    def transform(self, strings):
         return {
-            order: codec.transform(strings, pad_left, pad_right)
+            order: codec.transform(strings)
             for order, codec in self.order2codec.items()}
 
     def inverse_transform(self, order2idxss):
@@ -165,7 +170,7 @@ class LabelOneHotEncoder(object):
 
 if __name__ == "__main__":
     strings = ["abcde", "test", "string"]
-    codec = MultiNgramCodec(orders=[1, 2, 3], vocab_sizes=[5, 20, 40])
+    codec = MultiNgramCodec(orders=[1, 2, 3], vocab_sizes=[10, 100, 400])
     codec.fit(strings)
     enc = codec.transform(strings)
     for idxs in enc.values():
