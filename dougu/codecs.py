@@ -91,11 +91,7 @@ class NgramCodec(object):
         return self.transform(strings)
 
     def inverse_transform(self, idxss):
-        return [
-            "".join([
-                self.idx2ngram[idx]
-                for idx in idxs])
-            for idxs in idxss]
+        return [[self.idx2ngram[idx] for idx in idxs] for idxs in idxss]
 
 
 class MultiNgramCodec(object):
