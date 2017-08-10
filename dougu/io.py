@@ -1,14 +1,27 @@
 import json
 import logging
+from pathlib import Path
+from itertools import islice
+
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
 def json_load(json_file):
-    """Load object dumped to json."""
+    """Load object from json file."""
+    if isinstance(json_file, str):
+        json_file = Path(json_file)
     with json_file.open(encoding="utf8") as f:
         return json.load(f)
+
+
+def json_dump(obj, json_file):
+    """Dump obj to json file."""
+    if isinstance(json_file, str):
+        json_file = Path(json_file)
+    with json_file.open("w", encoding="utf8") as out:
+        json.dump(obj, out)
 
 
 def load_word2vec_file(word2vec_file, weights_file=None, normalize=False):
@@ -28,10 +41,10 @@ def load_word2vec_file(word2vec_file, weights_file=None, normalize=False):
     return vecs
 
 
-def lines(file):
+def lines(file, max=None):
     """Iterate over stripped lines in (text) file."""
     with file.open(encoding="utf8") as f:
-        for line in f:
+        for line in islice(f, 0, max):
             yield line.strip()
 
 
