@@ -1,6 +1,10 @@
 from datetime import datetime
 from collections import Counter
 
+import numpy as np
+from sklearn.decomposition import PCA
+from gensim.models.keyedvectors import Vocab
+
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
@@ -54,8 +58,30 @@ def unk_emb_stats(sentences, emb):
     return stats
 
 
-def to_word_indexes(tokens, keyedvectors, unk=None):
+def to_word_indexes(tokens, keyed_vectors, unk=None):
+    """Look up embedding indexes for tokens."""
     if unk is None:
-        return [keyedvectors.vocab[token].index for token in tokens] 
-    unk = keyedvectors.vocab[unk]
-    return [keyedvectors.vocab.get(token, unk).index for token in tokens]
+        return [keyed_vectors.vocab[token].index for token in tokens]
+    unk = keyed_vectors.vocab[unk]
+    return [keyed_vectors.vocab.get(token, unk).index for token in tokens]
+
+
+def add_unk_embedding(keyed_vectors, unk_str="<unk>", init=np.zeros):
+    """Add a vocab entry and embedding for unknown words to keyed_vectors."""
+    syn0 = keyed_vectors.syn0
+    keyed_vectors.vocab["<unk>"] = Vocab(count=0, index=syn0.shape[0])
+    keyed_vectors.syn0 = np.concatenate([syn0, init((1, syn0.shape[1]))])
+
+
+def mu_postproc(V, D=1):
+    """algorithm 1, https://arxiv.org/pdf/1702.01417.pdf"""
+    assert D >= 1
+    V_ = V - V.mean(0)
+    pca = PCA()
+    pca.fit(V_)
+    print("var ratios:", pca.explained_variance_ratio_)
+    print(pca.components_.shape)
+    s = np.zeros(V.shape)
+    for i in range(D):
+        s += np.repeat((pca.components_[i] * V_).sum(1)[:, None], V.shape[1], 1) * pca.components_[i]
+    return V_ - s
