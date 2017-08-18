@@ -2,6 +2,7 @@ from datetime import datetime
 import glob
 from pathlib import Path
 
+from pandas import DataFrame as df
 from git import Repo
 
 
