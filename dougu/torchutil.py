@@ -1,4 +1,7 @@
-import torch
+try:
+    import torch
+except ImportError:
+    pass
 
 
 def save_model(model, model_file, log=None):

@@ -5,11 +5,8 @@ import numpy as np
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.utils.multiclass import unique_labels
 
-import torch
-from torch.utils.data import Dataset
 
-
-class BatchedByLength(Dataset):
+class BatchedByLength():
     """Batch Xy by length, optionally using the get_len function
     to determine the length of X instances."""
     def __init__(
@@ -28,6 +25,8 @@ class BatchedByLength(Dataset):
             raise NotImplementedError("TODO: keep_leftovers")
         self.Xy = Xy
         self.batch_size = batch_size
+        if return_X_tensors or return_y_tensors:
+            import torch  # NOQA
         self.return_X_tensors = return_X_tensors
         self.return_y_tensors = return_y_tensors
         self.batch_first = batch_first
