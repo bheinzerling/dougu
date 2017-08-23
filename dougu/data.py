@@ -5,12 +5,12 @@ from pprint import pprint
 import numpy as np
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.utils.multiclass import unique_labels
-import torch
-from .torchutil import LongTensor
 
 
 class LengthBatcher():
     def __init__(self, X, Y, batch_size, get_len=lambda x: x[1] - x[0]):
+        import torch  # NOQA
+        from .torchutil import LongTensor
         self.X = X
         self.Y = Y
         self.batch_size = batch_size

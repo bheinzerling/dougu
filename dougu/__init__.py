@@ -5,7 +5,5 @@ from .decorators import *
 from .io import *
 from .lists import *
 from .misc import *
-from .plot import *
 from .strings import *
-from .torchutil import *
 from .embeddingutil import *
