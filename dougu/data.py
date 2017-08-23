@@ -7,31 +7,6 @@ from sklearn.metrics import precision_recall_fscore_support
 from sklearn.utils.multiclass import unique_labels
 
 
-class LengthBatcher():
-    def __init__(self, X, Y, batch_size, get_len=lambda x: x[1] - x[0]):
-        import torch  # NOQA
-        from .torchutil import LongTensor
-        self.X = X
-        self.Y = Y
-        self.batch_size = batch_size
-        len2idxs = defaultdict(list)
-        for idx in range(len(X)):
-            len2idxs[get_len(X[idx])].append(idx)
-        self.len2idxs = {l: LongTensor(idxs) for l, idxs in len2idxs.items()}
-        self.lengths = np.array(list(self.len2idxs.keys()))
-
-    def __iter__(self):
-        np.random.shuffle(self.lengths)
-        for length in self.lengths:
-            idxs = self.len2idxs[length]
-            shuf_idxs = torch.randperm(idxs.shape[0]).cuda()
-            for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
-                yield self.X[batch_idxs], self.Y[batch_idxs]
-
-    def print_stats(self):
-        pprint({l: idxs.shape[0] for l, idxs in self.len2idxs.items()})
-
-
 class BatchedByLength():
     """Batch Xy by length, optionally using the get_len function
     to determine the length of X instances."""
