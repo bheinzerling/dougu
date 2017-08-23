@@ -2,7 +2,6 @@ from collections import Counter
 
 import numpy as np
 from sklearn.decomposition import PCA
-from gensim.models.keyedvectors import Vocab
 
 
 def get_emb_dim(emb):
@@ -63,6 +62,7 @@ def to_word_indexes(tokens, keyed_vectors, unk=None):
 
 def add_unk_embedding(keyed_vectors, unk_str="<unk>", init=np.zeros):
     """Add a vocab entry and embedding for unknown words to keyed_vectors."""
+    from gensim.models.keyedvectors import Vocab
     syn0 = keyed_vectors.syn0
     keyed_vectors.vocab["<unk>"] = Vocab(count=0, index=syn0.shape[0])
     keyed_vectors.syn0 = np.concatenate([syn0, init((1, syn0.shape[1]))])

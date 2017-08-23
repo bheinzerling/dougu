@@ -3,8 +3,6 @@ from collections import Counter
 
 import numpy as np
 from sklearn.preprocessing import LabelEncoder, LabelBinarizer
-import torch
-from torch.cuda import FloatTensor as Tensor
 
 
 __all__ = [
@@ -130,6 +128,9 @@ class LabelOneHotEncoder(object):
     representation. Optionally return pytorch tensors instead of numpy
     arrays."""
     def __init__(self, to_torch=False):
+        if to_torch:
+            import torch
+            from torch.cuda import FloatTensor as Tensor
         self.to_torch = to_torch
 
     def fit(self, labels):

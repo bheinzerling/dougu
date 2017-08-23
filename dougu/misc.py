@@ -2,10 +2,6 @@ from datetime import datetime
 import glob
 from pathlib import Path
 
-import joblib
-from pandas import DataFrame as df
-from git import Repo
-
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
@@ -14,6 +10,7 @@ def now_str():
 def autocommit(
         repodir=".", glob_pattern="**/*.py", recursive=True, msg="autocommit"):
     """Commit all changes in repodir in files matching glob_pattern."""
+    from git import Repo
     repo = Repo(repodir)
     files = glob.glob(glob_pattern, recursive=recursive)
     repo.index.add(files)
@@ -28,6 +25,8 @@ class Results():
     experimental results."""
 
     def __init__(self, file):
+        from pandas import DataFrame as df
+        import joblib
         self.fname_pkl = Path(str(file) + ".df.pkl")
         self.fname_txt = Path(str(file) + ".txt")
         self.fname_stats = Path(str(file) + ".overall_stats")
