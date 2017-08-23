@@ -8,18 +8,22 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
+def to_path(maybe_str):
+    if isinstance(maybe_str, str):
+        return Path(maybe_str)
+    return maybe_str
+
+
 def json_load(json_file):
     """Load object from json file."""
-    if isinstance(json_file, str):
-        json_file = Path(json_file)
+    json_file = to_path(json_file)
     with json_file.open(encoding="utf8") as f:
         return json.load(f)
 
 
 def json_dump(obj, json_file):
     """Dump obj to json file."""
-    if isinstance(json_file, str):
-        json_file = Path(json_file)
+    json_file = to_path(json_file)
     with json_file.open("w", encoding="utf8") as out:
         json.dump(obj, out)
 
@@ -43,6 +47,7 @@ def load_word2vec_file(word2vec_file, weights_file=None, normalize=False):
 
 def lines(file, max=None):
     """Iterate over stripped lines in (text) file."""
+    file = to_path(file)
     with file.open(encoding="utf8") as f:
         for line in islice(f, 0, max):
             yield line.strip()
