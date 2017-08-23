@@ -1,6 +1,8 @@
 from datetime import datetime
 import glob
 from pathlib import Path
+from pandas import DataFrame as df
+import joblib
 
 
 def now_str():
@@ -25,8 +27,6 @@ class Results():
     experimental results."""
 
     def __init__(self, file):
-        from pandas import DataFrame as df
-        import joblib
         self.fname_pkl = Path(str(file) + ".df.pkl")
         self.fname_txt = Path(str(file) + ".txt")
         self.fname_stats = Path(str(file) + ".overall_stats")
