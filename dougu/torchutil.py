@@ -1,7 +1,10 @@
 from pathlib import Path
-
 import numpy as np
-import torch
+
+try:
+    import torch
+except ImportError:
+    pass
 
 
 # fix inconsistencies between cuda and non-cuda tensors when
@@ -20,7 +23,7 @@ if torch.cuda.is_available():
             return torch.from_numpy(args[0]).cuda()
         return FloatTensor
 else:
-    from torch import Tensor, LongTensor
+    from torch import Tensor, LongTensor  # NOQA
 
 
 def save_model(model, model_file, log=None):
