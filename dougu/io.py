@@ -28,6 +28,12 @@ def json_dump(obj, json_file):
         json.dump(obj, out)
 
 
+def jsonlines_load(jsonlines_file, max=None):
+    """Load objects from json lines file, i.e. a file with one
+    serialized object per line."""
+    yield from map(json.loads, lines(jsonlines_file, max))
+
+
 def load_word2vec_file(word2vec_file, weights_file=None, normalize=False):
     """Load a word2vec file in either text or bin format, optionally
     supplying custom embedding weights and normalizing embeddings."""
