@@ -50,7 +50,9 @@ class LengthBatcher():
         np.random.shuffle(self.lengths)
         for length in self.lengths:
             idxs = self.len2idxs[length]
-            shuf_idxs = torch.randperm(idxs.shape[0]).cuda()
+            shuf_idxs = torch.randperm(idxs.shape[0])
+            if torch.cuda.is_available():
+                shuf_idxs.cuda()
             for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
                 yield self.X[batch_idxs], self.Y[batch_idxs]
 
