@@ -4,6 +4,8 @@ from collections import Counter
 import numpy as np
 from sklearn.preprocessing import LabelEncoder, LabelBinarizer
 
+import dougu.torchutil
+
 
 __all__ = [
     "NgramCodec",
@@ -128,16 +130,13 @@ class LabelOneHotEncoder(object):
     representation. Optionally return pytorch tensors instead of numpy
     arrays."""
     def __init__(self, to_torch=False):
-        if to_torch:
-            import torch
-            from torch.cuda import FloatTensor as Tensor
         self.to_torch = to_torch
 
     def fit(self, labels):
         self.label_enc = LabelEncoder().fit(labels)
         labels_enc = self.label_enc.transform(labels)
         self.one_hot_enc = LabelBinarizer().fit(labels_enc)
-        self.nlabels = len(labels)
+        self.nlabels = len(self.label_enc.classes_)
         return self
 
     def transform_idx(self, labels):
@@ -145,7 +144,8 @@ class LabelOneHotEncoder(object):
             labels = [labels]
         labels_enc = self.label_enc.transform(labels)
         if self.to_torch:
-            return torch.from_numpy(labels_enc).long().cuda()
+            return dougu.torchutil.LongTensor(labels_enc)
+            # return torch.from_numpy(labels_enc).long().cuda()
         return labels_enc
 
     def transform_one_hot(self, labels):
@@ -154,7 +154,8 @@ class LabelOneHotEncoder(object):
         labels_enc = self.label_enc.transform(labels)
         if self.to_torch:
             t = self.one_hot_enc.transform(labels_enc)
-            return Tensor(t.astype(float)).long()
+            # return Tensor(t.astype(float)).long()
+            return dougu.torchutil.LongTensor(t)
         return np.array(self.one_hot_enc.transform(labels_enc))
 
     def inverse_transform_one_hot(self, one_hot):
