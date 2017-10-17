@@ -2,7 +2,8 @@ import logging
 from collections import Counter
 
 import numpy as np
-from sklearn.preprocessing import LabelEncoder, LabelBinarizer
+from sklearn.preprocessing import LabelEncoder as _LabelEncoder, LabelBinarizer
+from torch import LongTensor
 
 import dougu.torchutil
 
@@ -10,6 +11,7 @@ import dougu.torchutil
 __all__ = [
     "NgramCodec",
     "MultiNgramCodec",
+    "LabelEncoder",
     "LabelOneHotEncoder"]
 
 
@@ -125,6 +127,35 @@ class MultiNgramCodec(object):
             for order, idxss in order2idxss.items()}
 
 
+class LabelEncoder(object):
+    """Encodes and decodes labels. Decoding from idx representation.
+    Optionally return pytorch tensors instead of numpy arrays."""
+    def __init__(self, to_torch=False):
+        self.to_torch = to_torch
+
+    def fit(self, labels):
+        self.label_enc = _LabelEncoder().fit(labels)
+        return self
+
+    def transform_idx(self, labels):
+        if isinstance(labels, str):
+            labels = [labels]
+        if self.to_torch:
+            import torch
+            tensors = []
+            bs = 1000000
+            for i in range(0, len(labels), bs):
+                labels_enc = self.label_enc.transform(labels[i:i+bs])
+                tensors.append(LongTensor(labels_enc))
+            return torch.cat(tensors).cuda()
+            # return torch.from_numpy(labels_enc).long().cuda()
+        else:
+            return self.label_enc.transform(labels)
+
+    def inverse_transform_idx(self, idx):
+        return self.label_enc.inverse_transform(idx)
+
+
 class LabelOneHotEncoder(object):
     """Encodes and decodes labels. Decoding either from idx or one-hot
     representation. Optionally return pytorch tensors instead of numpy
@@ -133,7 +164,7 @@ class LabelOneHotEncoder(object):
         self.to_torch = to_torch
 
     def fit(self, labels):
-        self.label_enc = LabelEncoder().fit(labels)
+        self.label_enc = _LabelEncoder().fit(labels)
         labels_enc = self.label_enc.transform(labels)
         self.one_hot_enc = LabelBinarizer().fit(labels_enc)
         self.nlabels = len(self.label_enc.classes_)
