@@ -137,7 +137,7 @@ class LabelEncoder(object):
         self.label_enc = _LabelEncoder().fit(labels)
         return self
 
-    def transform_idx(self, labels):
+    def transform(self, labels):
         if isinstance(labels, str):
             labels = [labels]
         if self.to_torch:
