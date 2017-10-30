@@ -52,8 +52,15 @@ def unk_emb_stats(sentences, emb):
     return stats
 
 
-def to_word_indexes(tokens, keyed_vectors, unk=None):
+def to_word_indexes(tokens, keyed_vectors, unk=None, fallback_transform=None):
     """Look up embedding indexes for tokens."""
+    if fallback_transform:
+        assert unk
+        return [
+            keyed_vectors.vocab.get(
+                token,
+                keyed_vectors.vocab.get(fallback_transform(token), unk)).index
+            for token in tokens]
     if unk is None:
         return [keyed_vectors.vocab[token].index for token in tokens]
     unk = keyed_vectors.vocab[unk]
