@@ -7,6 +7,31 @@ from sklearn.metrics import precision_recall_fscore_support
 from sklearn.utils.multiclass import unique_labels
 
 
+class LengthBatcher():
+    def __init__(self, X, Y, batch_size, get_len=lambda x: x[1] - x[0]):
+        import torch  # NOQA
+        from .torchutil import LongTensor
+        self.X = X
+        self.Y = Y
+        self.batch_size = batch_size
+        len2idxs = defaultdict(list)
+        for idx in range(len(X)):
+            len2idxs[get_len(X[idx])].append(idx)
+        self.len2idxs = {l: LongTensor(idxs) for l, idxs in len2idxs.items()}
+        self.lengths = np.array(list(self.len2idxs.keys()))
+
+    def __iter__(self):
+        np.random.shuffle(self.lengths)
+        for length in self.lengths:
+            idxs = self.len2idxs[length]
+            shuf_idxs = torch.randperm(idxs.shape[0]).cuda()
+            for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
+                yield self.X[batch_idxs], self.Y[batch_idxs]
+
+    def print_stats(self):
+        pprint({l: idxs.shape[0] for l, idxs in self.len2idxs.items()})
+
+
 class BatchedByLength():
     """Batch Xy by length, optionally using the get_len function
     to determine the length of X instances."""
@@ -197,3 +222,34 @@ def classification_report(y_true, y_pred, labels=None, target_names=None,
     values += ['{0}'.format(np.sum(s))]
     report += fmt % tuple(values)
     return report
+
+
+def print_cm(
+        cm, labels,
+        percent=False,
+        hide_zeroes=True, hide_diagonal=False, hide_threshold=None):
+    """pretty print for confusion matrixes"""
+    columnwidth = max([len(x) for x in labels] + [5])  # 5 is value length
+    total = cm.sum()
+    empty_cell = " " * columnwidth
+    # Print header
+    print("    " + empty_cell, end=" ")
+    for label in labels:
+        print("%{0}s".format(columnwidth) % label, end=" ")
+    print()
+    # Print rows
+    for i, label1 in enumerate(labels):
+        print("    %{0}s".format(columnwidth) % label1, end=" ")
+        for j in range(len(labels)):
+            if percent:
+                cell = "%{0}.1f".format(columnwidth) % (cm[i, j] / total * 100)
+            else:
+                cell = "%{0}d".format(columnwidth) % cm[i, j]
+            if hide_zeroes:
+                cell = cell if float(cm[i, j]) != 0 else empty_cell
+            if hide_diagonal:
+                cell = cell if i != j else empty_cell
+            if hide_threshold:
+                cell = cell if cm[i, j] > hide_threshold else empty_cell
+            print(cell, end=" ")
+        print()
