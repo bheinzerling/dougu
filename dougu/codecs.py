@@ -135,6 +135,7 @@ class LabelEncoder(object):
 
     def fit(self, labels):
         self.label_enc = _LabelEncoder().fit(labels)
+        self.labels = self.label_enc.classes_
         return self
 
     def transform(self, labels):
