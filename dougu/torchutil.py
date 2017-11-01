@@ -102,8 +102,8 @@ def load_model(model, model_file):
     model.load_state_dict(torch.load(model_file))
 
 
-def emb_layer(word2vec_file, backprop=False):
-    emb_weights = Tensor(load_word2vec_file(word2vec_file).syn0)
+def emb_layer(keyed_vectors, backprop=False):
+    emb_weights = Tensor(keyed_vectors.syn0)
     emb = nn.Embedding(*emb_weights.shape)
     emb.weight = nn.Parameter(emb_weights)
     emb.weight.requires_grad = backprop
