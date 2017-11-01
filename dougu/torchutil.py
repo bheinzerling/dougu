@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from embeddingutil import load_word2vec_file
+from .io import load_word2vec_file
 
 
 # fix inconsistencies between cuda and non-cuda tensors when
