@@ -56,6 +56,7 @@ def to_word_indexes(tokens, keyed_vectors, unk=None, fallback_transform=None):
     """Look up embedding indexes for tokens."""
     if fallback_transform:
         assert unk
+        unk = keyed_vectors.vocab[unk]
         return [
             keyed_vectors.vocab.get(
                 token,
