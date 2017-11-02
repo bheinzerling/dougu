@@ -52,3 +52,22 @@ class Results():
 
     def max(self, score_fun=lambda df: df.mean(1)):
         return float(score_fun(self.results).max())
+
+
+def get_and_increment_runid(file=Path("runid")):
+    try:
+        with file.open() as f:
+            runid = int(f.read()) + 1
+    except FileNotFoundError:
+        runid = 0
+    with file.open("w") as out:
+        out.write(str(runid))
+    return runid
+
+def next_rundir(basedir, runid_fn="runid", log=None):
+    runid = get_and_increment_runid(basedir / runid_fn)
+    rundir = basedir / str(runid)
+    rundir.mkdir(exist_ok=True, parents=True)
+    if log:
+        log.info(f"rundir: {rundir}")
+    return rundir

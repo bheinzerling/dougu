@@ -3,7 +3,6 @@ from collections import Counter
 
 import numpy as np
 from sklearn.preprocessing import LabelEncoder as _LabelEncoder, LabelBinarizer
-from torch import LongTensor
 
 import dougu.torchutil
 
@@ -135,9 +134,11 @@ class LabelEncoder(object):
 
     def fit(self, labels):
         self.label_enc = _LabelEncoder().fit(labels)
+        self.labels = self.label_enc.classes_
+        self.nlabels = len(self.labels)
         return self
 
-    def transform_idx(self, labels):
+    def transform(self, labels):
         if isinstance(labels, str):
             labels = [labels]
         if self.to_torch:
@@ -146,13 +147,13 @@ class LabelEncoder(object):
             bs = 1000000
             for i in range(0, len(labels), bs):
                 labels_enc = self.label_enc.transform(labels[i:i+bs])
-                tensors.append(LongTensor(labels_enc))
+                tensors.append(torch.LongTensor(labels_enc))
             return torch.cat(tensors).cuda()
             # return torch.from_numpy(labels_enc).long().cuda()
         else:
             return self.label_enc.transform(labels)
 
-    def inverse_transform_idx(self, idx):
+    def inverse_transform(self, idx):
         return self.label_enc.inverse_transform(idx)
 
 

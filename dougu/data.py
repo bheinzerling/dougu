@@ -27,7 +27,8 @@ class BatchedByLength():
         self.Xy = Xy
         self.batch_size = batch_size
         if return_X_tensors or return_y_tensors:
-            import torch  # NOQA
+            import torch
+            self.stack = torch.stack
         self.return_X_tensors = return_X_tensors
         self.return_y_tensors = return_y_tensors
         self.batch_first = batch_first
@@ -59,11 +60,11 @@ class BatchedByLength():
         except:
             raise IndexError
         if self.return_X_tensors:
-            X_batch = torch.stack(X_batch, 1)
+            X_batch = self.stack(X_batch, 1)
             if self.batch_first:
                 X_batch = X_batch.transpose(0, 1)
         if self.return_y_tensors:
-            y_batch = torch.stack(y_batch, dim=1)
+            y_batch = self.stack(y_batch, dim=1)
             if self.batch_first:
                 y_batch = y_batch.transpose(0, 1)
         if rest:
@@ -197,3 +198,34 @@ def classification_report(y_true, y_pred, labels=None, target_names=None,
     values += ['{0}'.format(np.sum(s))]
     report += fmt % tuple(values)
     return report
+
+
+def print_cm(
+        cm, labels,
+        percent=False,
+        hide_zeroes=True, hide_diagonal=False, hide_threshold=None):
+    """pretty print for confusion matrixes"""
+    columnwidth = max([len(x) for x in labels] + [5])  # 5 is value length
+    total = cm.sum()
+    empty_cell = " " * columnwidth
+    # Print header
+    print("    " + empty_cell, end=" ")
+    for label in labels:
+        print("%{0}s".format(columnwidth) % label, end=" ")
+    print()
+    # Print rows
+    for i, label1 in enumerate(labels):
+        print("    %{0}s".format(columnwidth) % label1, end=" ")
+        for j in range(len(labels)):
+            if percent:
+                cell = "%{0}.1f".format(columnwidth) % (cm[i, j] / total * 100)
+            else:
+                cell = "%{0}d".format(columnwidth) % cm[i, j]
+            if hide_zeroes:
+                cell = cell if float(cm[i, j]) != 0 else empty_cell
+            if hide_diagonal:
+                cell = cell if i != j else empty_cell
+            if hide_threshold:
+                cell = cell if cm[i, j] > hide_threshold else empty_cell
+            print(cell, end=" ")
+        print()

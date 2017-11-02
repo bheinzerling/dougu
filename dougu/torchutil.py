@@ -3,6 +3,9 @@ from collections import defaultdict
 
 import numpy as np
 import torch
+from torch import nn
+
+from .io import load_word2vec_file
 
 
 # fix inconsistencies between cuda and non-cuda tensors when
@@ -18,10 +21,70 @@ if torch.cuda.is_available():
 
     def Tensor(*args, **kwargs):
         if isinstance(args[0], np.ndarray):
-            return torch.from_numpy(args[0]).cuda()
+            return torch.from_numpy(args[0]).cuda().float()
         return FloatTensor
 else:
-    from torch import Tensor, LongTensor
+    from torch import Tensor, LongTensor  # NOQA
+
+
+class LengthBatcher():
+    def __init__(
+            self, X, Y=None, batch_size=100, get_len=lambda x: x[1] - x[0]):
+        self.X = X
+        self.Y = Y
+        self.batch_size = batch_size
+        len2idxs = defaultdict(list)
+        for idx in range(len(X)):
+            len2idxs[get_len(X[idx])].append(idx)
+        self.len2idxs = {l: LongTensor(idxs) for l, idxs in len2idxs.items()}
+        self.lengths = np.array(list(self.len2idxs.keys()))
+
+    def __iter__(self):
+        if torch.cuda.is_available():
+            if self.Y is not None:
+                yield from self.iter_XY()
+            else:
+                yield from self.iter_X()
+        else:
+            if self.Y is not None:
+                yield from self.iter_XY_cpu()
+            else:
+                yield from self.iter_X_cpu()
+
+    def iter_XY(self):
+        np.random.shuffle(self.lengths)
+        for length in self.lengths:
+            idxs = self.len2idxs[length]
+            shuf_idxs = torch.randperm(idxs.shape[0]).cuda()
+            for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
+                yield self.X[batch_idxs], self.Y[batch_idxs]
+
+    def iter_X(self):
+        np.random.shuffle(self.lengths)
+        for length in self.lengths:
+            idxs = self.len2idxs[length]
+            shuf_idxs = torch.randperm(idxs.shape[0]).cuda()
+            for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
+                yield self.X[batch_idxs]
+
+    def iter_XY_cpu(self):
+        np.random.shuffle(self.lengths)
+        for length in self.lengths:
+            idxs = self.len2idxs[length]
+            shuf_idxs = torch.randperm(idxs.shape[0])
+            for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
+                yield self.X[batch_idxs], self.Y[batch_idxs]
+
+    def iter_X_cpu(self):
+        np.random.shuffle(self.lengths)
+        for length in self.lengths:
+            idxs = self.len2idxs[length]
+            shuf_idxs = torch.randperm(idxs.shape[0])
+            for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
+                yield self.X[batch_idxs]
+
+    def print_stats(self):
+        pprint({l: idxs.shape[0] for l, idxs in self.len2idxs.items()})
 
 
 def save_model(model, model_file, log=None):
@@ -35,26 +98,13 @@ def save_model(model, model_file, log=None):
         log.info("saved %s", model_file)
 
 
-class LengthBatcher():
-    def __init__(self, X, Y, batch_size, get_len=lambda x: x[1] - x[0]):
-        self.X = X
-        self.Y = Y
-        self.batch_size = batch_size
-        len2idxs = defaultdict(list)
-        for idx in range(len(X)):
-            len2idxs[get_len(X[idx])].append(idx)
-        self.len2idxs = {l: LongTensor(idxs) for l, idxs in len2idxs.items()}
-        self.lengths = np.array(list(self.len2idxs.keys()))
+def load_model(model, model_file):
+    model.load_state_dict(torch.load(model_file))
 
-    def __iter__(self):
-        np.random.shuffle(self.lengths)
-        for length in self.lengths:
-            idxs = self.len2idxs[length]
-            shuf_idxs = torch.randperm(idxs.shape[0])
-            if torch.cuda.is_available():
-                shuf_idxs.cuda()
-            for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
-                yield self.X[batch_idxs], self.Y[batch_idxs]
 
-    def print_stats(self):
-        pprint({l: idxs.shape[0] for l, idxs in self.len2idxs.items()})
+def emb_layer(keyed_vectors, backprop=False):
+    emb_weights = Tensor(keyed_vectors.syn0)
+    emb = nn.Embedding(*emb_weights.shape)
+    emb.weight = nn.Parameter(emb_weights)
+    emb.weight.requires_grad = backprop
+    return emb
