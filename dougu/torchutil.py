@@ -21,7 +21,7 @@ if torch.cuda.is_available():
 
     def Tensor(*args, **kwargs):
         if isinstance(args[0], np.ndarray):
-            return torch.from_numpy(args[0]).cuda()
+            return torch.from_numpy(args[0]).cuda().float()
         return FloatTensor
 else:
     from torch import Tensor, LongTensor  # NOQA
