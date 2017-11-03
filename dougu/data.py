@@ -206,7 +206,7 @@ def print_cm(
         hide_zeroes=True, hide_diagonal=False, hide_threshold=None):
     """pretty print for confusion matrixes"""
     columnwidth = max([len(x) for x in labels] + [5])  # 5 is value length
-    total = cm.sum()
+    total = cm.sum(axis=1)
     empty_cell = " " * columnwidth
     # Print header
     print("    " + empty_cell, end=" ")
@@ -218,7 +218,8 @@ def print_cm(
         print("    %{0}s".format(columnwidth) % label1, end=" ")
         for j in range(len(labels)):
             if percent:
-                cell = "%{0}.1f".format(columnwidth) % (cm[i, j] / total * 100)
+                cell = "%{0}.1f".format(columnwidth) % (
+                    cm[i, j] / total[i] * 100)
             else:
                 cell = "%{0}d".format(columnwidth) % cm[i, j]
             if hide_zeroes:
