@@ -122,12 +122,6 @@ def mu_postproc(V, D=1):
 
 
 def plot_emb(emb, n=1000):
-    import matplotlib.pylab as plt
-    fig = plt.figure(figsize=(100, 100))
-    ax = fig.add_subplot(1,1,1)
-    ax.set_aspect('equal')
+    from .plot import simple_imshow
     mask = np.random.choice(np.arange(emb.syn0.shape[0]), n)
-    im = plt.imshow(emb.syn0[mask].transpose(), interpolation='nearest', cmap="hot")
-    add_colorbar(im)
-    plt.tight_layout()
-    plt.show()
+    simple_imshow(emb.syn0[mask].transpose())

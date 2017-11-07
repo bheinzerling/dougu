@@ -96,6 +96,17 @@ def add_colorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
     return im.axes.figure.colorbar(im, cax=cax, **kwargs)
 
 
+def simple_imshow(matrix, cmap="hot"):
+    import matplotlib.pylab as plt
+    fig = plt.figure(figsize=(100, 100))
+    ax = fig.add_subplot(1,1,1)
+    ax.set_aspect('equal')
+    im = plt.imshow(matrix, interpolation='nearest', cmap="hot")
+    add_colorbar(im)
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     plot_attention(
         "1 2 3 4".split(),
