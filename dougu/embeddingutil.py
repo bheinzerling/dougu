@@ -1,7 +1,36 @@
 from collections import Counter
+import logging
 
 import numpy as np
 from sklearn.decomposition import PCA
+
+from .plot import add_colorbar
+
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+
+
+def load_word2vec_file(
+        word2vec_file,
+        weights_file=None, normalize=False, add_unk=False, unk="<unk>"):
+    """Load a word2vec file in either text or bin format, optionally
+    supplying custom embedding weights and normalizing embeddings."""
+    from gensim.models import KeyedVectors
+    binary = word2vec_file.endswith(".bin")
+    log.info("loading %s", word2vec_file)
+    vecs = KeyedVectors.load_word2vec_format(word2vec_file, binary=binary)
+    if add_unk:
+        if unk not in vecs:
+            add_unk_embedding(vecs)
+    if weights_file:
+        import torch
+        weights = torch.load(weights_file)
+        vecs.syn0 = weights.cpu().float().numpy()
+    if normalize:
+        log.info("normalizing %s", word2vec_file)
+        vecs.init_sims(replace=True)
+    return vecs
 
 
 def get_emb_dim(emb):
@@ -52,7 +81,9 @@ def unk_emb_stats(sentences, emb):
     return stats
 
 
-def to_word_indexes(tokens, keyed_vectors, unk=None, fallback_transform=None):
+def to_word_indexes(
+        tokens, keyed_vectors,
+        unk=None, fallback_transform=None, add_unk=False):
     """Look up embedding indexes for tokens."""
     if fallback_transform:
         assert unk
@@ -88,3 +119,15 @@ def mu_postproc(V, D=1):
     for i in range(D):
         s += np.repeat((pca.components_[i] * V_).sum(1)[:, None], V.shape[1], 1) * pca.components_[i]
     return V_ - s
+
+
+def plot_emb(emb, n=1000):
+    import matplotlib.pylab as plt
+    fig = plt.figure(figsize=(100, 100))
+    ax = fig.add_subplot(1,1,1)
+    ax.set_aspect('equal')
+    mask = np.random.choice(np.arange(emb.syn0.shape[0]), n)
+    im = plt.imshow(emb.syn0[mask].transpose(), interpolation='nearest', cmap="hot")
+    add_colorbar(im)
+    plt.tight_layout()
+    plt.show()
