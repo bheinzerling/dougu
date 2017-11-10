@@ -114,6 +114,7 @@ class MultiNgramCodec(object):
     def fit(self, strings):
         for codec in self.order2codec.values():
             codec.fit(strings)
+        return self
 
     def transform(self, strings):
         return {
