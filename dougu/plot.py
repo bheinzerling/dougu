@@ -101,7 +101,7 @@ def simple_imshow(matrix, cmap="hot"):
     fig = plt.figure(figsize=(100, 100))
     ax = fig.add_subplot(1,1,1)
     ax.set_aspect('equal')
-    im = plt.imshow(matrix, interpolation='nearest', cmap="hot")
+    im = plt.imshow(matrix, interpolation='nearest', cmap=cmap)
     add_colorbar(im)
     plt.tight_layout()
     plt.show()
