@@ -34,23 +34,6 @@ def jsonlines_load(jsonlines_file, max=None):
     yield from map(json.loads, lines(jsonlines_file, max))
 
 
-def load_word2vec_file(word2vec_file, weights_file=None, normalize=False):
-    """Load a word2vec file in either text or bin format, optionally
-    supplying custom embedding weights and normalizing embeddings."""
-    from gensim.models import KeyedVectors
-    binary = word2vec_file.endswith(".bin")
-    log.info("loading %s", word2vec_file)
-    vecs = KeyedVectors.load_word2vec_format(word2vec_file, binary=binary)
-    if weights_file:
-        import torch
-        weights = torch.load(weights_file)
-        vecs.syn0 = weights.cpu().float().numpy()
-    if normalize:
-        log.info("normalizing %s", word2vec_file)
-        vecs.init_sims(replace=True)
-    return vecs
-
-
 def lines(file, max=None):
     """Iterate over stripped lines in (text) file."""
     file = to_path(file)
