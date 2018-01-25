@@ -1,6 +1,14 @@
 import re
 import random
 
+try:
+    from colorama import Fore, Style
+    red = Fore.RED
+    green = Fore.GREEN
+    reset = Style.RESET_ALL
+except ImportError:
+    red = green = reset = ""
+
 
 re_digit = re.compile("\d")
 re_http_url = re.compile(r"https?:\/\/[^ ]*")
@@ -67,6 +75,12 @@ def augment(strings, augment_funcs=None):
         for f, times in augment_funcs:
             for _ in range(times):
                 yield f(s)
+
+
+def yesno_mark(cond):
+    if cond:
+        return f"{green}✓{reset}"
+    return f"{red}✗{reset}"
 
 
 if __name__ == "__main__":
