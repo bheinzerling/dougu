@@ -1,13 +1,17 @@
 import re
 import random
 
+import numpy as np
+
 try:
-    from colorama import Fore, Style
+    from colorama import Fore, Back, Style
     red = Fore.RED
     green = Fore.GREEN
     reset = Style.RESET_ALL
+    weight_colors = True
 except ImportError:
     red = green = reset = ""
+    weight_colors = False
 
 
 re_digit = re.compile("\d")
@@ -83,7 +87,48 @@ def yesno_mark(cond):
     return f"{red}✗{reset}"
 
 
+def color_by_weight(tokens, weights, styles=None, thresholds=None):
+    """Return a string representing weights assigned to tokens via
+    background colors. Useful for visualizing neural attention
+    directly in the terminal window, e.g. during training.
+
+    The visualization styles for each weight range
+    are given as color and style flags from the colorama package. Weight
+    ranges can be specified as list of thresholds.
+
+    If the dependendy colorama is not installed,
+    show the weights instead."""
+    if not styles:
+        styles = [
+            Style.RESET_ALL,
+            Back.BLACK,
+            Back.BLUE + Fore.MAGENTA,
+            Back.RED + Fore.MAGENTA,
+            Back.RED]
+    if thresholds is None:
+        thresholds = np.array([0.0, 0.1, 0.3, 0.45, 0.6])
+
+    def get_style(weight):
+        diffs = weight - thresholds
+        return styles[len(diffs[diffs > 0]) - 1]
+
+    def styled(token, weight):
+        style = get_style(weight)
+        return f"{style}{token}{reset}"
+
+    if weight_colors:
+        return " ".join(map(
+            lambda t: styled(t[0], t[1]),
+            zip(tokens, weights)))
+    else:
+        return " ".join(map(
+            lambda t: f"{t[0]}|{t[1]:.2f}",
+            zip(tokens, weights)))
+
+
 if __name__ == "__main__":
-    s = "Muster Mark"
-    for a in augment([s]):
-        print(a)
+    tokens = "return a string representing weights assigned to tokens".split()
+    for _ in range(10):
+        energies = np.random.gamma(2, 2, len(tokens))
+        attn = np.exp(energies) / np.sum(np.exp(energies), axis=0)
+        print(color_by_weight(tokens, attn))
