@@ -1,3 +1,4 @@
+import random
 import numpy as np
 
 
@@ -23,6 +24,13 @@ def split_by_ratios(items, *ratios):
     return [
         items[split_idxs[i]:split_idxs[i+1]]
         for i in range(len(split_idxs) - 1)]
+
+
+def random_split_by_ratios(items, *ratios, inplace_shuffle=False):
+    if not inplace_shuffle:
+        items = list(items)
+    random.shuffle(items)
+    return split_by_ratios(items, *ratios)
 
 
 if __name__ == "__main__":
