@@ -3,7 +3,7 @@ from .corenlp import *
 from .data import *
 from .decorators import *
 from .io import *
-from .lists import *
+from .iters import *
 from .misc import *
 from .strings import *
 from .embeddingutil import *

@@ -1,4 +1,5 @@
 import random
+from itertools import tee
 import numpy as np
 
 
@@ -31,6 +32,25 @@ def random_split_by_ratios(items, *ratios, inplace_shuffle=False):
         items = list(items)
     random.shuffle(items)
     return split_by_ratios(items, *ratios)
+
+
+def unordered_pairs(iterable):
+    """Yield all unordered pairs of items in iterable.
+
+    >>> list(unordered_pairs([1, 2, 3]))
+    [(1, 2), (1, 3), (2, 3)]
+    """
+    aa, bb = tee(iterable)
+    try:
+        next(bb)  # advance because we won't pair items with themselves
+        for a in aa:
+            bb, bb_copy = tee(bb)
+            for b in bb:
+                yield a, b
+            bb = bb_copy
+            next(bb)
+    except StopIteration:
+        return
 
 
 if __name__ == "__main__":
