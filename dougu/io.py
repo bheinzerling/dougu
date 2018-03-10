@@ -3,6 +3,8 @@ import logging
 from pathlib import Path
 from itertools import islice
 
+from smart_open import smart_open
+
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -16,15 +18,13 @@ def to_path(maybe_str):
 
 def json_load(json_file):
     """Load object from json file."""
-    json_file = to_path(json_file)
-    with json_file.open(encoding="utf8") as f:
+    with to_path(json_file).open(encoding="utf8") as f:
         return json.load(f)
 
 
 def json_dump(obj, json_file):
     """Dump obj to json file."""
-    json_file = to_path(json_file)
-    with json_file.open("w", encoding="utf8") as out:
+    with smart_open(json_file, "w", encoding="utf8") as out:
         json.dump(obj, out)
 
 
@@ -36,10 +36,15 @@ def jsonlines_load(jsonlines_file, max=None):
 
 def lines(file, max=None):
     """Iterate over stripped lines in (text) file."""
-    file = to_path(file)
-    with file.open(encoding="utf8") as f:
+    with smart_open(str(file), encoding="utf8") as f:
         for line in islice(f, 0, max):
             yield line.strip()
+
+
+def write_str(string, file, encoding="utf8"):
+    """Write string to file."""
+    with smart_open(str(file), "w", encoding=encoding) as out:
+        out.write(string)
 
 
 def deserialize_protobuf_instances(cls, protobuf_file, max_bytes=None):
@@ -60,5 +65,12 @@ def deserialize_protobuf_instances(cls, protobuf_file, max_bytes=None):
 
 def dump_args(args, file):
     """Write argparse args to file."""
-    with file.open("w", encoding="utf8") as out:
+    with to_path(file).open("w", encoding="utf8") as out:
         json.dump({k: str(v) for k, v in args.__dict__.items()}, out, indent=4)
+
+
+def sentencepiece_load(file):
+    from sentencepiece import SentencePieceProcessor
+    spm = SentencePieceProcessor()
+    spm.Load(str(file))
+    return spm
