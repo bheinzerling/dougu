@@ -1,13 +1,5 @@
 import json
-import logging
 from pathlib import Path
-from itertools import islice
-
-from smart_open import smart_open
-
-
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
 
 
 def to_path(maybe_str):
@@ -24,26 +16,48 @@ def json_load(json_file):
 
 def json_dump(obj, json_file):
     """Dump obj to json file."""
-    with smart_open(json_file, "w", encoding="utf8") as out:
+    with json_file.open("w", encoding="utf8") as out:
         json.dump(obj, out)
 
 
-def jsonlines_load(jsonlines_file, max=None):
+def jsonlines_load(jsonlines_file, max=None, skip=None):
     """Load objects from json lines file, i.e. a file with one
     serialized object per line."""
-    yield from map(json.loads, lines(jsonlines_file, max))
+    yield from map(json.loads, lines(jsonlines_file, max=max, skip=skip))
 
 
-def lines(file, max=None):
+def lines(file, max=None, skip=0):
     """Iterate over stripped lines in (text) file."""
-    with smart_open(str(file), encoding="utf8") as f:
-        for line in islice(f, 0, max):
+    from itertools import islice
+    try:
+        from smart_open import smart_open as open
+    except ImportError:
+        pass
+    with open(str(file), encoding="utf8") as f:
+        for line in islice(f, skip, max):
             yield line.strip()
+
+
+def dict_load(file, max=None, skip=0, splitter=None):
+    """Load a dictionary from a text file containing one key-value
+    pair per line."""
+    if splitter is not None:
+        if isinstance(splitter, (str, bytes)):
+            def split(s): s.split(splitter)
+        else:
+            split = splitter
+    else:
+        split = str.split
+    return dict(map(split, lines(file, max=max, skip=skip)))
 
 
 def write_str(string, file, encoding="utf8"):
     """Write string to file."""
-    with smart_open(str(file), "w", encoding=encoding) as out:
+    try:
+        from smart_open import smart_open as open
+    except ImportError:
+        pass
+    with open(str(file), "w", encoding=encoding) as out:
         out.write(string)
 
 
@@ -69,7 +83,15 @@ def dump_args(args, file):
         json.dump({k: str(v) for k, v in args.__dict__.items()}, out, indent=4)
 
 
+def mkdir(dir, parents=True, exist_ok=True):
+    """Convenience function for Path.mkdir"""
+    dir = to_path(dir)
+    dir.mkdir(parents=parents, exist_ok=exist_ok)
+    return dir
+
+
 def sentencepiece_load(file):
+    """Load a SentencePiece model"""
     from sentencepiece import SentencePieceProcessor
     spm = SentencePieceProcessor()
     spm.Load(str(file))

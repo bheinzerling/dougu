@@ -1,9 +1,4 @@
-from collections import Counter
 import logging
-
-import numpy as np
-from sklearn.decomposition import PCA
-
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -41,6 +36,8 @@ def unk_emb_stats(sentences, emb):
     emb can be gensim KeyedVectors or any other object implementing
     __contains__
     """
+    from collections import Counter
+
     stats = {
         "sents": 0,
         "tokens": 0,
@@ -95,17 +92,29 @@ def to_word_indexes(tokens, keyed_vectors, unk=None, fallback_transform=None):
     return [keyed_vectors.vocab.get(token, unk).index for token in tokens]
 
 
-def add_unk_embedding(keyed_vectors, unk_str="<unk>", init=np.zeros):
-    """Add a vocab entry and embedding for unknown words to keyed_vectors."""
+def add_embeddings(keyed_vectors, *words, init=None):
+    import numpy as np
     from gensim.models.keyedvectors import Vocab
+    if init is None:
+        init = np.zeros
     syn0 = keyed_vectors.syn0
-    keyed_vectors.vocab[unk_str] = Vocab(count=0, index=syn0.shape[0])
-    keyed_vectors.syn0 = np.concatenate([syn0, init((1, syn0.shape[1]))])
-    keyed_vectors.index2word.append(unk_str)
+    for word in words:
+        keyed_vectors.vocab[word] = Vocab(count=0, index=syn0.shape[0])
+        keyed_vectors.syn0 = np.concatenate([syn0, init((1, syn0.shape[1]))])
+        keyed_vectors.index2word.append(word)
+    return syn0.shape[0]
+
+
+def add_unk_embedding(keyed_vectors, unk_str="<unk>", init=None):
+    """Add a vocab entry and embedding for unknown words to keyed_vectors."""
+    add_embeddings(keyed_vectors, unk_str, init)
 
 
 def mu_postproc(V, D=1):
     """algorithm 1, https://arxiv.org/pdf/1702.01417.pdf"""
+    import numpy as np
+    from sklearn.decomposition import PCA
+
     assert D >= 1
     V_ = V - V.mean(0)
     pca = PCA()
@@ -114,11 +123,14 @@ def mu_postproc(V, D=1):
     print(pca.components_.shape)
     s = np.zeros(V.shape)
     for i in range(D):
-        s += np.repeat((pca.components_[i] * V_).sum(1)[:, None], V.shape[1], 1) * pca.components_[i]
+        s += np.repeat(
+            (pca.components_[i] * V_).sum(1)[:, None], V.shape[1], 1) * \
+                    pca.components_[i]
     return V_ - s
 
 
 def plot_emb(emb, n=1000):
+    import numpy as np
     from .plot import simple_imshow
     mask = np.random.choice(np.arange(emb.syn0.shape[0]), n)
     simple_imshow(emb.syn0[mask].transpose())

@@ -1,8 +1,6 @@
 import re
 import random
 
-import numpy as np
-
 try:
     from colorama import Fore, Back, Style
     red = Fore.RED
@@ -98,6 +96,7 @@ def color_by_weight(tokens, weights, styles=None, thresholds=None):
 
     If the dependendy colorama is not installed,
     show the weights instead."""
+    import numpy as np
     if not styles:
         styles = [
             Style.RESET_ALL,
@@ -127,6 +126,7 @@ def color_by_weight(tokens, weights, styles=None, thresholds=None):
 
 
 if __name__ == "__main__":
+    import numpy as np
     tokens = "return a string representing weights assigned to tokens".split()
     for _ in range(10):
         energies = np.random.gamma(2, 2, len(tokens))

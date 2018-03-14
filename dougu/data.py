@@ -1,99 +1,10 @@
-from collections import defaultdict
-import random
-from pprint import pprint
-
-import numpy as np
-from sklearn.metrics import precision_recall_fscore_support
-from sklearn.utils.multiclass import unique_labels
-
-
-class BatchedByLength():
-    """Batch Xy by length, optionally using the get_len function
-    to determine the length of X instances."""
-    def __init__(
-            self,
-            Xy,
-            batch_size,
-            keep_leftovers=False,
-            get_len=len,
-            return_X_tensors=False,
-            return_y_tensors=False,
-            batch_first=False,
-            shuffle=False
-            ):
-
-        if keep_leftovers:
-            raise NotImplementedError("TODO: keep_leftovers")
-        self.Xy = Xy
-        self.batch_size = batch_size
-        if return_X_tensors or return_y_tensors:
-            import torch
-            self.stack = torch.stack
-        self.return_X_tensors = return_X_tensors
-        self.return_y_tensors = return_y_tensors
-        self.batch_first = batch_first
-        self.shuffle = shuffle
-
-        self.len2Xy = defaultdict(list)
-        for inst in self.Xy:
-            X = inst[0]
-            self.len2Xy[get_len(X)].append(inst)
-        self.Xy_batched = []
-        if keep_leftovers:
-            self.Xy_leftovers = []
-        for l in sorted(self.len2Xy.keys()):
-            Xy_l = self.len2Xy[l]
-            # crop to fit batch_size
-            too_many = len(Xy_l) % batch_size
-            Xy_l = Xy_l[:-too_many or None]
-            self.Xy_batched.extend(Xy_l)
-            if keep_leftovers:
-                Xy_leftover = Xy_l[-too_many:]
-                if Xy_leftover:
-                    self.Xy_leftovers.extend(Xy_leftover)
-
-    def __getitem__(self, index):
-        index = index * self.batch_size
-        batch = self.Xy_batched[index:index + self.batch_size]
-        try:
-            X_batch, y_batch, *rest = zip(*batch)
-        except:
-            raise IndexError
-        if self.return_X_tensors:
-            X_batch = self.stack(X_batch, 1)
-            if self.batch_first:
-                X_batch = X_batch.transpose(0, 1)
-        if self.return_y_tensors:
-            y_batch = self.stack(y_batch, dim=1)
-            if self.batch_first:
-                y_batch = y_batch.transpose(0, 1)
-        if rest:
-            return X_batch, y_batch, rest
-        return X_batch, y_batch
-
-    def __len__(self):
-        assert len(self.Xy_batched) % self.batch_size == 0
-        n_batches = int(len(self.Xy_batched) / self.batch_size) - 1
-        return n_batches
-
-    def __iter__(self):
-        idxs = range(len(self))
-        if self.shuffle:
-            idxs = list(idxs)
-            random.shuffle(idxs)
-        for i in idxs:
-            yield self[i]
-
-    @property
-    def stats(self):
-        return {
-            l: len(self.len2Xy[l]) for l in sorted(self.len2Xy.keys())}
 
 
 # https://github.com/scikit-learn/scikit-learn/blob/ab93d65/sklearn/metrics/classification.py  # NOQA
 # slightly modified to report weighted, macro, and micro averages in one go.
-def classification_report(y_true, y_pred, labels=None, target_names=None,
-                          sample_weight=None, digits=2):
+def classification_report(
+        y_true, y_pred, labels=None, target_names=None,
+        sample_weight=None, digits=2):
     """Build a text report showing the main classification metrics
     Read more in the :ref:`User Guide <classification_report>`.
     Parameters
@@ -130,6 +41,10 @@ def classification_report(y_true, y_pred, labels=None, target_names=None,
     avg / total       0.70      0.60      0.61         5
     <BLANKLINE>
     """
+
+    import numpy as np
+    from sklearn.metrics import precision_recall_fscore_support
+    from sklearn.utils.multiclass import unique_labels
 
     if labels is None:
         labels = unique_labels(y_true, y_pred)

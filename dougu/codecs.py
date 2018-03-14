@@ -1,21 +1,5 @@
-import logging
-from collections import Counter
-
 import numpy as np
-from sklearn.preprocessing import LabelEncoder as _LabelEncoder, LabelBinarizer
-
 import dougu.torchutil
-
-
-__all__ = [
-    "NgramCodec",
-    "MultiNgramCodec",
-    "LabelEncoder",
-    "LabelOneHotEncoder"]
-
-
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
 
 
 class NgramCodec(object):
@@ -26,7 +10,8 @@ class NgramCodec(object):
             vocab_size,
             left_pad_symbol="<^>",
             right_pad_symbol="<$>",
-            unk_symbol="<unk>"):
+            unk_symbol="<unk>",
+            log=None):
 
         self.order = order
         self.vocab_size = vocab_size
@@ -43,14 +28,19 @@ class NgramCodec(object):
         self.pad_len_left = 1 if left_pad_symbol else 0
         self.pad_len_right = 1 if right_pad_symbol else 0
         self.vocab_size = vocab_size + len(self.special_symbols)
-        log.info(
-            "ngram order: %s. ngram vocab size: %s. special symbols %s",
-            order, vocab_size, self.special_symbols)
+        self.log = log
+        if self.log:
+            self.log.info(
+                "ngram order: %s. ngram vocab size: %s. special symbols %s",
+                order, vocab_size, self.special_symbols)
 
     def fit(self, strings):
+        from collections import Counter
         if isinstance(strings, str):
-            if len(strings) < 100:
-                log.warn("Fitting a single short string. Is this intended?")
+            if self.log:
+                if len(strings) < 100:
+                    self.log.warn(
+                        "Fitting a single short string. Is this intended?")
             strings = [strings]
         o = self.order
         ngrams = [
@@ -134,6 +124,7 @@ class LabelEncoder(object):
         self.to_torch = to_torch
 
     def fit(self, labels):
+        from sklearn.preprocessing import LabelEncoder as _LabelEncoder
         self.label_enc = _LabelEncoder().fit(labels)
         self.labels = self.label_enc.classes_
         self.nlabels = len(self.labels)
@@ -166,6 +157,8 @@ class LabelOneHotEncoder(object):
         self.to_torch = to_torch
 
     def fit(self, labels):
+        from sklearn.preprocessing import (
+            LabelEncoder as _LabelEncoder, LabelBinarizer)
         self.label_enc = _LabelEncoder().fit(labels)
         labels_enc = self.label_enc.transform(labels)
         self.one_hot_enc = LabelBinarizer().fit(labels_enc)
