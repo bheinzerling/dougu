@@ -159,8 +159,8 @@ class Score():
     """
     def __init__(self, name, score_func, shuffle_baseline=False):
         self.name = name
-        self.current = None
-        self.best = 0
+        self.current = 0.0
+        self.best = 0.0
         self.best_model = None
         self.pred = []
         self.true = []
@@ -211,7 +211,7 @@ class Score():
 
     @property
     def best_str(self):
-        return f"{self.name}_{self.best_score:.4f}"
+        return f"{self.name}_{self.best:.4f}"
 
     @property
     def current_str(self):
@@ -272,7 +272,7 @@ def get_optim(args, model):
     if args.optim.lower() == "adam":
         return optim.Adam(params, lr=args.learning_rate)
     elif args.optim.lower() == "sgd":
-        return optim.SGD(params, lr=args.learning_rate, momentum=0.9)
+        return optim.SGD(params, lr=args.learning_rate, momentum=args.momentum)
     raise ValueError("Unknown optimizer: " + args.optim)
 
 

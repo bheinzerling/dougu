@@ -26,16 +26,17 @@ def jsonlines_load(jsonlines_file, max=None, skip=None):
     yield from map(json.loads, lines(jsonlines_file, max=max, skip=skip))
 
 
-def lines(file, max=None, skip=0):
+def lines(file, max=None, skip=0, apply_func=str.strip):
     """Iterate over stripped lines in (text) file."""
     from itertools import islice
-    try:
-        from smart_open import smart_open as open
-    except ImportError:
-        pass
-    with open(str(file), encoding="utf8") as f:
-        for line in islice(f, skip, max):
-            yield line.strip()
+    if apply_func:
+        with open(str(file), encoding="utf8") as f:
+            for line in islice(f, skip, max):
+                yield apply_func(line)
+    else:
+        with open(str(file), encoding="utf8") as f:
+            for line in islice(f, skip, max):
+                yield line
 
 
 def dict_load(file, max=None, skip=0, splitter=None):
@@ -53,10 +54,6 @@ def dict_load(file, max=None, skip=0, splitter=None):
 
 def write_str(string, file, encoding="utf8"):
     """Write string to file."""
-    try:
-        from smart_open import smart_open as open
-    except ImportError:
-        pass
     with open(str(file), "w", encoding=encoding) as out:
         out.write(string)
 
@@ -96,3 +93,14 @@ def sentencepiece_load(file):
     spm = SentencePieceProcessor()
     spm.Load(str(file))
     return spm
+
+
+# https://stackoverflow.com/a/27077437
+def cat(infiles, outfile, buffer_size=1024 * 1024 * 100):
+    """Concatenate infiles and write result to outfile, like Linux cat."""
+    import shutil
+
+    with outfile.open("wb") as out:
+        for infile in infiles:
+            with infile.open("rb") as f:
+                shutil.copyfileobj(f, out, buffer_size)

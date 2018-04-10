@@ -17,6 +17,7 @@ def hyperoptimize(rundir, space, ntrials=100, algo=tpe.suggest):
             try:
                 trials = joblib.load(rundir / "trials.pkl")
                 joblib.dump(trials, rundir / "trials.pkl.bak")
+                _delete_failed_trials(trials)
             except:
                 trials = Trials()
             for trial in range(len(trials), ntrials):
@@ -31,6 +32,14 @@ def hyperoptimize(rundir, space, ntrials=100, algo=tpe.suggest):
                 best_hparams = space_eval(space, best)
                 print(trial, "best", best_hparams)
                 json_dump(best_hparams, rundir / "best_hparams.json")
+            print("finished", ntrials, "trials")
         return wrapper
     return decorator
 
+
+def _delete_failed_trials(trials):
+    trials._dynamic_trials = [
+        trial
+        for trial in trials
+        if trial["result"]["status"] != STATUS_FAIL]
+    trials.refresh()

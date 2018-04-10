@@ -10,6 +10,7 @@ def load_word2vec_file(
     """Load a word2vec file in either text or bin format, optionally
     supplying custom embedding weights and normalizing embeddings."""
     from gensim.models import KeyedVectors
+    word2vec_file = str(word2vec_file)
     binary = word2vec_file.endswith(".bin")
     log.info("loading %s", word2vec_file)
     vecs = KeyedVectors.load_word2vec_format(word2vec_file, binary=binary)

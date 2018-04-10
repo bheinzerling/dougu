@@ -65,6 +65,14 @@ def to_from_idx(iterable, start_idx=0):
         for i, item in enumerate(iterable, start=start_idx))))
 
 
+def map_assert(assert_func, map_func, iterable):
+    """Assert that assert_func is True for all results of applying
+    map_func to iterable"""
+    for item in map(map_func, iterable):
+        assert assert_func(item), item
+        yield item
+
+
 if __name__ == "__main__":
     print(split_idxs_for_ratios(100, 0.6, 0.2))
     for split in split_by_ratios(list(range(100)), 0.6, 0.2):

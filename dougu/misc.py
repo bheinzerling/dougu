@@ -1,4 +1,5 @@
 from pathlib import Path
+from bisect import bisect
 
 
 def now_str():
@@ -91,3 +92,21 @@ def random_string(length=8, chars=None):
         chars = string.ascii_letters + string.digits
     import random
     return "".join(random.choices(chars, k=length))
+
+
+class Spans():
+    """Find span covering a given offset. Assumes non-overlapping spans"""
+    def __init__(self, spans):
+        self.spans = spans
+        self.starts, self.ends = zip(*spans)
+
+    def __contains__(self, offset):
+        s_idx = bisect(self.starts, offset)
+        e_idx = bisect(self.ends, offset)
+        return s_idx - e_idx == 1
+
+    def covering(self, offset):
+        s_idx = bisect(self.starts, offset)
+        e_idx = bisect(self.ends, offset)
+        if s_idx - e_idx == 1:
+            return self.spans[e_idx]
