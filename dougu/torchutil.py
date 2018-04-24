@@ -27,12 +27,23 @@ if torch.cuda.is_available():
 else:
     from torch import Tensor, LongTensor  # NOQA
 
-# if torch.cuda.is_available():
-#     from torch.cuda import FloatTensor, LongTensor
-#     Tensor = FloatTensor
-# else:
-#     from torch import Tensor, LongTensor  # NOQA
-#     FloatTensor = Tensor
+
+class TensorBatcher():
+    def __init__(self, X, Y=None, *, batch_size=64):
+        self.X = X
+        if Y is not None:
+            assert X.size(0) == Y.size(0)
+        self.Y = Y
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        b_idxs = torch.randperm(self.X.size(0)).cuda()
+        if self.Y is not None:
+            yield from zip(
+                self.X[b_idxs].split(self.batch_size),
+                self.Y[b_idxs].split(self.batch_size))
+        else:
+            yield from self.X[b_idxs].split(self.batch_size)
 
 
 class LengthBatcher():

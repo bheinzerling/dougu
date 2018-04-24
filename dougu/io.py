@@ -39,17 +39,33 @@ def lines(file, max=None, skip=0, apply_func=str.strip):
                 yield line
 
 
-def dict_load(file, max=None, skip=0, splitter=None):
+def dict_load(
+        file, max=None, skip=0, splitter=None, key_apply=None, value_apply=None):
     """Load a dictionary from a text file containing one key-value
     pair per line."""
     if splitter is not None:
         if isinstance(splitter, (str, bytes)):
-            def split(s): s.split(splitter)
+            def split(s):
+                return s.split(splitter)
         else:
             split = splitter
     else:
         split = str.split
-    return dict(map(split, lines(file, max=max, skip=skip)))
+    if key_apply is not None and value_apply is not None:
+        def kv(line):
+            parts = split(line)
+            return key_apply(parts[0]), value_apply(parts[1])
+    elif key_apply is not None:
+        def kv(line):
+            parts = split(line)
+            return key_apply(parts[0]), parts[1]
+    elif value_apply is not None:
+        def kv(line):
+            parts = split(line)
+            return parts[0], value_apply(parts[1])
+    else:
+        kv = split
+    return dict(map(kv, lines(file, max=max, skip=skip)))
 
 
 def write_str(string, file, encoding="utf8"):
