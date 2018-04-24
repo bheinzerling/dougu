@@ -148,6 +148,18 @@ class LabelEncoder(object):
     def inverse_transform(self, idx):
         return self.label_enc.inverse_transform(idx)
 
+    @staticmethod
+    def from_file(file, to_torch=False, save_to=None):
+        """Create LabelEncoder instance from file, which contains
+        one label per line. Optionally dump instance to save_to."""
+        from .io import lines
+        codec = LabelEncoder(to_torch)
+        codec.fit(list(lines(file)))
+        if save_to:
+            import joblib
+            joblib.dump(codec, save_to)
+        return codec
+
 
 class LabelOneHotEncoder(object):
     """Encodes and decodes labels. Decoding either from idx or one-hot
