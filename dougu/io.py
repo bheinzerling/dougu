@@ -16,7 +16,7 @@ def json_load(json_file):
 
 def json_dump(obj, json_file):
     """Dump obj to json file."""
-    with json_file.open("w", encoding="utf8") as out:
+    with to_path(json_file).open("w", encoding="utf8") as out:
         json.dump(obj, out)
 
 
@@ -40,7 +40,8 @@ def lines(file, max=None, skip=0, apply_func=str.strip):
 
 
 def dict_load(
-        file, max=None, skip=0, splitter=None, key_apply=None, value_apply=None):
+        file,
+        max=None, skip=0, splitter=None, key_apply=None, value_apply=None):
     """Load a dictionary from a text file containing one key-value
     pair per line."""
     if splitter is not None:

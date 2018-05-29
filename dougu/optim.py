@@ -14,6 +14,7 @@ def hyperoptimize(rundir, space, ntrials=100, algo=tpe.suggest):
     def decorator(function):
         @wraps(function)
         def wrapper(*args, **kwargs):
+            trials = Trials()
             try:
                 trials = joblib.load(rundir / "trials.pkl")
                 joblib.dump(trials, rundir / "trials.pkl.bak")
@@ -21,6 +22,7 @@ def hyperoptimize(rundir, space, ntrials=100, algo=tpe.suggest):
             except:
                 trials = Trials()
             for trial in range(len(trials), ntrials):
+                print("trial", trial, "of", ntrials)
                 best = fmin(
                     function,
                     space=space,

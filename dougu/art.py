@@ -31,7 +31,7 @@ def approximate_randomization_test(
     shuffled_was_at_least_as_high = 0
 
     for i in range(0, trials):
-        mask = (np.random.rand(scores.shape[0]) >= 0.5)
+        mask = np.random.rand(scores.shape[0]) >= 0.5
         mask = np.stack([mask, ~mask]).T
         pseudo_scores1 = scores[mask]
         pseudo_scores2 = scores[~mask]
