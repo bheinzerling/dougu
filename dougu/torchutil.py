@@ -5,45 +5,35 @@ import random
 
 import numpy as np
 import torch
-from torch import nn, optim
-from torch.tensor import _TensorBase
-from torch.autograd import Variable
-
-# fix inconsistencies between cuda and non-cuda tensors when
-# constructing from numpy arrays:
-# "tried to construct a tensor from a int sequence, but found an item of type numpy.int64"  # NOQA
-if torch.cuda.is_available():
-    from torch.cuda import FloatTensor, LongTensor as _LongTensor
-
-    def LongTensor(*args, **kwargs):
-        if isinstance(args[0], np.ndarray):
-            return torch.from_numpy(args[0]).cuda()
-        return _LongTensor(*args, **kwargs)
-
-    def Tensor(*args, **kwargs):
-        if isinstance(args[0], np.ndarray):
-            return torch.from_numpy(args[0]).cuda().float()
-        return FloatTensor
-else:
-    from torch import Tensor, LongTensor  # NOQA
+from torch import nn, optim, tensor
 
 
 class TensorBatcher():
-    def __init__(self, X, Y=None, *, batch_size=64):
+    def __init__(
+            self, X, Y=None, *, batch_size=64, shuffle=True):
         self.X = X
         if Y is not None:
             assert X.size(0) == Y.size(0)
         self.Y = Y
         self.batch_size = batch_size
+        self.shuffle = shuffle
 
     def __iter__(self):
-        b_idxs = torch.randperm(self.X.size(0)).cuda()
+        if self.shuffle:
+            get_idxs = torch.randperm
+        else:
+            get_idxs = torch.arange
+        b_idxs = get_idxs(self.X.size(0)).to(self.X.device)
         if self.Y is not None:
+            assert self.X.device == self.Y.device
             yield from zip(
                 self.X[b_idxs].split(self.batch_size),
                 self.Y[b_idxs].split(self.batch_size))
         else:
             yield from self.X[b_idxs].split(self.batch_size)
+
+    def __len__(self):
+        return (self.X.size(0) - 1) // self.batch_size + 1
 
 
 class LengthBatcher():
@@ -53,6 +43,9 @@ class LengthBatcher():
             start_ends=False, log=None):
         self.X = X
         self.Y = Y
+        self.device = self.X.device
+        if self.Y is not None:
+            assert self.X.device == self.Y.device
         self.batch_size = batch_size
         if start_ends:
             keys = X[:, 1] - X[:, 0]
@@ -61,7 +54,8 @@ class LengthBatcher():
             for idx in range(len(X)):
                 len2idxs[get_len(X[idx])].append(idx)
             self.len2idxs = {
-                l: LongTensor(idxs) for l, idxs in len2idxs.items()}
+                l: tensor(idxs, dtype=torch.int64, device=self.device)
+                for l, idxs in len2idxs.items()}
             self.lengths = np.array(list(self.len2idxs.keys()))
             self.multilen = self.lengths.ndim > 1
         else:
@@ -74,22 +68,16 @@ class LengthBatcher():
             log.info(f"{len(self)} batches. batch size: {self.batch_size}")
 
     def __iter__(self):
-        if torch.cuda.is_available():
-            if self.Y is not None:
-                if self.multilen:
-                    raise NotImplementedError
-                else:
-                    yield from self.iter_XY()
+        if self.Y is not None:
+            if self.multilen:
+                raise NotImplementedError
             else:
-                if self.multilen:
-                    yield from self.iter_X_multi()
-                else:
-                    yield from self.iter_X()
+                yield from self.iter_XY()
         else:
-            if self.Y is not None:
-                yield from self.iter_XY_cpu()
+            if self.multilen:
+                yield from self.iter_X_multi()
             else:
-                yield from self.iter_X_cpu()
+                yield from self.iter_X()
 
     def __len__(self):
         return sum(
@@ -100,7 +88,7 @@ class LengthBatcher():
         np.random.shuffle(self.lengths)
         for length in self.lengths:
             idxs = self.len2idxs[length]
-            shuf_idxs = torch.randperm(idxs.shape[0]).cuda()
+            shuf_idxs = torch.randperm(idxs.shape[0]).to(self.device)
             for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
                 yield self.X[batch_idxs], self.Y[batch_idxs]
 
@@ -108,7 +96,7 @@ class LengthBatcher():
         np.random.shuffle(self.lengths)
         for length in self.lengths:
             idxs = self.len2idxs[length]
-            shuf_idxs = torch.randperm(idxs.shape[0]).cuda()
+            shuf_idxs = torch.randperm(idxs.shape[0]).to(self.device)
             for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
                 yield self.X[batch_idxs]
 
@@ -116,28 +104,16 @@ class LengthBatcher():
         np.random.shuffle(self.lengths)
         for lengths in self.lengths:
             idxs = self.len2idxs[tuple(lengths)]
-            shuf_idxs = torch.randperm(idxs.shape[0]).cuda()
-            for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
-                yield self.X[batch_idxs]
-
-    def iter_XY_cpu(self):
-        np.random.shuffle(self.lengths)
-        for length in self.lengths:
-            idxs = self.len2idxs[length]
-            shuf_idxs = torch.randperm(idxs.shape[0])
-            for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
-                yield self.X[batch_idxs], self.Y[batch_idxs]
-
-    def iter_X_cpu(self):
-        np.random.shuffle(self.lengths)
-        for length in self.lengths:
-            idxs = self.len2idxs[length]
-            shuf_idxs = torch.randperm(idxs.shape[0])
+            shuf_idxs = torch.randperm(idxs.shape[0]).to(self.device)
             for batch_idxs in idxs[shuf_idxs].split(self.batch_size):
                 yield self.X[batch_idxs]
 
     def print_stats(self):
-        pprint({l: idxs.shape[0] for l, idxs in self.len2idxs.items()})
+        pprint(self.stats)
+
+    @property
+    def stats(self):
+        return {l: idxs.shape[0] for l, idxs in self.len2idxs.items()}
 
 
 def save_model(model, model_file, log=None):
@@ -156,7 +132,7 @@ def load_model(model, model_file):
 
 
 def emb_layer(keyed_vectors, trainable=False, use_weights=True, **kwargs):
-    emb_weights = Tensor(keyed_vectors.syn0)
+    emb_weights = tensor(keyed_vectors.syn0)
     emb = nn.Embedding(*emb_weights.shape, **kwargs)
     if use_weights:
         emb.weight = nn.Parameter(emb_weights)
@@ -181,10 +157,6 @@ class Score():
 
     def extend(self, pred, true):
         """append predicted and true labels"""
-        if isinstance(pred, Variable):
-            pred = pred.data
-        if isinstance(true, Variable):
-            true = true.data
         self.pred.extend(pred)
         self.true.extend(true)
 
@@ -235,11 +207,17 @@ class LossTracker(list):
         self.best_loss = defaultdict(lambda: float("inf"))
         self.best_model = None
 
-    def interval_end(self, model=None, model_file=None, ds_name=None):
+    def interval_end(
+            self, epoch=None, model=None, model_file=None, ds_name=None):
         loss = np.average(self)
+        print(loss, self.best_loss[ds_name])
         if loss < self.best_loss[ds_name]:
             self.best_loss[ds_name] = loss
             if model:
+                model_file = Path(str(model_file).format(
+                    epoch=epoch,
+                    ds_name=ds_name,
+                    loss=loss))
                 save_model(model, model_file)
                 self.best_model = model_file
         self.clear()
@@ -250,21 +228,27 @@ class LossTrackers():
     def __init__(self, *loss_trackers):
         self.loss_trackers = loss_trackers
 
-    def append_vars(self, *loss_vars):
-        for lt, loss_var in zip(self.loss_trackers, loss_vars):
-            lt.append(loss_var.data[0])
+    def append(self, *losses):
+        for lt, loss in zip(self.loss_trackers, losses):
+            lt.append(loss.item())
 
-    def interval_end(self, ds_name=None):
+    def interval_end(
+            self, *, epoch=None, model=None, model_file=None, ds_name=None):
         for lt in self.loss_trackers:
             yield (
                 lt.name,
-                lt.interval_end(ds_name=ds_name),
+                lt.interval_end(
+                    epoch=epoch,
+                    model=model, model_file=model_file, ds_name=ds_name),
                 lt.best_loss[ds_name])
 
-    def interval_end_log(self, epoch, ds_name):
+    def interval_end_log(
+            self, epoch, *, model=None, model_file=None, ds_name=None):
         print(f"e{epoch} {ds_name} " + " ".join(
             f"{name}_{loss:.4f}/{best:.4f}"
-            for name, loss, best in self.interval_end(ds_name)))
+            for name, loss, best in self.interval_end(
+                epoch=epoch,
+                model=model, model_file=model_file, ds_name=ds_name)))
 
     def best_log(self):
         print("best: " + " ".join(
@@ -277,6 +261,9 @@ class LossTrackers():
     def __iter__(self):
         return iter(self.loss_trackers)
 
+    def __getitem__(self, i):
+        return self.loss_trackers[i]
+
 
 def get_optim(args, model):
     params = [p for p in model.parameters() if p.requires_grad]
@@ -288,16 +275,6 @@ def get_optim(args, model):
 
 
 def scalar(tensor):
-    if isinstance(tensor, Variable):
-        tensor = tensor.data
     maybe_scalar = tensor.cpu().numpy()
     assert maybe_scalar.size == 1
     return maybe_scalar[0]
-
-
-def to_tensor(maybe_vars):
-    if isinstance(maybe_vars, _TensorBase):
-        return maybe_vars
-    if isinstance(maybe_vars, Variable):
-        return maybe_vars.data
-    return list(map(to_tensor, maybe_vars))
