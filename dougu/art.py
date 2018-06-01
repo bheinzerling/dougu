@@ -8,7 +8,7 @@ import numpy as np
 def approximate_randomization_test(
         scores1, scores2, agg=np.average, trials=10000):
     """Compute the statistical significance of a difference between
-    the syss via a paired two-sided approximate randomization test.
+    the systems via a paired two-sided approximate randomization test.
 
     Args:
         scores1: Scores of the first system under consideration.
@@ -19,7 +19,7 @@ def approximate_randomization_test(
     Returns:
         An approximation of the probability of observing corpus-wide
         differences in scores at least as extreme as observed here, when
-        there is no difference between the syss.
+        there is no difference between the systems.
     """
     if not isinstance(scores1, np.ndarray):
         scores1 = np.array(scores1)

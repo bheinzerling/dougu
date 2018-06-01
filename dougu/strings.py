@@ -79,8 +79,10 @@ def augment(strings, augment_funcs=None):
                 yield f(s)
 
 
-def yesno_mark(cond):
-    if cond:
+def yesno_mark(condition):
+    """Return a colored "yes" or "no" check mark depending
+    on wether condition is True or False"""
+    if condition:
         return f"{green}✓{reset}"
     return f"{red}✗{reset}"
 
