@@ -7,8 +7,12 @@ import numpy as np
 import torch
 from torch import nn, optim, tensor
 
+from .iters import flatten
+
 
 class TensorBatcher():
+    """Simple combination of a TensorDataset and a DataLoader, but
+    faster due to less overhead."""
     def __init__(
             self, X, Y=None, *, batch_size=64, shuffle=True):
         self.X = X
@@ -37,6 +41,11 @@ class TensorBatcher():
 
 
 class LengthBatcher():
+    """Splits variable-length instances in X and Y into batches,
+    according to their length. Instances in a batch have the same length,
+    as determined by get_len. Instances in different batches may have
+    different lengths."""
+
     def __init__(
             self, X, Y=None, batch_size=100,
             get_len=lambda x: x[1] - x[0], keys=None,
@@ -117,7 +126,7 @@ class LengthBatcher():
 
 
 def save_model(model, model_file, log=None):
-    """Save a pytorch model to model_file"""
+    """Save a pytorch model to model_file."""
     if isinstance(model_file, str):
         model_file = Path(model_file)
     model_file.parent.mkdir(parents=True, exist_ok=True)
@@ -128,10 +137,12 @@ def save_model(model, model_file, log=None):
 
 
 def load_model(model, model_file):
+    """Load model weights from model_file."""
     model.load_state_dict(torch.load(model_file))
 
 
 def emb_layer(keyed_vectors, trainable=False, use_weights=True, **kwargs):
+    """Create an Embedding layer from a gensim KeyedVectors instance."""
     emb_weights = tensor(keyed_vectors.syn0)
     emb = nn.Embedding(*emb_weights.shape, **kwargs)
     if use_weights:
@@ -144,26 +155,34 @@ class Score():
     """Keep track of a score computed by score_func, save model
     if score improves.
     """
-    def __init__(self, name, score_func, shuffle_baseline=False):
+    def __init__(
+            self, name, score_func=None, shuffle_baseline=False,
+            comp=float.__gt__):
         self.name = name
-        self.current = 0.0
-        self.best = 0.0
+        if comp == float.__lt__:
+            self.current = float("inf")
+            self.best = float("inf")
+        else:
+            self.current = 0.0
+            self.best = 0.0
         self.best_model = None
         self.pred = []
         self.true = []
         self.shuffle = []
         self.score_func = score_func
         self.shuffle_baseline = shuffle_baseline
+        self.comp = comp
 
     def extend(self, pred, true):
         """append predicted and true labels"""
         self.pred.extend(pred)
         self.true.extend(true)
 
-    def update(self, model=None, rundir=None, epoch=None):
-        score = self.score_func(self.true, self.pred)
+    def update(self, model=None, rundir=None, epoch=None, score=None):
+        if score is None:
+            score = self.score_func(self.true, self.pred)
         self.current_score = score
-        if score > self.best:
+        if self.comp(score, self.best):
             self.best = score
             if model:
                 assert rundir
@@ -181,9 +200,10 @@ class Score():
         self.pred = []
         return score, shuffle_score
 
-    def update_log(self, model=None, rundir=None, epoch=None, log=None):
+    def update_log(
+            self, model=None, rundir=None, epoch=None, score=None, log=None):
         score, shuffle_score = self.update(
-            model=model, rundir=rundir, epoch=epoch)
+            model=model, rundir=rundir, epoch=epoch, score=score)
         s = f"score {self.name}_{score:.4f}/{self.best:.4f}\n{self.best_model}"
         if shuffle_score is not None:
             s += f"\nshuffle {self.name}_{shuffle_score:.4f}"
@@ -202,6 +222,7 @@ class Score():
 
 
 class LossTracker(list):
+    """Keep track of losses, save model if loss improves."""
     def __init__(self, name):
         self.name = name
         self.best_loss = defaultdict(lambda: float("inf"))
@@ -225,6 +246,7 @@ class LossTracker(list):
 
 
 class LossTrackers():
+    """Keep track of multiple losses."""
     def __init__(self, *loss_trackers):
         self.loss_trackers = loss_trackers
 
@@ -266,6 +288,7 @@ class LossTrackers():
 
 
 def get_optim(args, model):
+    """Create an optimizer according to command line args."""
     params = [p for p in model.parameters() if p.requires_grad]
     if args.optim.lower() == "adam":
         return optim.Adam(params, lr=args.learning_rate)
@@ -274,7 +297,20 @@ def get_optim(args, model):
     raise ValueError("Unknown optimizer: " + args.optim)
 
 
-def scalar(tensor):
-    maybe_scalar = tensor.cpu().numpy()
-    assert maybe_scalar.size == 1
-    return maybe_scalar[0]
+def tensorize_varlen_items(
+        items, device="cuda",
+        item_dtype=torch.int64,
+        startends_dtype=torch.int64):
+    """Tensorize variable-length items, e.g. a list of sentences in,
+    a document with each sentence being a list of word indexes.
+    This is done by creating a 'store' vector which contains the items
+    in sequential order (e.g., word indexes as they occur in the document),
+    and a 'startends' tensor which contains the start and end offsets of
+    each item (e.g. the start and end offset of each sentence)."""
+    store = torch.tensor(list(flatten(items)), device=device, dtype=item_dtype)
+    lengths = list(map(len, items))
+    starts = np.cumsum([0] + lengths[:-1])
+    ends = np.cumsum(lengths)
+    startends = np.stack([starts, ends]).T
+    startends = torch.tensor(startends, device=device, dtype=startends_dtype)
+    return store, startends
