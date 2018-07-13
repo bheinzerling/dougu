@@ -4,16 +4,18 @@ if os.environ.get('DISPLAY') is None:  # NOQA
     mpl.use('Agg')  # NOQA
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib
 import itertools
 import numpy as np
+
+from pylab import rcParams
+rcParams['figure.figsize'] = (12, 12)
 
 
 # http://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#the-seq2seq-model  # NOQA
 def plot_attention(
         input_labels, output_labels, attentions,
         out_colors=None, filepath=None):
-    from pylab import rcParams
-    rcParams['figure.figsize'] = 16, 16
     # Set up figure with colorbar
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -52,8 +54,6 @@ def plot_confusion_matrix(
     """This function prints and plots the confusion matrix.
     Normalization can be applied by setting `normalize=True`.
     """
-    from pylab import rcParams
-    rcParams['figure.figsize'] = 16, 16
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         plt.imshow(
@@ -96,15 +96,92 @@ def add_colorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
     return im.axes.figure.colorbar(im, cax=cax, **kwargs)
 
 
-def simple_imshow(matrix, cmap="hot"):
-    import matplotlib.pylab as plt
-    fig = plt.figure(figsize=(100, 100))
-    ax = fig.add_subplot(1,1,1)
-    ax.set_aspect('equal')
-    im = plt.imshow(matrix, interpolation='nearest', cmap=cmap)
+def simple_imshow(
+        matrix,
+        cmap="viridis", figsize=(10, 10), aspect_equal=True, outfile=None,
+        xlabel=None, ylabel=None,
+        xtick_locs_labels=None, scale="lin"):
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(1, 1, 1)
+    if aspect_equal:
+        ax.set_aspect('equal')
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    norm = matplotlib.colors.SymLogNorm(1) if scale == "log" else None
+    im = plt.imshow(matrix, interpolation='nearest', cmap=cmap, norm=norm)
+    if xtick_locs_labels:
+        plt.xticks(*xtick_locs_labels)
     add_colorbar(im)
     plt.tight_layout()
-    plt.show()
+    if outfile:
+        plt.savefig(outfile)
+    else:
+        plt.show()
+
+
+def plot_embeddings(
+        emb, emb_method=None,
+        labels=None, colors=None, classes=None, class2color=None,
+        outfile=None):
+    from matplotlib.ticker import NullFormatter
+    if emb_method:
+        if emb_method == "UMAP":
+            from umap import UMAP
+            proj = UMAP()
+        else:
+            import sklearn.manifold
+            proj = getattr(sklearn.manifold, emb_method)()
+        x, y = proj.fit_transform(emb).T
+    else:
+        x, y = emb.T
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.xaxis.set_major_formatter(NullFormatter())
+    ax.yaxis.set_major_formatter(NullFormatter())
+    for cls in set(classes):
+        i = (classes == cls).nonzero()
+        ax.scatter(x[i], y[i], label=cls, marker="o", s=1, alpha=1)
+    if labels is not None:
+        for i in range(len(emb)):
+            if not i % 11:
+                ax.annotate(labels[i], (x[i], y[i]), alpha=0.6, size=6)
+    plt.axis('tight')
+    plt.legend(loc='best', scatterpoints=1, markerscale=5, fontsize=10)
+    if outfile:
+        plt.savefig(str(outfile))
+    else:
+        plt.show()
+
+
+def plot_dendrogram(dist, labels, outfile=None, method="centroid"):
+    from scipy.cluster import hierarchy
+    fig = plt.figure(figsize=(50, 45))
+    # dendrogram
+    axdendro = fig.add_axes([0.09, 0.1, 0.2, 0.8])
+    axdendro.set_xticks([])
+    axdendro.set_yticks([])
+    Y = hierarchy.linkage(dist, method=method)
+    Z = hierarchy.dendrogram(
+        Y, orientation='right', labels=labels, leaf_font_size=10)
+    # distance matrix
+    index = Z['leaves']
+    D = dist[index, :]
+    D = D[:, index]
+    axmatrix = fig.add_axes([0.3, 0.1, 0.6, 0.8])
+    im = axmatrix.matshow(D, aspect='auto', origin='lower')
+    axmatrix.set_xticks([])
+    axmatrix.set_yticks([])
+    # colorbar
+    axcolor = fig.add_axes([0.91, 0.1, 0.02, 0.8])
+    plt.colorbar(im, cax=axcolor)
+
+    if outfile:
+        fig.savefig(str(outfile))
+    else:
+        fig.show()
+    plt.cla()
 
 
 if __name__ == "__main__":
