@@ -123,8 +123,8 @@ def simple_imshow(
 
 def plot_embeddings(
         emb, emb_method=None,
-        labels=None, colors=None, classes=None, class2color=None,
-        outfile=None):
+        labels=None, color=None, classes=None, class2color=None,
+        outfile=None, cmap="viridis", max_labels=100, **scatter_kwargs):
     from matplotlib.ticker import NullFormatter
     if emb_method:
         if emb_method == "UMAP":
@@ -140,13 +140,26 @@ def plot_embeddings(
     ax = fig.add_subplot(111)
     ax.xaxis.set_major_formatter(NullFormatter())
     ax.yaxis.set_major_formatter(NullFormatter())
-    for cls in set(classes):
-        i = (classes == cls).nonzero()
-        ax.scatter(x[i], y[i], label=cls, marker="o", s=1, alpha=1)
+    if not scatter_kwargs:
+        scatter_kwargs = dict(marker="o", s=1, alpha=1)
+    if classes is not None:
+        for cls in set(classes):
+            i = (classes == cls).nonzero()
+            ax.scatter(x[i], y[i], label=cls, **scatter_kwargs)
+    elif color is not None:
+        sc = ax.scatter(x, y, c=color, cmap=cmap, **scatter_kwargs)
+        fig.colorbar(sc, ticks=[0, 0.5, 1])
+    else:
+        ax.scatter(x, y, **scatter_kwargs)
+
     if labels is not None:
+        n_labels = len(labels)
         for i in range(len(emb)):
-            if not i % 11:
-                ax.annotate(labels[i], (x[i], y[i]), alpha=0.6, size=6)
+            if (
+                    max_labels < 0 or
+                    n_labels <= max_labels or
+                    not i % (n_labels // max_labels)):
+                ax.annotate(labels[i], (x[i], y[i]), alpha=0.5, size=6)
     plt.axis('tight')
     plt.legend(loc='best', scatterpoints=1, markerscale=5, fontsize=10)
     if outfile:
@@ -181,7 +194,60 @@ def plot_dendrogram(dist, labels, outfile=None, method="centroid"):
         fig.savefig(str(outfile))
     else:
         fig.show()
-    plt.cla()
+    plt.close(fig)
+
+
+def plot_embeddings_bokeh(
+        emb,
+        classes=None, labels=None, color=None,
+        outfile=None, title=None):
+
+    from bokeh.plotting import figure, output_file, show
+    from bokeh.models import (
+        ColumnDataSource, CategoricalColorMapper, LinearColorMapper)
+    from bokeh.palettes import Category20, Viridis256
+
+    if outfile:
+        output_file(outfile)
+
+    source_dict = dict(x=emb[:, 0], y=emb[:, 1])
+    if classes is not None:
+        source_dict["cls"] = classes
+    if labels is not None:
+        source_dict["label"] = labels
+    if color is not None:
+        source_dict["color"] = color
+    source = ColumnDataSource(source_dict)
+    if classes is not None and color is None:
+        color_conf = {
+            "field": "cls",
+            "transform": CategoricalColorMapper(
+                factors=list(set(classes)),
+                palette=Category20[len(set(classes))])}
+    elif color is not None:
+        color_conf = {
+            "field": "color",
+            "transform": LinearColorMapper(Viridis256)}
+    else:
+        color_conf = "red"
+    tools = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
+    p = figure(tools=tools, sizing_mode='scale_both')
+    if title:
+        p.title.text = title
+    p.circle(
+        x='x', y='y',
+        source=source,
+        color=color_conf,
+        legend='cls' if classes is not None else None)
+    if labels is not None:
+        from bokeh.models import HoverTool
+        from collections import OrderedDict
+        hover = p.select(dict(type=HoverTool))
+        hover.tooltips = OrderedDict([
+            ("index", "$index"),
+            ("(xx,yy)", "(@x, @y)"),
+            ("label", "@label")])
+    show(p)
 
 
 if __name__ == "__main__":
