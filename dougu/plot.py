@@ -121,19 +121,48 @@ def simple_imshow(
         plt.show()
 
 
+def embed_2d(emb, emb_method="UMAP", umap_n_neighbors=15, umap_min_dist=0.1):
+    if emb_method == "UMAP":
+        try:
+            from umap import UMAP
+        except ImportError:
+            print("Please install umap to use emb_method='UMAP'")
+            raise
+        proj = UMAP(
+            init="random",
+            n_neighbors=umap_n_neighbors,
+            min_dist=umap_min_dist)
+    else:
+        import sklearn.manifold
+        proj = getattr(sklearn.manifold, emb_method)()
+    return proj.fit_transform(emb)
+
+
 def plot_embeddings(
         emb, emb_method=None,
         labels=None, color=None, classes=None, class2color=None,
         outfile=None, cmap="viridis", max_labels=100, **scatter_kwargs):
+    """
+    Plot a scatterplot of the embeddings contained in emb.
+
+    emb: an array with dim (n_embeddings x 2) or (n_embeddings x emb_dim).
+    In the latter case an embedding method emb_method should be supplied
+    to project from emb_dim to dim=2.
+
+    emb_method: "UMAP", "TSNE", or any other algorithm in sklearn.manifold
+    labels: Optional text labels for each embedding
+    color: Optional color for each embedding, according to which it will be
+    colored in the plot.
+    classes:  Optional class for each embedding, according to which it will
+    be colored in the plot.
+    class2color: A map which determines the color assigned to each class
+    outfile: If provided, save plot to this file instead of showing it
+    cmap: colormap
+    max_labels: maximum number of labels to be displayed
+    """
     from matplotlib.ticker import NullFormatter
     if emb_method:
-        if emb_method == "UMAP":
-            from umap import UMAP
-            proj = UMAP()
-        else:
-            import sklearn.manifold
-            proj = getattr(sklearn.manifold, emb_method)()
-        x, y = proj.fit_transform(emb).T
+        x, y = embed_2d(emb, emb_method).T
     else:
         x, y = emb.T
     fig = plt.figure()
@@ -199,13 +228,34 @@ def plot_dendrogram(dist, labels, outfile=None, method="centroid"):
 
 def plot_embeddings_bokeh(
         emb,
+        emb_method=None,
         classes=None, labels=None, color=None,
         outfile=None, title=None):
+    """
+    Creates an interactive scatterplot of the embeddings contained in emb,
+    using the bokeh library.
 
+    emb: an array with dim (n_embeddings x 2) or (n_embeddings x emb_dim).
+    In the latter case an embedding method emb_method should be supplied
+    to project from emb_dim to dim=2.
+
+    emb_method: "UMAP", "TSNE", or any other algorithm in sklearn.manifold
+    labels: Optional text labels for each embedding
+    color: Optional color for each embedding, according to which it will be
+    colored in the plot.
+    classes:  Optional class for each embedding, according to which it will
+    be colored in the plot.
+    outfile: If provided, save plot to this file instead of showing it
+    cmap: colormap
+    title: optional title of the plot
+    """
     from bokeh.plotting import figure, output_file, show
     from bokeh.models import (
         ColumnDataSource, CategoricalColorMapper, LinearColorMapper)
     from bokeh.palettes import Category20, Viridis256
+
+    if emb_method:
+        emb = embed_2d(emb, emb_method)
 
     if outfile:
         output_file(outfile)
