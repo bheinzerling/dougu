@@ -152,6 +152,7 @@ def ensure_iob2(tags):
     """Check that tags have a valid IOB format.
     Tags in IOB1 format are converted to IOB2.
     """
+    tags = list(tags)
     for i, tag in enumerate(tags):
         if tag == 'O':
             continue
@@ -166,4 +167,34 @@ def ensure_iob2(tags):
             continue
         else:  # conversion IOB1 to IOB2
             tags[i] = 'B' + tag[1:]
-    return True
+    return tags
+
+
+# https://github.com/zalandoresearch/flair/blob/master/flair/data.py
+def iob_iobes(tags):
+    """IOB -> IOBES
+    """
+    new_tags = []
+    for i, tag in enumerate(tags):
+        if tag == 'O':
+            new_tags.append(tag)
+        elif tag.split('-')[0] == 'B':
+            if i + 1 != len(tags) and \
+                            tags[i + 1].split('-')[0] == 'I':
+                new_tags.append(tag)
+            else:
+                new_tags.append(tag.replace('B-', 'S-'))
+        elif tag.split('-')[0] == 'I':
+            if i + 1 < len(tags) and \
+                            tags[i + 1].split('-')[0] == 'I':
+                new_tags.append(tag)
+            else:
+                new_tags.append(tag.replace('I-', 'E-'))
+        else:
+            raise Exception('Invalid IOB format!')
+    return new_tags
+
+
+iob_to = {
+    "BIO": ensure_iob2,
+    "IOBES": iob_iobes}

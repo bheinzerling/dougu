@@ -35,6 +35,7 @@ def hyperoptimize(rundir, space, ntrials=100, algo=tpe.suggest):
                 print(trial, "best", best_hparams)
                 json_dump(best_hparams, rundir / "best_hparams.json")
             print("finished", ntrials, "trials")
+            return trials
         return wrapper
     return decorator
 

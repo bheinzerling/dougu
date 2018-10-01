@@ -6,7 +6,8 @@ log = logging.getLogger(__name__)
 
 def load_word2vec_file(
         word2vec_file,
-        weights_file=None, normalize=False, add_unk=False, unk="<unk>"):
+        weights_file=None, normalize=False, add_unk=False, unk="<unk>",
+        add_pad=False, pad="<pad>"):
     """Load a word2vec file in either text or bin format, optionally
     supplying custom embedding weights and normalizing embeddings."""
     from gensim.models import KeyedVectors
@@ -17,6 +18,14 @@ def load_word2vec_file(
     if add_unk:
         if unk not in vecs:
             add_unk_embedding(vecs)
+        else:
+            pass
+            # raise ValueError("Attempted to add <unk>, but already present")
+    if add_pad:
+        if pad not in vecs:
+            add_embeddings(vecs, pad)
+        else:
+            raise ValueError("Attempted to add <pad>, but already present")
     if weights_file:
         import torch
         weights = torch.load(weights_file)

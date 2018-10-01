@@ -1,5 +1,6 @@
 import re
 import random
+import string
 
 try:
     from colorama import Fore, Back, Style
@@ -54,6 +55,15 @@ def random_del(s):
     return s[:i] + s[i + 1:]
 
 
+def random_del_many(s):
+    l = len(s)
+    if l < 2:
+        return s
+    i = random.randint(0, l - 1)
+    n = random.randint(1, int(l / 3) or 1)
+    return s[:i] + s[i + n:]
+
+
 def random_insert(s):
     l = len(s)
     if l < 2:
@@ -63,20 +73,36 @@ def random_insert(s):
     return s[:i] + s[j] + s[i:]
 
 
-def augment(strings, augment_funcs=None):
-    if not augment_funcs:
-        augment_funcs = [
-            (str.upper, 1),
-            (str.lower, 1),
-            (random_cap, 5),
-            (random_swap, 5),
-            (random_del, 5),
-            (random_insert, 5)
-            ]
+def make_random_insert_chars(chars=string.ascii_letters + string.digits):
+
+    def random_insert_chars(s):
+        l = len(s)
+        if l < 2:
+            return s
+        i = random.randint(0, l - 1)
+        n = random.randint(1, 4)
+        rnd_chars = "".join(random.sample(chars, n))
+        return s[:i] + rnd_chars + s[i:]
+
+    return random_insert_chars
+
+
+def random_duplicate(s):
+    l = len(s)
+    i = random.randint(0, l - 1)
+    n = random.randint(1, 10)
+    return s[:i] + s[i] * n + s[i:]
+
+
+def augment(strings, augment_funcs):
     for s in strings:
-        for f, times in augment_funcs:
-            for _ in range(times):
-                yield f(s)
+        yield from (f(s) for f in augment_funcs)
+
+
+def augment_with_id(ids, strings, augment_funcs):
+    for id, s in zip(ids, strings):
+        for aug in (f(s) for f in augment_funcs):
+            yield id, aug
 
 
 def yesno_mark(condition):
@@ -85,6 +111,14 @@ def yesno_mark(condition):
     if condition:
         return f"{green}✓{reset}"
     return f"{red}✗{reset}"
+
+
+def random_string(length=8, chars=None):
+    if chars is None:
+        import string
+        chars = string.ascii_letters + string.digits
+    import random
+    return "".join(random.choices(chars, k=length))
 
 
 def color_by_weight(tokens, weights, styles=None, thresholds=None):
@@ -125,6 +159,45 @@ def color_by_weight(tokens, weights, styles=None, thresholds=None):
         return " ".join(map(
             lambda t: f"{t[0]}|{t[1]:.2f}",
             zip(tokens, weights)))
+
+
+def token_shapes(tokens, collapse=True):
+    """Returns strings which encode the shape of tokens. If collapse
+    is set, repeats are collapsed and infrequent shapes encoded as "other":
+        Aa  | capitalized
+        a   | all lowercase
+        .   | all punctuation
+        0   | all digits
+        A   | all UPPERCASE
+        0a0 | digits - lower - digits
+        %   | other
+    """
+    collapsed_shapes = {"Aa", "a", ".", "0", "A", "0a0"}
+
+    def char_shape(char):
+        if not char.isalnum():
+            return "."
+        if char.isdigit():
+            return "0"
+        if char.isupper():
+            return "A"
+        return "a"
+
+    shapes = [[char_shape(c) for c in token] for token in tokens]
+    if collapse:
+        def _collapse(chars):
+            last = None
+            for c in chars:
+                if c != last:
+                    yield c
+                    last = c
+    else:
+        def _collapse(chars):
+            return chars
+    shapes = ["".join(_collapse(shape)) for shape in shapes]
+    if collapse:
+        return [s if s in collapsed_shapes else "%" for s in shapes]
+    return shapes
 
 
 if __name__ == "__main__":

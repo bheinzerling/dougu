@@ -1,3 +1,4 @@
+from pathlib import Path
 import os
 import matplotlib as mpl
 if os.environ.get('DISPLAY') is None:  # NOQA
@@ -99,12 +100,19 @@ def add_colorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
 def simple_imshow(
         matrix,
         cmap="viridis", figsize=(10, 10), aspect_equal=True, outfile=None,
-        xlabel=None, ylabel=None,
-        xtick_locs_labels=None, scale="lin"):
+        title=None, xlabel=None, ylabel=None, xtick_locs_labels=None,
+        colorbar=True, scale="lin"):
+    if aspect_equal and figsize[1] is None:
+        matrix_aspect = matrix.shape[0] / matrix.shape[1]
+        width = figsize[0]
+        height = max(3, width * matrix_aspect)
+        figsize = (width, height)
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(1, 1, 1)
     if aspect_equal:
         ax.set_aspect('equal')
+    if title:
+        plt.title(title)
     if xlabel:
         ax.set_xlabel(xlabel)
     if ylabel:
@@ -113,12 +121,14 @@ def simple_imshow(
     im = plt.imshow(matrix, interpolation='nearest', cmap=cmap, norm=norm)
     if xtick_locs_labels:
         plt.xticks(*xtick_locs_labels)
-    add_colorbar(im)
+    if colorbar:
+        add_colorbar(im)
     plt.tight_layout()
     if outfile:
         plt.savefig(outfile)
     else:
         plt.show()
+    plt.clf()
 
 
 def embed_2d(emb, emb_method="UMAP", umap_n_neighbors=15, umap_min_dist=0.1):
@@ -127,6 +137,8 @@ def embed_2d(emb, emb_method="UMAP", umap_n_neighbors=15, umap_min_dist=0.1):
             from umap import UMAP
         except ImportError:
             print("Please install umap to use emb_method='UMAP'")
+            print("pip install umap-learn (NOT pip install umap)")
+            print("https://github.com/lmcinnes/umap")
             raise
         proj = UMAP(
             init="random",
@@ -140,8 +152,11 @@ def embed_2d(emb, emb_method="UMAP", umap_n_neighbors=15, umap_min_dist=0.1):
 
 def plot_embeddings(
         emb, emb_method=None,
-        labels=None, color=None, classes=None, class2color=None,
-        outfile=None, cmap="viridis", max_labels=100, **scatter_kwargs):
+        labels=None, color=None, classes=None, class2color=None, title=None,
+        outfile=None, cmap="viridis", max_labels=100,
+        colorbar_ticks=None, reverse_colorbar=False, colorbar_label=None,
+        label_fontpath=None,
+        **scatter_kwargs):
     """
     Plot a scatterplot of the embeddings contained in emb.
 
@@ -165,8 +180,10 @@ def plot_embeddings(
         x, y = embed_2d(emb, emb_method).T
     else:
         x, y = emb.T
-    fig = plt.figure()
+    figsize = (14, 12) if color is not None else (12, 12)
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
+    ax.set_aspect('equal')
     ax.xaxis.set_major_formatter(NullFormatter())
     ax.yaxis.set_major_formatter(NullFormatter())
     if not scatter_kwargs:
@@ -177,20 +194,35 @@ def plot_embeddings(
             ax.scatter(x[i], y[i], label=cls, **scatter_kwargs)
     elif color is not None:
         sc = ax.scatter(x, y, c=color, cmap=cmap, **scatter_kwargs)
-        fig.colorbar(sc, ticks=[0, 0.5, 1])
+        cb = fig.colorbar(sc, ticks=colorbar_ticks)
+        if reverse_colorbar:
+            cb.ax.invert_yaxis()
+        if colorbar_label:
+            cb.set_label(colorbar_label)
     else:
         ax.scatter(x, y, **scatter_kwargs)
 
     if labels is not None:
+        if label_fontpath:
+            import matplotlib.font_manager as fm
+            fontproperties = fm.FontProperties(fname=label_fontpath)
+        else:
+            fontproperties = None
         n_labels = len(labels)
         for i in range(len(emb)):
             if (
                     max_labels < 0 or
                     n_labels <= max_labels or
                     not i % (n_labels // max_labels)):
-                ax.annotate(labels[i], (x[i], y[i]), alpha=0.5, size=6)
+                ax.annotate(
+                    labels[i], (x[i], y[i]), alpha=0.76, size=10,
+                    fontproperties=fontproperties)
+    if title:
+        plt.title(title)
     plt.axis('tight')
-    plt.legend(loc='best', scatterpoints=1, markerscale=5, fontsize=10)
+    if classes is not None:
+        plt.legend(loc='best', scatterpoints=1, markerscale=5, fontsize=10)
+    plt.tight_layout()
     if outfile:
         plt.savefig(str(outfile))
     else:
@@ -230,7 +262,12 @@ def plot_embeddings_bokeh(
         emb,
         emb_method=None,
         classes=None, labels=None, color=None,
-        outfile=None, title=None):
+        color_category=None,
+        cmap=None, cmap_reverse=False,
+        colorbar=False, colorbar_ticks=None,
+        outfile=None, title=None,
+        scatter_labels=False,
+        **circle_kwargs):
     """
     Creates an interactive scatterplot of the embeddings contained in emb,
     using the bokeh library.
@@ -249,10 +286,11 @@ def plot_embeddings_bokeh(
     cmap: colormap
     title: optional title of the plot
     """
-    from bokeh.plotting import figure, output_file, show
+    from bokeh.plotting import figure, output_file, show, save
     from bokeh.models import (
-        ColumnDataSource, CategoricalColorMapper, LinearColorMapper)
-    from bokeh.palettes import Category20, Viridis256
+        ColumnDataSource, CategoricalColorMapper, LinearColorMapper,
+        ColorBar, FixedTicker, Text)
+    from bokeh.palettes import Category20, Viridis256, viridis
 
     if emb_method:
         emb = embed_2d(emb, emb_method)
@@ -269,35 +307,175 @@ def plot_embeddings_bokeh(
         source_dict["color"] = color
     source = ColumnDataSource(source_dict)
     if classes is not None and color is None:
+        n_classes = len(set(classes))
+        if n_classes <= 20:
+            if n_classes <= 2:
+                palette = Category20[3]
+                palette = [palette[0], palette[-1]]
+            else:
+                palette = Category20[n_classes]
+        else:
+            palette = viridis(n_classes)
         color_conf = {
             "field": "cls",
             "transform": CategoricalColorMapper(
                 factors=list(set(classes)),
-                palette=Category20[len(set(classes))])}
+                palette=palette)}
     elif color is not None:
+        if cmap is not None:
+            import bokeh.palettes
+            if cmap.endswith("_r"):  # matplotib suffix for reverse color maps
+                cmap_reverse = True
+                cmap = cmap[:-2]
+            cmap = getattr(bokeh.palettes, cmap)
+            if isinstance(cmap, dict):
+                cmap = cmap[max(cmap.keys())]
+        else:
+            cmap = Viridis256
+        if cmap_reverse:
+            cmap.reverse()
+        color_mapper = LinearColorMapper(cmap)
         color_conf = {
             "field": "color",
-            "transform": LinearColorMapper(Viridis256)}
+            "transform": color_mapper}
+        if colorbar:
+            if colorbar_ticks:
+                ticker = FixedTicker(ticks=colorbar_ticks)
+            else:
+                ticker = None
+            colorbar = ColorBar(
+                color_mapper=color_mapper, ticker=ticker)
     else:
         color_conf = "red"
     tools = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
     p = figure(tools=tools, sizing_mode='scale_both')
     if title:
         p.title.text = title
-    p.circle(
-        x='x', y='y',
-        source=source,
-        color=color_conf,
-        legend='cls' if classes is not None else None)
+    if labels is not None and scatter_labels:
+        glyph = Text(
+            x="x", y="y", text="label", angle=0.0,
+            text_color=color_conf, text_alpha=0.95, text_font_size="8pt")
+        p.add_glyph(source, glyph)
+    else:
+        p.circle(
+            x='x', y='y',
+            source=source,
+            color=color_conf,
+            legend='cls' if classes is not None else None,
+            **circle_kwargs)
     if labels is not None:
         from bokeh.models import HoverTool
         from collections import OrderedDict
         hover = p.select(dict(type=HoverTool))
-        hover.tooltips = OrderedDict([
-            ("index", "$index"),
-            ("(xx,yy)", "(@x, @y)"),
-            ("label", "@label")])
-    show(p)
+        hover_entries = [
+            ("label", "@label"),
+            ("(x, y)", "(@x, @y)"),
+            ]
+        if color is not None and color_category:
+            hover_entries.append((color_category, "@color"))
+        hover.tooltips = OrderedDict(hover_entries)
+    if colorbar:
+        assert color is not None
+        p.add_layout(colorbar, 'right')
+    if outfile:
+        save(p)
+    else:
+        show(p)
+
+
+class Figure():
+    """Provides a context manager that automatically saves and closes
+    a matplotlib plot.
+
+    >>> with Figure("figure_name"):
+    >>>     plt.plot(x, y)
+    >>> # saves plot to {Figure.fig_dir}/{figure_name}.{Figure.file_type}
+
+    When creating many figures with the same settings, e.g. plt.xlim(0, 100)
+    and plt.ylim(0, 1.0), defaults can be set with:
+
+    >>> Figure.set_defaults(xlim=(0, 100), ylim=(0, 1.0))
+    >>> # context manager will call plt.xlim(0, 100) and plt.ylim(0, 1.0)
+    """
+    fig_dir = Path("out/figs")
+    file_types = ["png"]
+    plt_calls = {}
+
+    def __init__(self, name):
+        self.name = name
+
+    def __enter__(self):
+        for attr, val in self.plt_calls.items():
+            getattr(plt, attr)(val)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for file_type in self.file_types:
+            outfile = self.fig_dir / f"{self.name}.{file_type}"
+            plt.savefig(outfile)
+        plt.clf()
+
+    @classmethod
+    def set_defaults(cls, **kwargs):
+        cls.plt_calls = kwargs
+        for attr, val in kwargs.items():
+            setattr(cls, attr, val)
+
+
+linestyles = [
+    "-", "--", "-.", ":",
+    "-", "--", "-.", ":",
+    "-", "--", "-.", ":",
+    "-", "--", "-.", ":",
+    "-", "--", "-.", ":",
+    "-", "--", "-.", ":"]
+
+try:
+    from bokeh.palettes import Category20
+    colors = Category20[20]
+except ImportError:
+    try:
+        import seaborn as sns
+        colors = sns.color_palette("muted")
+    except ImportError:
+        # https://gist.github.com/huyng/816622
+        colors = [
+            "348ABD", "7A68A6", "A60628",
+            "467821", "CF4457", "188487", "E24A33",
+            "348ABD", "7A68A6", "A60628",
+            "467821", "CF4457", "188487", "E24A33",
+            "348ABD", "7A68A6", "A60628",
+            "467821", "CF4457", "188487", "E24A33",
+            ]
+
+# https://matplotlib.org/api/markers_api.html
+markers = [
+    ".",   # point
+    ",",   # pixel
+    "o",   # circle
+    "v",   # triangle_down
+    "^",   # triangle_up
+    "<",   # triangle_left
+    ">",   # triangle_right
+    "1",   # tri_down
+    "2",   # tri_up
+    "3",   # tri_left
+    "4",   # tri_right
+    "8",   # octagon
+    "s",   # square
+    "p",   # pentagon
+    "P",   # plus (filled)
+    "*",   # star
+    "h",   # hexagon1
+    "H",   # hexagon2
+    "+",   # plus
+    "x",   # x
+    "X",   # x (filled)
+    "D",   # diamond
+    "d",   # thin_diamond
+    "|",   # vline
+    "_",   # hline
+    ]
 
 
 if __name__ == "__main__":

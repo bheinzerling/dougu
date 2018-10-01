@@ -8,20 +8,30 @@ def now_str():
 
 
 def autocommit(
-        repodir=".", glob_pattern="**/*.py", recursive=True, msg="autocommit"):
+        repodir=".", glob_pattern="**/*.py", recursive=True, msg="autocommit",
+        runid=None):
     """Commit all changes in repodir in files matching glob_pattern."""
     from git import Repo
     import glob
     repo = Repo(repodir)
     files = glob.glob(glob_pattern, recursive=recursive)
-    repo.index.add(files)
+    try:
+        repo.index.add(files)
+    except OSError:
+        import time
+        import traceback
+        traceback.print_exc()
+        sleep_seconds = 7
+        print(f"trying again in {sleep_seconds} seconds")
+        time.sleep(sleep_seconds)
+        repo.index.add(files)
     if repo.index.diff(repo.head.commit):
-        repo.index.commit(msg)
+        repo.index.commit(msg + ("_" + str(runid) if runid else ""))
     sha = repo.head.object.hexsha
     return sha
 
 
-class Results():
+class _Results():
     """Thin wrapper around a pandas DataFrame to keep track of
     experimental results."""
 
@@ -86,14 +96,6 @@ def color_range(start_color, end_color, steps=10, cformat=lambda c: c.hex_l):
     return list(map(cformat, start_color.range_to(end_color, steps)))
 
 
-def random_string(length=8, chars=None):
-    if chars is None:
-        import string
-        chars = string.ascii_letters + string.digits
-    import random
-    return "".join(random.choices(chars, k=length))
-
-
 class Spans():
     """Find span covering a given offset. Assumes non-overlapping spans"""
     def __init__(self, spans):
@@ -110,3 +112,32 @@ class Spans():
         e_idx = bisect(self.ends, offset)
         if s_idx - e_idx == 1:
             return self.spans[e_idx]
+
+
+def args_to_str(args, positional_arg=None):
+    """Convert an argparse.ArgumentParser object back into a string,
+    e.g. for running an external command."""
+    def val_to_str(v):
+        if isinstance(v, list):
+            return ' '.join(map(str, v))
+        return str(v)
+
+    def arg_to_str(k, v):
+        k = f"--{k.replace('_', '-')}"
+        if v is True:
+            return k
+        if v is False:
+            return ""
+        else:
+            v = val_to_str(v)
+        return k + " " + v
+
+    if positional_arg:
+        pos_args = val_to_str(args.__dict__[positional_arg]) + " "
+    else:
+        pos_args = ""
+
+    return pos_args + " ".join([
+        arg_to_str(k, v)
+        for k, v in args.__dict__.items()
+        if v is not None and k != positional_arg])

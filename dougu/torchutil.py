@@ -201,7 +201,8 @@ class Score():
     """
     def __init__(
             self, name, score_func=None, shuffle_baseline=False,
-            comp=float.__gt__, save_model=True, log=None):
+            comp=float.__gt__, save_model=True, log=None,
+            add_mode="extend"):
         self.name = name
         if comp == float.__lt__:
             self.current = float("inf")
@@ -218,9 +219,19 @@ class Score():
         self.comp = comp
         self.save_model = save_model
         self.info = log.info if log else print
+        if add_mode == "extend":
+            self.add = self.extend
+        elif add_mode == "append":
+            self.add = self.append
+        else:
+            raise ValueError("Unknown add_mode: " + add_mode)
 
     def extend(self, pred, true):
-        """append predicted and true labels"""
+        """extend predicted and true labels"""
+        if hasattr(pred, "shape"):
+            assert pred.shape == true.shape, (pred.shape, true.shape)
+        else:
+            assert len(pred) == len(true)
         if hasattr(pred, "tolist"):
             pred = pred.tolist()
         if hasattr(true, "tolist"):
@@ -228,9 +239,22 @@ class Score():
         self.pred.extend(pred)
         self.true.extend(true)
 
+    def append(self, pred, true):
+        """extend predicted and true labels"""
+        if hasattr(pred, "shape"):
+            assert pred.shape == true.shape, (pred.shape, true.shape)
+        else:
+            assert len(pred) == len(true)
+        if hasattr(pred, "tolist"):
+            pred = pred.tolist()
+        if hasattr(true, "tolist"):
+            true = true.tolist()
+        self.pred.append(pred)
+        self.true.append(true)
+
     def update(self, model=None, rundir=None, epoch=None, score=None):
         if score is None:
-            score = self.score_func(self.true, self.pred)
+            score = self.score_func(self.pred, self.true)
         self.current = score
         if self.comp(score, self.best):
             self.best = score
@@ -243,7 +267,7 @@ class Score():
                 self.best_model = model_file
         if self.shuffle_baseline:
             random.shuffle(self.pred)
-            shuffle_score = self.score_func(self.true, self.pred)
+            shuffle_score = self.score_func(self.pred, self.true)
         else:
             shuffle_score = None
         self.true = []
@@ -254,10 +278,11 @@ class Score():
             self, model=None, rundir=None, epoch=None, score=None):
         score, shuffle_score = self.update(
             model=model, rundir=rundir, epoch=epoch, score=score)
-        s = f"score {self.name}_{score:.4f}/{self.best:.4f}\n{self.best_model}"
+        self.info(f"score {self.name}_{score:.4f}/{self.best:.4f}")
+        if self.best_model:
+            self.info(str(self.best_model))
         if shuffle_score is not None:
-            s += f"\nshuffle {self.name}_{shuffle_score:.4f}"
-        self.info(s)
+            self.info(f"\nshuffle {self.name}_{shuffle_score:.4f}")
         return score
 
     @staticmethod
@@ -289,7 +314,6 @@ class LossTracker(list):
     def interval_end(
             self, epoch=None, model=None, model_file=None, ds_name=None):
         loss = np.average(self)
-        self.info(f"{loss} / {self.best_loss[ds_name]}")
         if loss < self.best_loss[ds_name]:
             self.best_loss[ds_name] = loss
             if self.save_model and model:
@@ -311,7 +335,11 @@ class LossTrackers():
 
     def append(self, *losses):
         for lt, loss in zip(self.loss_trackers, losses):
-            lt.append(loss.item())
+            try:
+                loss = loss.item()
+            except AttributeError:
+                pass
+            lt.append(loss)
 
     def interval_end(
             self, *, epoch=None, model=None, model_file=None, ds_name=None):
@@ -440,3 +468,9 @@ class EarlyStopping():
             self.is_better = lambda a, best: a < best - min_delta
         if mode == 'max':
             self.is_better = lambda a, best: a > best + min_delta
+
+
+def set_random_seed(seed):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)

@@ -51,6 +51,22 @@ def unordered_pairs(iterable):
         return
 
 
+def subsequences(items, subsequence_lengths):
+    """Iterator over all contiguous subsequences of items with the given
+    subsequence lengths."""
+    for length in subsequence_lengths:
+        for i in range(len(items) - length + 1):
+            yield items[i:i + length]
+
+
+def is_subseq(needle_seq, haystack_seq):
+    """Determine if haystack_seq contains all items in needle_seq, in
+    the same order."""
+    # source: https://stackoverflow.com/questions/24017363/how-to-test-if-one-string-is-a-subsequence-of-another  # NOQA
+    haystack_iter = iter(haystack_seq)
+    return all(item in haystack_iter for item in needle_seq)
+
+
 def to_from_idx(iterable, start_idx=0):
     """Return mappings of items in iterable to and from their index.
 
@@ -65,12 +81,34 @@ def to_from_idx(iterable, start_idx=0):
         for i, item in enumerate(iterable, start=start_idx))))
 
 
-def map_assert(assert_func, map_func, iterable):
-    """Assert that assert_func is True for all results of applying
-    map_func to iterable"""
-    for item in map(map_func, iterable):
-        assert assert_func(item), item
+def map_assert(map_fn, assert_fn, iterable):
+    """Assert that assert_fn is True for all results of applying
+    map_fn to iterable"""
+    for item in map(map_fn, iterable):
+        assert assert_fn(item), item
         yield item
+
+
+def map_skip_assert_error(map_fn, iterable, verbose=False):
+    """Same as built-in map, but skip all items in iterabe that raise
+    an assertion error when map_fn is appllied"""
+    errors = 0
+    for i, item in enumerate(iterable):
+        try:
+            yield map_fn(item)
+        except AssertionError:
+            if verbose:
+                errors += 1
+    if verbose:
+        total = i + 1
+        print(f"Skipped {errors} / {total} AssertionErrors")
+
+
+def groupby(keys, values):
+    d = {}
+    for k, v in zip(keys, values):
+        d.setdefault(k, []).append(v)
+    return d
 
 
 if __name__ == "__main__":

@@ -128,11 +128,18 @@ class LabelEncoder(object):
         self.label_enc = _LabelEncoder().fit(labels)
         self.labels = self.label_enc.classes_
         self.nlabels = len(self.labels)
+        idxs = list(range(self.nlabels))
+        self.idx2label = dict(zip(idxs, self.inverse_transform(idxs)))
         return self
+
+    def __len__(self):
+        return self.nlabels
 
     def transform(self, labels):
         if isinstance(labels, str):
             labels = [labels]
+        if isinstance(labels[0], list):
+            return [self.transform(l) for l in labels]
         if self.to_torch:
             import torch
             tensors = []
@@ -146,6 +153,10 @@ class LabelEncoder(object):
             return self.label_enc.transform(labels)
 
     def inverse_transform(self, idx):
+        if isinstance(idx[0], list):
+            return [
+                self.label_enc.inverse_transform(_idx).tolist()
+                for _idx in idx]
         return self.label_enc.inverse_transform(idx)
 
     @staticmethod

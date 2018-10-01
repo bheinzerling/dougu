@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import IO
 
 
 def to_path(maybe_str):
@@ -41,7 +42,9 @@ def lines(file, max=None, skip=0, apply_func=str.strip):
 
 def dict_load(
         file,
-        max=None, skip=0, splitter=None, key_apply=None, value_apply=None):
+        max=None, skip=0, splitter=None,
+        key_index=0, value_index=1,
+        key_apply=None, value_apply=None):
     """Load a dictionary from a text file containing one key-value
     pair per line."""
     if splitter is not None:
@@ -55,17 +58,19 @@ def dict_load(
     if key_apply is not None and value_apply is not None:
         def kv(line):
             parts = split(line)
-            return key_apply(parts[0]), value_apply(parts[1])
+            return key_apply(parts[key_index]), value_apply(parts[value_index])
     elif key_apply is not None:
         def kv(line):
             parts = split(line)
-            return key_apply(parts[0]), parts[1]
+            return key_apply(parts[key_index]), parts[value_index]
     elif value_apply is not None:
         def kv(line):
             parts = split(line)
-            return parts[0], value_apply(parts[1])
+            return parts[key_index], value_apply(parts[value_index])
     else:
-        kv = split
+        def kv(line):
+            parts = split(line)
+            return parts[key_index], parts[value_index]
     return dict(map(kv, lines(file, max=max, skip=skip)))
 
 
@@ -121,3 +126,68 @@ def cat(infiles, outfile, buffer_size=1024 * 1024 * 100):
         for infile in infiles:
             with infile.open("rb") as f:
                 shutil.copyfileobj(f, out, buffer_size)
+
+
+def load_obj(path, obj_getter):
+    """Load dumped object from path. If the object has not been dumped
+    before, create it by invoking obj_getter, then dump it."""
+    try:
+        import joblib
+        load = joblib.load
+        dump = joblib.dump
+    except ImportError:
+        import pickle
+        load = pickle.load
+        dump = pickle.dump
+    try:
+        obj = load(path)
+    except FileNotFoundError:
+        obj = obj_getter()
+        dump(obj, path)
+    return obj
+
+
+# source: https://github.com/allenai/allennlp/blob/master/allennlp/common/file_utils.py#L147  # NOQA
+def http_get_temp(url: str, temp_file: IO) -> None:
+    import requests
+    from tqdm import tqdm
+    req = requests.get(url, stream=True)
+    req.raise_for_status()
+    content_length = req.headers.get('Content-Length')
+    print(req.headers)
+    total = int(content_length) if content_length is not None else None
+    progress = tqdm(unit="B", total=total)
+    for chunk in req.iter_content(chunk_size=1024):
+        if chunk:  # filter out keep-alive new chunks
+            progress.update(len(chunk))
+            temp_file.write(chunk)
+    progress.close()
+    return req.headers
+
+
+# source: https://github.com/allenai/allennlp/blob/master/allennlp/common/file_utils.py#L147  # NOQA
+def http_get(url: str, outfile: Path) -> None:
+    import tempfile
+    import shutil
+    from .log import get_logger
+    log = get_logger()
+    with tempfile.NamedTemporaryFile() as temp_file:
+        headers = http_get_temp(url, temp_file)
+        # we are copying the file before closing it, flush to avoid truncation
+        temp_file.flush()
+        # shutil.copyfileobj() starts at current position, so go to the start
+        temp_file.seek(0)
+        mkdir(outfile.parent)
+        if headers.get("Content-Type") == "application/x-gzip":
+            import tarfile
+            tf = tarfile.open(fileobj=temp_file)
+            members = tf.getmembers()
+            if len(members) != 1:
+                raise NotImplementedError("TODO: extract multiple files")
+            member = members[0]
+            tf.extract(member, outfile.parent)
+            assert (outfile.parent / member.name) == outfile
+        else:
+            with open(outfile, 'wb') as out:
+                shutil.copyfileobj(temp_file, out)
+    return outfile
