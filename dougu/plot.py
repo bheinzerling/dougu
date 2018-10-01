@@ -13,6 +13,32 @@ from pylab import rcParams
 rcParams['figure.figsize'] = (12, 12)
 
 
+def histogram(
+        values,
+        name=None,
+        xlim=None,
+        ylim=None,
+        logx=False,
+        xlabel=None,
+        ylabel=None,
+        filetype="png",
+        **hist_kwargs):
+    Figure.file_types = [filetype]
+    with Figure(name):
+        if logx:
+            plt.xscale("log")
+        n, bins, patches = plt.hist(values, linewidth=10, **hist_kwargs)
+        if xlim:
+            plt.xlim(*xlim)
+        if ylim:
+            plt.ylim(*ylim)
+        if xlabel:
+            plt.xlabel(xlabel)
+        if ylabel:
+            plt.ylabel(ylabel)
+        return n, bins
+
+
 # http://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#the-seq2seq-model  # NOQA
 def plot_attention(
         input_labels, output_labels, attentions,
