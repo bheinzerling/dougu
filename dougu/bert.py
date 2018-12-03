@@ -12,7 +12,6 @@ from dougu import flatten, lines
 _device = torch.device("cuda")
 
 
-# class Bert(nn.Module):
 class Bert():
 
     MASK = '[MASK]'
@@ -40,10 +39,6 @@ class Bert():
         self.max_len = \
             self.model.embeddings.position_embeddings.weight.size(0)
         self.dim = self.model.embeddings.position_embeddings.weight.size(1)
-        # self.forward = self.model.forward
-
-    # def __call__(self, *args, **kwargs):
-    #     return self.model(*args, **kwargs)
 
     def tokenize(self, text, masked_idxs=None):
         tokenized_text = self.tokenizer.tokenize(text)
