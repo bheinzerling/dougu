@@ -12,7 +12,8 @@ from dougu import flatten, lines
 _device = torch.device("cuda")
 
 
-class Bert(nn.Module):
+# class Bert(nn.Module):
+class Bert():
 
     MASK = '[MASK]'
     CLS = "[CLS]"
@@ -28,23 +29,21 @@ class Bert(nn.Module):
         do_lower_case = "uncased" in model_name
         self.tokenizer = _bert.BertTokenizer.from_pretrained(
             self.model_name, do_lower_case=do_lower_case)
-        self.maybe_model_wrapper = model.from_pretrained(model_name).to(
+        maybe_model_wrapper = model.from_pretrained(model_name).to(
             device=self.device)
         try:
-            self.model = self.maybe_model_wrapper.bert
+            self.model = maybe_model_wrapper.bert
         except AttributeError:
-            self.model = self.maybe_model_wrapper
-        # TODO delete this
-        self._model = self.model
+            self.model = maybe_model_wrapper
         if half_precision:
             self.model.half()
         self.max_len = \
-            self._model.embeddings.position_embeddings.weight.size(0)
-        self.dim = self._model.embeddings.position_embeddings.weight.size(1)
-        self.forward = self.model.forward
+            self.model.embeddings.position_embeddings.weight.size(0)
+        self.dim = self.model.embeddings.position_embeddings.weight.size(1)
+        # self.forward = self.model.forward
 
-    def __call__(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
+    # def __call__(self, *args, **kwargs):
+    #     return self.model(*args, **kwargs)
 
     def tokenize(self, text, masked_idxs=None):
         tokenized_text = self.tokenizer.tokenize(text)
@@ -53,7 +52,8 @@ class Bert(nn.Module):
                 tokenized_text[idx] = self.MASK
         # prepend [CLS] and append [SEP]
         # see https://github.com/huggingface/pytorch-pretrained-BERT/blob/master/examples/run_classifier.py#L195  # NOQA
-        return [self.CLS] + tokenized_text + [self.SEP]
+        tokenized = [self.CLS] + tokenized_text + [self.SEP]
+        return tokenized
 
     def tokenize_to_ids(self, text, masked_idxs=None, pad=True):
         tokens = self.tokenize(text, masked_idxs)
@@ -62,6 +62,7 @@ class Bert(nn.Module):
     def convert_tokens_to_ids(self, tokens, pad=True):
         token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
         ids = torch.tensor([token_ids]).to(device=self.device)
+        assert ids.size(1) < self.max_len
         if pad:
             padded_ids = torch.zeros(1, self.max_len).to(ids)
             padded_ids[0, :ids.size(1)] = ids
