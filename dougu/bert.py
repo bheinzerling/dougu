@@ -1,6 +1,5 @@
 from pathlib import Path
 import torch
-from torch import nn
 
 import pytorch_pretrained_bert as _bert
 
@@ -14,7 +13,7 @@ _device = torch.device("cuda")
 
 class Bert():
 
-    MASK = '[MASK]'
+    MASK = "[MASK]"
     CLS = "[CLS]"
     SEP = "[SEP]"
 
@@ -140,9 +139,9 @@ class Bert():
         return Bert(_bert.BertForNextSentencePrediction, model_name, **kwargs)
 
     @staticmethod
-    def ForForPreTraining(model_name, **kwargs):
+    def ForPreTraining(model_name, **kwargs):
         return Bert(_bert.BertForPreTraining, model_name, **kwargs)
 
     @staticmethod
-    def ForForQuestionAnswering(model_name, **kwargs):
+    def ForQuestionAnswering(model_name, **kwargs):
         return Bert(_bert.BertForQuestionAnswering, model_name, **kwargs)
