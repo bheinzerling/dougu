@@ -1,5 +1,6 @@
 from pathlib import Path
 from bisect import bisect
+import re
 
 
 def now_str():
@@ -78,7 +79,7 @@ def get_and_increment_runid(file=Path("runid")):
     return runid
 
 
-def next_rundir(basedir, runid_fn="runid", log=None):
+def next_rundir(basedir=Path("out"), runid_fn="runid", log=None):
     runid = get_and_increment_runid(basedir / runid_fn)
     rundir = basedir / str(runid)
     rundir.mkdir(exist_ok=True, parents=True)
@@ -141,3 +142,110 @@ def args_to_str(args, positional_arg=None):
         arg_to_str(k, v)
         for k, v in args.__dict__.items()
         if v is not None and k != positional_arg])
+
+
+def str2bool(s):
+    if s == "True":
+        return True
+    if s == "False":
+        return False
+    raise ValueError("Not a string representation of a boolean value:", s)
+
+
+# source: https://stackoverflow.com/questions/16259923/how-can-i-escape-latex-special-characters-inside-django-templates  # NOQA
+def tex_escape(text):
+    """
+        :param text: a plain text message
+        :return: the message escaped to appear correctly in LaTeX
+    """
+    conv = {
+        '&': r'\&',
+        '%': r'\%',
+        '$': r'\$',
+        '#': r'\#',
+        '_': r'\_',
+        '{': r'\{',
+        '}': r'\}',
+        '~': r'\textasciitilde{}',
+        '^': r'\^{}',
+        '\\': r'\textbackslash{}',
+        '<': r'\textless{}',
+        '>': r'\textgreater{}',
+    }
+    regex = re.compile('|'.join(
+        re.escape(key)
+        for key in sorted(conv.keys(), key=lambda item: - len(item))))
+    return regex.sub(lambda match: conv[match.group()], text)
+
+
+def df_to_latex(
+        df,
+        col_aligns="",
+        header="",
+        caption="",
+        bold_max_cols=None,
+        na_rep="-",
+        supertabular=False,
+        midrule_after=None):
+    import numpy as np
+    if bold_max_cols:
+        max_cols_names = set(bold_max_cols)
+    else:
+        max_cols_names = set()
+    if midrule_after is not None:
+        if not hasattr(midrule_after, "__contains__"):
+            midrule_after = set(midrule_after)
+
+    def row_to_strings(row):
+        if bold_max_cols is not None:
+            max_val = row[bold_max_cols].max()
+        else:
+            max_val = np.NaN
+
+        def fmt(key, val):
+            if key in max_cols_names and val == max_val:
+                return r"\textbf{" + str(val) + "}"
+            elif not isinstance(val, str) and np.isnan(val):
+                return na_rep
+            else:
+                return str(val)
+
+        return [fmt(key, val) for key, val in row.items()]
+
+    if not col_aligns:
+        dtype2align = {
+            np.dtype("int"): "r",
+            np.dtype("float"): "r"}
+        col_aligns = "".join([
+            dtype2align.get(df[colname].dtype, "l")
+            for colname in df.columns])
+    if not header:
+        header = " & ".join(map(tex_escape, df.columns)) + r"\\"
+    rows = []
+    for i, (_, row) in enumerate(df.iterrows()):
+        rows.append(" & ".join(row_to_strings(row)) + "\\\\\n")
+        if midrule_after and i in midrule_after:
+            rows.append("\midrule\n")
+    if supertabular:
+
+        latex_tbl = (r"""\tablehead{
+\toprule
+""" + header + "\n" + r"""\midrule
+}
+\tabletail{\bottomrule}
+\bottomcaption{""" + caption + r"""}
+\begin{supertabular}{""" + col_aligns + r"""}
+""" + "".join(rows) + r"""\end{supertabular}
+""")
+
+    else:
+
+        latex_tbl = (r"\begin{tabular}{" + col_aligns + r"""}
+\toprule
+""" + header + r"""
+\midrule
+""" + "".join(rows) + r"""\bottomrule
+\end{tabular}
+""")
+
+    return latex_tbl

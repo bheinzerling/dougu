@@ -99,6 +99,8 @@ class BPEmb():
             lang,
             model_file="data/bpemb/data/{lang}/{lang}.wiki.bpe.vs{vs}.model",
             vocab_sizes=[1000, 3000, 5000, 10000, 25000, 50000, 100000]):
+        if lang.startswith("multi_"):
+            vocab_sizes = [100000, 200000, 320000, 1000000]
         return set(
             vs for vs in vocab_sizes
             if Path(model_file.format(lang=lang, vs=vs)).exists())

@@ -8,7 +8,6 @@ from subprocess import run, PIPE
 from copy import deepcopy
 from uuid import uuid4
 
-import paramiko
 from boltons.iterutils import chunked
 
 from dougu import random_string, args_to_str, mkdir
@@ -41,6 +40,7 @@ def get_gpu_node(
 
 @contextmanager
 def node_and_gpu(sentinel, nodes=Path("nodes"), proc_per_gpu=1, log=None):
+    import paramiko
     node, gpu, sentinel_file = get_gpu_node(
         sentinel, nodes, proc_per_gpu, log=log)
     (log.info if log else print)(f"{node} gpu:{gpu}")
@@ -112,18 +112,20 @@ def slurm_script(
         error=None,
         partition="skylake-deep.p,pascal-deep.p,pascal-crunch.p",
         modules=[
-            "CUDA/8.0.44",
-            "OpenBLAS/0.2.13-GCC-4.8.4-LAPACK-3.5.0"],
+            "CUDA/8.0.61_375.26-GCC-5.4.0-2.26"
+            ],
         nodelist=None,
         exclude=None,
         time="8:00:00",
-        cpus_per_task=1,
+        cpus_per_task=None,
+        ntasks_per_node=None,
         n_gpus=1,
         pwd=".",
-        env="pt5",
+        env="pt1",
         file="main.py",
         log=None,
-        positional_arg=None):
+        positional_arg=None,
+        verbose=False):
     """Write a SLURM script which will run the Python file with
     the supplied args.
     """
@@ -139,13 +141,15 @@ def slurm_script(
         "error": error or (outdir / f"{batch_sentinel}.err"),
         "time": time,
         "ntasks": 1,
-        "cpus-per-task": cpus_per_task,
+        "cpus-per-task": cpus_per_task or 1,
         "gres": gres,
         "partition": partition}
     if nodelist:
         sbatch_args["nodelist"] = ",".join(nodelist)
     if exclude:
         sbatch_args["exclude"] = ",".join(exclude)
+    if ntasks_per_node:
+        sbatch_args["ntasks-per-node"] = ntasks_per_node
 
     py_cmds = []
     if not isinstance(args, list):
@@ -162,10 +166,15 @@ def slurm_script(
 
     prelude = "\n".join(f"#SBATCH --{k}={v}" for k, v in sbatch_args.items())
     module_load = "\n".join(f"module load {m}" for m in modules)
+    setup_cmds = """
+export __GL_SHADER_DISK_CACHE="0"
+"""
     cmds = "\n".join([module_load, f"cd {pwd}", f". activate {env}", py])
     post_cmd = f"sleep 10\ncp {output} {done_dir}"
-    script = "\n\n".join(["#!/bin/bash", prelude, cmds, "wait", post_cmd])
-
+    script = "\n\n".join([
+        "#!/bin/bash", prelude, setup_cmds, cmds, "wait", post_cmd])
+    if verbose:
+        print(script)
     script_file = outdir / f"{batch_sentinel}.sh"
     with script_file.open("w") as out:
         out.write(script)
@@ -184,20 +193,28 @@ def slurm_submit(args, **kwargs):
 
 
 def get_jobs(args, configs, index, results):
+    try:
+        df = results.dataframe
+    except KeyError:
+        df = None
     for config in configs:
         _args = deepcopy(args)
         _args.__dict__.update(config)
         _args.gpu_id = 0
         conf_key = tuple(getattr(_args, colname) for colname in index)
         try:
-            n_done = results.n_done(conf_key)
-        except:
-            print(conf_key)
-            raise
+            if df is None:
+                raise KeyError
+            n_done = len(df.loc[conf_key])
+        except (KeyError, TypeError):
+            n_done = 0
         for i in range(n_done, _args.trials_per_config):
             __args = deepcopy(_args)
             __args.runid = "__" + uuid4().hex
-            __args.random_seed = i
+            if hasattr(args, "random_random_seed") and args.random_random_seed:
+                __args.random_seed = random.randint(0, 2**30)
+            else:
+                __args.random_seed = i
             yield __args
 
 
@@ -213,18 +230,32 @@ def submit_and_collect(args, configs, index, columns, append_results_fn):
             from IPython import embed
             embed()
             return
+        if hasattr(args, "print_configs") and args.print_configs:
+            for job in jobs:
+                print(job)
         if args.submit_jobs:
             random.shuffle(jobs)
             jobids = []
+            try:
+                n_gpus = args.n_gpus
+            except AttributeError:
+                n_gpus = 1
             for batch in chunked(jobs, args.configs_per_job):
                 jobid = slurm_submit(
-                    batch, positional_arg="command",
-                    exclude=args.exclude, time=args.time,
+                    batch,
+                    positional_arg="command",
+                    partition=args.partition,
+                    exclude=args.exclude,
+                    ntasks_per_node=args.ntasks_per_node,
+                    cpus_per_task=args.cpus_per_task,
+                    n_gpus=n_gpus,
+                    time=args.time,
                     job_name=args.job_name)
                 print(jobid)
                 time.sleep(1)
                 jobids.append(jobid)
             print("Submitted", len(jobids), "jobs")
-        while True:
-            time.sleep(10)
-            append_results_fn(args, results)
+        if args.collect_jobs:
+            while True:
+                time.sleep(10)
+                append_results_fn(args, results)

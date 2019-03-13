@@ -1,5 +1,5 @@
 import shutil
-from pandas import HDFStore, DataFrame
+import pandas as pd
 from dougu import now_str
 
 
@@ -20,18 +20,19 @@ class Results():
                 shutil.copy(self.file, file_bak)
             except FileNotFoundError:
                 pass
-        self.store = HDFStore(self.file)
+        self.store = pd.HDFStore(self.file)
         if self.key not in self.store or self.store[self.key] is None:
-            self.dataframe = DataFrame(columns=self.columns)
+            self.dataframe = pd.DataFrame(columns=self.columns)
         return self
 
     def __exit__(self, *args):
         self.store.close()
 
-    def append(self, row):
-        row = DataFrame([row])
+    def append(self, row, index=True):
+        row = pd.DataFrame([row])
         self.store.append(
             self.key, row, format="table", data_columns=True,
+            index=index,
             min_itemsize=self.min_itemsize)
 
     @property
@@ -73,9 +74,12 @@ class Results():
         self.dataframe = df
 
     def n_done(self, conf_key):
+        import warnings
+        warnings.simplefilter(
+            action='ignore', category=pd.errors.PerformanceWarning)
         try:
             return len(self.dataframe.loc[conf_key])
-        except KeyError:
+        except (KeyError, TypeError):
             return 0
 
     def mean_std_table(

@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 import dougu.torchutil
 
 
@@ -120,8 +121,9 @@ class MultiNgramCodec(object):
 class LabelEncoder(object):
     """Encodes and decodes labels. Decoding from idx representation.
     Optionally return pytorch tensors instead of numpy arrays."""
-    def __init__(self, to_torch=False):
+    def __init__(self, to_torch=False, device=torch.device("cuda")):
         self.to_torch = to_torch
+        self.device = device
 
     def fit(self, labels):
         from sklearn.preprocessing import LabelEncoder as _LabelEncoder
@@ -141,13 +143,12 @@ class LabelEncoder(object):
         if isinstance(labels[0], list):
             return [self.transform(l) for l in labels]
         if self.to_torch:
-            import torch
             tensors = []
             bs = 1000000
             for i in range(0, len(labels), bs):
                 labels_enc = self.label_enc.transform(labels[i:i+bs])
                 tensors.append(torch.LongTensor(labels_enc))
-            return torch.cat(tensors).cuda()
+            return torch.cat(tensors).to(device=self.device)
             # return torch.from_numpy(labels_enc).long().cuda()
         else:
             return self.label_enc.transform(labels)
@@ -160,11 +161,11 @@ class LabelEncoder(object):
         return self.label_enc.inverse_transform(idx)
 
     @staticmethod
-    def from_file(file, to_torch=False, save_to=None):
+    def from_file(file, to_torch=False, save_to=None, device="cuda"):
         """Create LabelEncoder instance from file, which contains
         one label per line. Optionally dump instance to save_to."""
         from .io import lines
-        codec = LabelEncoder(to_torch)
+        codec = LabelEncoder(to_torch, device=device)
         codec.fit(list(lines(file)))
         if save_to:
             import joblib

@@ -207,9 +207,11 @@ class Score():
         if comp == float.__lt__:
             self.current = float("inf")
             self.best = float("inf")
+            self.optimum = "min"
         else:
             self.current = 0.0
             self.best = 0.0
+            self.optimum = "max"
         self.best_model = None
         self.pred = []
         self.true = []
@@ -313,7 +315,7 @@ class LossTracker(list):
 
     def interval_end(
             self, epoch=None, model=None, model_file=None, ds_name=None):
-        loss = np.average(self)
+        loss = self.current
         if loss < self.best_loss[ds_name]:
             self.best_loss[ds_name] = loss
             if self.save_model and model:
@@ -325,6 +327,10 @@ class LossTracker(list):
                 self.best_model = model_file
         self.clear()
         return loss
+
+    @property
+    def current(self):
+        return np.average(self)
 
 
 class LossTrackers():
@@ -354,7 +360,7 @@ class LossTrackers():
     def interval_end_log(
             self, epoch, *, model=None, model_file=None, ds_name=None):
         self.info(f"e{epoch} {ds_name} " + " ".join(
-            f"{name}_{loss:.4f}/{best:.4f}"
+            f"{name}_{loss:.6f}/{best:.6f}"
             for name, loss, best in self.interval_end(
                 epoch=epoch,
                 model=model, model_file=model_file, ds_name=ds_name)))
@@ -387,6 +393,40 @@ def get_optim(args, model):
             momentum=args.momentum,
             weight_decay=args.weight_decay)
     raise ValueError("Unknown optimizer: " + args.optim)
+
+
+def get_bert_optim(args, model, num_train_steps):
+    from pytorch_pretrained_bert.optimization import BertAdam
+    if args.bert_half_precision:
+        param_optimizer = [
+            (n, param.clone().detach().to('cpu').float().requires_grad_())
+            for n, param in model.named_parameters()]
+    elif args.optimize_on_cpu:
+        param_optimizer = [
+            (n, param.clone().detach().to('cpu').requires_grad_())
+            for n, param in model.named_parameters()]
+    else:
+        param_optimizer = list(model.named_parameters())
+
+    no_decay = ['bias', 'gamma', 'beta']
+    optimizer_grouped_parameters = [{
+        'params': [
+            p for n, p in param_optimizer
+            if not any(nd in n for nd in no_decay)],
+        'weight_decay_rate': 0.01}, {
+        'params': [
+            p for n, p in param_optimizer
+            if any(nd in n for nd in no_decay)],
+        'weight_decay_rate': 0.0}]
+    t_total = num_train_steps
+    if args.local_rank != -1:
+        t_total = t_total // torch.distributed.get_world_size()
+
+    return BertAdam(
+        optimizer_grouped_parameters,
+        lr=args.learning_rate,
+        warmup=args.warmup_proportion,
+        t_total=t_total)
 
 
 def tensorize_varlen_items(
@@ -472,5 +512,6 @@ class EarlyStopping():
 
 def set_random_seed(seed):
     torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)

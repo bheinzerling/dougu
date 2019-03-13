@@ -9,34 +9,85 @@ import matplotlib
 import itertools
 import numpy as np
 
-from pylab import rcParams
-rcParams['figure.figsize'] = (12, 12)
+# from pylab import rcParams
+# rcParams['figure.figsize'] = (12, 12)
+fontsize = 12
+params = {
+    'figure.figsize': (12, 12),
+    'axes.labelsize': fontsize,
+    'axes.titlesize': fontsize,
+    'legend.fontsize': fontsize,
+    'xtick.labelsize': fontsize - 1,
+    'ytick.labelsize': fontsize - 1,
+}
+mpl.rcParams.update(params)
 
 
 def histogram(
         values,
-        name=None,
-        xlim=None,
-        ylim=None,
-        logx=False,
-        xlabel=None,
-        ylabel=None,
+        *,
+        name,
         filetype="png",
-        **hist_kwargs):
+        plt_kwargs=None,
+        hist_kwargs=None):
+    n, bins, patches = mpl_plot(
+        plt_fn=lambda: plt.hist(values, linewidth=10, **(hist_kwargs or {})),
+        name=name,
+        filetype=filetype,
+        **(plt_kwargs or {}))
+    return n, bins
+
+
+def scatter(
+        x,
+        y,
+        *,
+        name,
+        filetype="png",
+        plt_kwargs=None,
+        scatter_kwargs=None,
+        fit_y=None,
+        fit_plot_kwargs=None,
+        legend=False):
+    def plot_fit():
+        if fit_y is not None:
+            plt.plot(x, fit_y, **(fit_plot_kwargs or {}))
+
+    def legend_fn():
+        if legend:
+            if isinstance(legend, dict):
+                plt.legend(**legend)
+            else:
+                plt.legend()
+
+    if isinstance(y, dict):
+        def plt_fn():
+            for label, _y in y.items():
+                plt.scatter(x, _y, label=label, **(scatter_kwargs or {}))
+            plot_fit()
+            legend_fn()
+    else:
+        def plt_fn():
+            plt.scatter(x, y, **(scatter_kwargs or {}))
+            plot_fit()
+            legend_fn()
+    mpl_plot(
+        plt_fn=plt_fn,
+        name=name,
+        filetype=filetype,
+        **plt_kwargs)
+
+
+def mpl_plot(
+        plt_fn,
+        *,
+        name,
+        filetype="png",
+        **plt_kwargs):
     Figure.file_types = [filetype]
+    Figure.set_defaults(**plt_kwargs)
     with Figure(name):
-        if logx:
-            plt.xscale("log")
-        n, bins, patches = plt.hist(values, linewidth=10, **hist_kwargs)
-        if xlim:
-            plt.xlim(*xlim)
-        if ylim:
-            plt.ylim(*ylim)
-        if xlabel:
-            plt.xlabel(xlabel)
-        if ylabel:
-            plt.ylabel(ylabel)
-        return n, bins
+        return plt_fn()
 
 
 # http://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#the-seq2seq-model  # NOQA
@@ -126,7 +177,14 @@ def add_colorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
 def simple_imshow(
         matrix,
         cmap="viridis", figsize=(10, 10), aspect_equal=True, outfile=None,
-        title=None, xlabel=None, ylabel=None, xtick_locs_labels=None,
+        title=None, xlabel=None, ylabel=None,
+        xtick_labels=None,
+        ytick_labels=None,
+        xtick_locs_labels=None,
+        ytick_locs_labels=None,
+        xtick_label_rotation='vertical',
+        x_grid=None,
+        y_grid=None,
         colorbar=True, scale="lin"):
     if aspect_equal and figsize[1] is None:
         matrix_aspect = matrix.shape[0] / matrix.shape[1]
@@ -145,8 +203,24 @@ def simple_imshow(
         ax.set_ylabel(ylabel)
     norm = matplotlib.colors.SymLogNorm(1) if scale == "log" else None
     im = plt.imshow(matrix, interpolation='nearest', cmap=cmap, norm=norm)
-    if xtick_locs_labels:
-        plt.xticks(*xtick_locs_labels)
+    if xtick_labels is not None:
+        assert xtick_locs_labels is None
+        locs = np.arange(0, len(xtick_labels))
+        xtick_locs_labels = locs, xtick_labels
+    if ytick_labels is not None:
+        assert ytick_locs_labels is None
+        locs = np.arange(0, len(ytick_labels))
+        ytick_locs_labels = locs, ytick_labels
+    if xtick_locs_labels is not None:
+        plt.xticks(*xtick_locs_labels, rotation=xtick_label_rotation)
+    if ytick_locs_labels is not None:
+        plt.yticks(*ytick_locs_labels)
+    if x_grid is not None or y_grid is not None:
+        if x_grid is not None:
+            ax.set_xticks(x_grid, minor=True)
+        if y_grid is not None:
+            ax.set_yticks(y_grid, minor=True)
+        ax.grid(which="minor")
     if colorbar:
         add_colorbar(im)
     plt.tight_layout()
@@ -349,12 +423,14 @@ def plot_embeddings_bokeh(
                 palette=palette)}
     elif color is not None:
         if cmap is not None:
-            import bokeh.palettes
-            if cmap.endswith("_r"):  # matplotib suffix for reverse color maps
-                cmap_reverse = True
-                cmap = cmap[:-2]
-            cmap = getattr(bokeh.palettes, cmap)
-            if isinstance(cmap, dict):
+            if isinstance(cmap, str):
+                import bokeh.palettes
+                # matplotib suffix for reverse color maps
+                if cmap.endswith("_r"):
+                    cmap_reverse = True
+                    cmap = cmap[:-2]
+                cmap = getattr(bokeh.palettes, cmap)
+            elif isinstance(cmap, dict):
                 cmap = cmap[max(cmap.keys())]
         else:
             cmap = Viridis256
@@ -424,18 +500,57 @@ class Figure():
     >>> # context manager will call plt.xlim(0, 100) and plt.ylim(0, 1.0)
     """
     fig_dir = Path("out/figs")
-    file_types = ["png"]
-    plt_calls = {}
+    file_types = ["png", "pdf"]
+    default_plt_calls = {}
+    late_calls = ["xscale", "xlim", "yscale", "ylim"]  # order is important
 
-    def __init__(self, name):
+    def __init__(
+            self, name,
+            figwidth=6, figheight=None, fontsize=12,
+            invert_xaxis=False, invert_yaxis=False,
+            **kwargs):
+        self.fig = plt.figure()
+        self.fig.set_figwidth(figwidth)
+        phi = 1.6180
+        self.fig.set_figheight(figheight or figwidth / phi)
+        # params = {
+        #     'figure.figsize': (figwidth, figheight or figwidth / phi),
+        #     'axes.labelsize': fontsize,
+        #     'axes.titlesize': fontsize,
+        #     'legend.fontsize': fontsize,
+        #     'xtick.labelsize': fontsize - 1,
+        #     'ytick.labelsize': fontsize - 1,
+        # }
+        # mpl.rcParams.update(params)
         self.name = name
+        self.plt_calls = {**kwargs}
+        self.invert_xaxis = invert_xaxis
+        self.invert_yaxis = invert_yaxis
+        for attr, val in self.default_plt_calls.items():
+            if attr not in self.plt_calls:
+                self.plt_calls[attr] = val
 
     def __enter__(self):
         for attr, val in self.plt_calls.items():
-            getattr(plt, attr)(val)
-        return self
+            # if attr in self.late_calls:
+            #     continue
+            try:
+                getattr(plt, attr)(val)
+            except:
+                getattr(plt, attr)(*val)
+
+        return self.fig
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        # for attr in self.late_calls:
+        #     if attr in self.plt_calls:
+        #         print(attr, self.plt_calls[attr])
+        #         getattr(plt, attr)(self.plt_calls[attr])
+        if self.invert_xaxis:
+            plt.gca().invert_xaxis()
+        if self.invert_yaxis:
+            plt.gca().invert_yaxis()
+        plt.tight_layout()
         for file_type in self.file_types:
             outfile = self.fig_dir / f"{self.name}.{file_type}"
             plt.savefig(outfile)
@@ -443,9 +558,13 @@ class Figure():
 
     @classmethod
     def set_defaults(cls, **kwargs):
-        cls.plt_calls = kwargs
+        cls.default_plt_calls = kwargs
         for attr, val in kwargs.items():
             setattr(cls, attr, val)
+
+    @classmethod
+    def reset_defaults(cls):
+        cls.default_plt_calls = {}
 
 
 linestyles = [

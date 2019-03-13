@@ -19,6 +19,7 @@ def json_dump(obj, json_file):
     """Dump obj to json file."""
     with to_path(json_file).open("w", encoding="utf8") as out:
         json.dump(obj, out)
+        out.write("\n")
 
 
 def jsonlines_load(jsonlines_file, max=None, skip=None):
