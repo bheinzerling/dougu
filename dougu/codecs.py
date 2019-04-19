@@ -121,7 +121,7 @@ class MultiNgramCodec(object):
 class LabelEncoder(object):
     """Encodes and decodes labels. Decoding from idx representation.
     Optionally return pytorch tensors instead of numpy arrays."""
-    def __init__(self, to_torch=False, device=torch.device("cuda")):
+    def __init__(self, to_torch=False, device="cuda"):
         self.to_torch = to_torch
         self.device = device
 
