@@ -29,6 +29,7 @@ class Bert():
             self.model_name, do_lower_case=do_lower_case)
         maybe_model_wrapper = model.from_pretrained(model_name).to(
             device=self.device)
+        self.maybe_model_wrapper = maybe_model_wrapper
         try:
             self.model = maybe_model_wrapper.bert
         except AttributeError:
@@ -38,6 +39,9 @@ class Bert():
         self.max_len = \
             self.model.embeddings.position_embeddings.weight.size(0)
         self.dim = self.model.embeddings.position_embeddings.weight.size(1)
+
+    def __call__(self, *args, **kwargs):
+        return self.maybe_model_wrapper(*args, **kwargs)
 
     def tokenize(self, text, masked_idxs=None):
         tokenized_text = self.tokenizer.tokenize(text)
@@ -52,6 +56,21 @@ class Bert():
     def tokenize_to_ids(self, text, masked_idxs=None, pad=True):
         tokens = self.tokenize(text, masked_idxs)
         return self.convert_tokens_to_ids(tokens, pad=pad)
+
+    def mask_mention_and_tokenize_context_to_ids(
+            self,
+            left_ctx, mention, right_ctx,
+            collapse_mask=True,
+            pad=True):
+        left_ctx_tokenized = self.tokenize(left_ctx)[:-1]  # remove [SEP]
+        if collapse_mask:
+            masked_mention = [self.MASK]
+        else:
+            mention_tokenized = self.tokenize(mention)
+            masked_mention = [self.MASK] * len(mention_tokenized)
+        right_ctx_tokenized = self.tokenize(right_ctx)[1:]  # remove [CLS]
+        tokens = left_ctx_tokenized + masked_mention + right_ctx_tokenized
+        return tokens, self.convert_tokens_to_ids(tokens, pad=pad)
 
     def convert_tokens_to_ids(self, tokens, pad=True):
         token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
@@ -94,7 +113,12 @@ class Bert():
         token_start_idxs = 1 + np.cumsum([0] + subword_lengths[:-1])
         return subwords, token_start_idxs
 
-    def subword_tokenize_to_ids(self, tokens):
+    def subword_tokenize_to_ids(
+            self,
+            tokens,
+            mask_start_idx=None,
+            mask_end_idx=None,
+            collapse_mask=True):
         """Segment each token into subwords while keeping track of
         token boundaries and convert subwords into IDs.
 
@@ -111,11 +135,20 @@ class Bert():
             - An array of indices into the list of subwords. See
                 doc of subword_tokenize.
         """
+        if mask_start_idx is not None:
+            if mask_end_idx is None:
+                mask_end_idx = mask_start_idx + 1
+            mask_repeats = 1 if collapse_mask \
+                else (mask_end_idx - mask_start_idx)
+            tokens = (
+                tokens[:mask_start_idx + 1] +
+                [self.MASK] * mask_repeats +
+                tokens[mask_end_idx:])
         subwords, token_start_idxs = self.subword_tokenize(tokens)
-        subword_ids, mask = self.convert_tokens_to_ids(subwords)
+        subword_ids, padding_mask = self.convert_tokens_to_ids(subwords)
         token_starts = torch.zeros(1, self.max_len).to(subword_ids)
         token_starts[0, token_start_idxs] = 1
-        return subword_ids, mask, token_starts
+        return subword_ids, padding_mask, token_starts
 
     def segment_ids(self, segment1_len, segment2_len):
         ids = [0] * segment1_len + [1] * segment2_len

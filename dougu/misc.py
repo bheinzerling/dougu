@@ -249,3 +249,14 @@ def df_to_latex(
 """)
 
     return latex_tbl
+
+
+class SubclassRegistry:
+    '''Mixin that automatically registers all subclasses of the
+    given class.
+    '''
+    subclasses = dict()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.subclasses[cls.__name__.lower()] = cls
