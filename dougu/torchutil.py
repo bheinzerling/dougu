@@ -228,35 +228,40 @@ class Score():
         else:
             raise ValueError("Unknown add_mode: " + add_mode)
 
-    def extend(self, pred, true):
+    def extend(self, pred, true=None):
         """extend predicted and true labels"""
-        if hasattr(pred, "shape"):
-            assert pred.shape == true.shape, (pred.shape, true.shape)
-        else:
-            assert len(pred) == len(true)
         if hasattr(pred, "tolist"):
             pred = pred.tolist()
-        if hasattr(true, "tolist"):
-            true = true.tolist()
         self.pred.extend(pred)
-        self.true.extend(true)
+        if true is not None:
+            if hasattr(pred, "shape"):
+                assert pred.shape == true.shape, (pred.shape, true.shape)
+            else:
+                assert len(pred) == len(true)
+            if hasattr(true, "tolist"):
+                true = true.tolist()
+            self.true.extend(true)
 
-    def append(self, pred, true):
-        """extend predicted and true labels"""
-        if hasattr(pred, "shape"):
-            assert pred.shape == true.shape, (pred.shape, true.shape)
-        else:
-            assert len(pred) == len(true)
+    def append(self, pred, true=None):
+        """append predicted and true labels"""
         if hasattr(pred, "tolist"):
             pred = pred.tolist()
-        if hasattr(true, "tolist"):
-            true = true.tolist()
         self.pred.append(pred)
-        self.true.append(true)
+        if true is not None:
+            if hasattr(pred, "shape"):
+                assert pred.shape == true.shape, (pred.shape, true.shape)
+            else:
+                assert len(pred) == len(true)
+            if hasattr(true, "tolist"):
+                true = true.tolist()
+            self.true.append(true)
 
     def update(self, model=None, rundir=None, epoch=None, score=None):
         if score is None:
-            score = self.score_func(self.pred, self.true)
+            if not self.true:
+                score = self.score_func(self.pred)
+            else:
+                score = self.score_func(self.pred, self.true)
         self.current = score
         if self.comp(score, self.best):
             self.best = score
