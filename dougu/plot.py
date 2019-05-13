@@ -361,12 +361,17 @@ def plot_dendrogram(dist, labels, outfile=None, method="centroid"):
 def plot_embeddings_bokeh(
         emb,
         emb_method=None,
-        classes=None, labels=None, color=None,
+        classes=None,
+        class_category=None,
+        labels=None,
+        color=None,
         color_category=None,
+        color_categorical=False,
         cmap=None, cmap_reverse=False,
         colorbar=False, colorbar_ticks=None,
         outfile=None, title=None,
         scatter_labels=False,
+        tooltip_fields=None,
         **circle_kwargs):
     """
     Creates an interactive scatterplot of the embeddings contained in emb,
@@ -390,7 +395,22 @@ def plot_embeddings_bokeh(
     from bokeh.models import (
         ColumnDataSource, CategoricalColorMapper, LinearColorMapper,
         ColorBar, FixedTicker, Text)
-    from bokeh.palettes import Category20, Viridis256, viridis
+    from bokeh.palettes import (
+        Category20, Category20b, Category20c, Viridis256, viridis)
+
+    def get_palette(categories):
+        n_cat = len(set(categories))
+        if n_cat <= 20:
+            if n_cat <= 2:
+                palette = Category20[3]
+                return [palette[0], palette[-1]]
+            else:
+                return Category20[n_cat]
+        if n_cat <= 40:
+            return Category20[20] + Category20b[20]
+        if n_cat <= 60:
+            return Category20[20] + Category20b[20] + Category20c[20]
+        return viridis(n_cat)
 
     if emb_method:
         emb = embed_2d(emb, emb_method)
@@ -399,44 +419,46 @@ def plot_embeddings_bokeh(
         output_file(outfile)
 
     source_dict = dict(x=emb[:, 0], y=emb[:, 1])
-    if classes is not None:
-        source_dict["cls"] = classes
     if labels is not None:
         source_dict["label"] = labels
     if color is not None:
         source_dict["color"] = color
+    if classes is not None:
+        source_dict["class"] = classes
+    if tooltip_fields:
+        for k, v in tooltip_fields.items():
+            source_dict[k] = v
     source = ColumnDataSource(source_dict)
     if classes is not None and color is None:
-        n_classes = len(set(classes))
-        if n_classes <= 20:
-            if n_classes <= 2:
-                palette = Category20[3]
-                palette = [palette[0], palette[-1]]
-            else:
-                palette = Category20[n_classes]
-        else:
-            palette = viridis(n_classes)
+        palette = get_palette(classes)
         color_conf = {
-            "field": "cls",
+            "field": "class",
             "transform": CategoricalColorMapper(
                 factors=list(set(classes)),
                 palette=palette)}
     elif color is not None:
-        if cmap is not None:
-            if isinstance(cmap, str):
-                import bokeh.palettes
-                # matplotib suffix for reverse color maps
-                if cmap.endswith("_r"):
-                    cmap_reverse = True
-                    cmap = cmap[:-2]
-                cmap = getattr(bokeh.palettes, cmap)
-            elif isinstance(cmap, dict):
-                cmap = cmap[max(cmap.keys())]
+        # TODO only coloring by class works
+        if color_categorical:
+            palette = get_palette(colors)
+            color_mapper = CategoricalColorMapper(
+                    factors=list(set(colors)),
+                    palette=palette)
         else:
-            cmap = Viridis256
-        if cmap_reverse:
-            cmap.reverse()
-        color_mapper = LinearColorMapper(cmap)
+            if cmap is not None:
+                if isinstance(cmap, str):
+                    import bokeh.palettes
+                    # matplotib suffix for reverse color maps
+                    if cmap.endswith("_r"):
+                        cmap_reverse = True
+                        cmap = cmap[:-2]
+                    cmap = getattr(bokeh.palettes, cmap)
+                elif isinstance(cmap, dict):
+                    cmap = cmap[max(cmap.keys())]
+            else:
+                cmap = Viridis256
+            if cmap_reverse:
+                cmap.reverse()
+            color_mapper = LinearColorMapper(cmap)
         color_conf = {
             "field": "color",
             "transform": color_mapper}
@@ -463,18 +485,26 @@ def plot_embeddings_bokeh(
             x='x', y='y',
             source=source,
             color=color_conf,
-            legend='cls' if classes is not None else None,
+            legend=(
+                'class' if classes is not None else
+                'color' if color is not None else
+                None),
             **circle_kwargs)
     if labels is not None:
         from bokeh.models import HoverTool
         from collections import OrderedDict
         hover = p.select(dict(type=HoverTool))
         hover_entries = [
-            ("label", "@label"),
+            ("label", "@label{safe}"),
             ("(x, y)", "(@x, @y)"),
             ]
         if color is not None and color_category:
             hover_entries.append((color_category, "@color"))
+        if classes is not None and class_category:
+            hover_entries.append((class_category, "@class"))
+        if tooltip_fields:
+            for field in tooltip_fields:
+                hover_entries.append((field, "@" + field))
         hover.tooltips = OrderedDict(hover_entries)
     if colorbar:
         assert color is not None

@@ -22,10 +22,20 @@ def json_dump(obj, json_file):
         out.write("\n")
 
 
-def jsonlines_load(jsonlines_file, max=None, skip=None):
+def jsonlines_load(jsonlines_file, max=None, skip=None, filter_fn=None):
     """Load objects from json lines file, i.e. a file with one
     serialized object per line."""
-    yield from map(json.loads, lines(jsonlines_file, max=max, skip=skip))
+    if filter_fn is not None:
+        yielded = 0
+        for line in lines(jsonlines_file, skip=skip):
+            obj = json.loads(line)
+            if filter_fn(obj):
+                yield obj
+                yielded += 1
+                if max and yielded >= max:
+                    break
+    else:
+        yield from map(json.loads, lines(jsonlines_file, max=max, skip=skip))
 
 
 def lines(file, max=None, skip=0, apply_func=str.strip):

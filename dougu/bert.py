@@ -44,24 +44,23 @@ class Bert():
         return self.maybe_model_wrapper(*args, **kwargs)
 
     def tokenize(self, text, masked_idxs=None):
-        tokenized_text = self.tokenizer.tokenize(text)
-        if masked_idxs is not None:
-            for idx in masked_idxs:
-                tokenized_text[idx] = self.MASK
-        # prepend [CLS] and append [SEP]
-        # see https://github.com/huggingface/pytorch-pretrained-BERT/blob/master/examples/run_classifier.py#L195  # NOQA
-        tokenized = [self.CLS] + tokenized_text + [self.SEP]
-        return tokenized
+        if isinstance(text, str):
+            tokenized_text = self.tokenizer.tokenize(text)
+            if masked_idxs is not None:
+                for idx in masked_idxs:
+                    tokenized_text[idx] = self.MASK
+            # prepend [CLS] and append [SEP]
+            # see https://github.com/huggingface/pytorch-pretrained-BERT/blob/master/examples/run_classifier.py#L195  # NOQA
+            tokenized = [self.CLS] + tokenized_text + [self.SEP]
+            return tokenized
+        return list(map(self.tokenize, text))
 
     def tokenize_to_ids(self, text, masked_idxs=None, pad=True):
         tokens = self.tokenize(text, masked_idxs)
         return self.convert_tokens_to_ids(tokens, pad=pad)
 
-    def mask_mention_and_tokenize_context_to_ids(
-            self,
-            left_ctx, mention, right_ctx,
-            collapse_mask=True,
-            pad=True):
+    def mask_mention_and_tokenize_context(
+            self, collapse_mask, *, left_ctx, mention, right_ctx, **kwargs):
         left_ctx_tokenized = self.tokenize(left_ctx)[:-1]  # remove [SEP]
         if collapse_mask:
             masked_mention = [self.MASK]
@@ -70,9 +69,41 @@ class Bert():
             masked_mention = [self.MASK] * len(mention_tokenized)
         right_ctx_tokenized = self.tokenize(right_ctx)[1:]  # remove [CLS]
         tokens = left_ctx_tokenized + masked_mention + right_ctx_tokenized
+        return tokens
+
+    def mask_mention_and_tokenize_context_to_ids(
+            self,
+            left_ctx, mention, right_ctx,
+            collapse_mask=True,
+            pad=True):
+        tokens = self.mask_mention_and_tokenize_context(
+            collapse_mask=collapse_mask,
+            left_ctx=left_ctx,
+            mention=mention,
+            right_ctx=right_ctx)
         return tokens, self.convert_tokens_to_ids(tokens, pad=pad)
 
+    def mask_mentions_and_tokenize_contexts_to_ids(
+            self,
+            mentions_and_contexts,
+            collapse_mask=True):
+        tokens = [
+            self.mask_mention_and_tokenize_context(
+                collapse_mask=collapse_mask, **ment_ctx)
+            for ment_ctx in mentions_and_contexts]
+        return tokens, self.convert_tokens_to_ids(tokens)
+
     def convert_tokens_to_ids(self, tokens, pad=True):
+        if isinstance(tokens[0], list):
+            token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
+            padded_ids = torch.zeros(
+                (len(tokens,), self.max_len), dtype=torch.long)
+            for row_idx, token_ids in enumerate(token_idss):
+                token_ids = torch.tensor(token_ids)
+                padded_ids[row_idx, :len(token_ids)] = token_ids
+            padded_ids = padded_ids.to(device=self.device)
+            mask = padded_ids > 0
+            return padded_ids, mask
         token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
         ids = torch.tensor([token_ids]).to(device=self.device)
         assert ids.size(1) < self.max_len
