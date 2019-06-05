@@ -231,8 +231,12 @@ def simple_imshow(
     plt.clf()
 
 
-def embed_2d(emb, emb_method="UMAP", umap_n_neighbors=15, umap_min_dist=0.1):
-    if emb_method == "UMAP":
+def embed_2d(
+        emb, emb_method="UMAP", umap_n_neighbors=15, umap_min_dist=0.1,
+        return_proj=False):
+    if hasattr(emb_method, 'fit_transform'):
+        proj = emb_method
+    elif emb_method == "UMAP":
         try:
             from umap import UMAP
         except ImportError:
@@ -247,7 +251,10 @@ def embed_2d(emb, emb_method="UMAP", umap_n_neighbors=15, umap_min_dist=0.1):
     else:
         import sklearn.manifold
         proj = getattr(sklearn.manifold, emb_method)()
-    return proj.fit_transform(emb)
+    emb_2d = proj.fit_transform(emb)
+    if return_proj:
+        return emb_2d, proj
+    return emb_2d
 
 
 def plot_embeddings(
@@ -372,6 +379,7 @@ def plot_embeddings_bokeh(
         outfile=None, title=None,
         scatter_labels=False,
         tooltip_fields=None,
+        figure_kwargs=None,
         **circle_kwargs):
     """
     Creates an interactive scatterplot of the embeddings contained in emb,
@@ -397,6 +405,7 @@ def plot_embeddings_bokeh(
         ColorBar, FixedTicker, Text)
     from bokeh.palettes import (
         Category20, Category20b, Category20c, Viridis256, viridis)
+    from bokeh.io import export_png
 
     def get_palette(categories):
         n_cat = len(set(categories))
@@ -472,13 +481,15 @@ def plot_embeddings_bokeh(
     else:
         color_conf = "red"
     tools = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
-    p = figure(tools=tools, sizing_mode='scale_both')
+    figure_kwargs = figure_kwargs or {}
+    p = figure(tools=tools, sizing_mode='stretch_both')
     if title:
         p.title.text = title
     if labels is not None and scatter_labels:
         glyph = Text(
             x="x", y="y", text="label", angle=0.0,
-            text_color=color_conf, text_alpha=0.95, text_font_size="8pt")
+            text_color=color_conf, text_alpha=0.95, text_font_size="8pt",
+            **circle_kwargs)
         p.add_glyph(source, glyph)
     else:
         p.circle(
@@ -511,6 +522,8 @@ def plot_embeddings_bokeh(
         p.add_layout(colorbar, 'right')
     if outfile:
         save(p)
+        png_file = outfile.with_suffix('.png')
+        export_png(p, filename=png_file)
     else:
         show(p)
 

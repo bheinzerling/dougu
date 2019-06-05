@@ -4,6 +4,7 @@ from pprint import pprint
 import random
 import heapq
 
+import sklearn
 import numpy as np
 import torch
 from torch import nn, optim, tensor, arange
@@ -299,6 +300,26 @@ class Score():
         assert n == len(true)
         correct = sum(p == t for p, t in zip(pred, true))
         return correct / n
+
+    @staticmethod
+    def f1_score(pred, true):
+        return sklearn.metrics.f1_score(true, pred)
+
+    @staticmethod
+    def f1_score_multiclass(pred, true, average='macro'):
+        f1_score = sklearn.metrics.f1_score
+        if average == 'macro':
+            return np.average([f1_score(t, p) for t, p in zip(true, pred)])
+        elif average == 'micro':
+            return f1_score(list(flatten(true)), list(flatten(pred)))
+
+    @staticmethod
+    def f1_score_multiclass_micro(pred, true):
+        return Score.f1_score_multiclass(pred, true, average='micro')
+
+    @staticmethod
+    def f1_score_multiclass_macro(pred, true):
+        return Score.f1_score_multiclass(pred, true, average='macro')
 
     @property
     def best_str(self):

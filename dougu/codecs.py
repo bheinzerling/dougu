@@ -177,8 +177,9 @@ class LabelOneHotEncoder(object):
     """Encodes and decodes labels. Decoding either from idx or one-hot
     representation. Optionally return pytorch tensors instead of numpy
     arrays."""
-    def __init__(self, to_torch=False):
+    def __init__(self, to_torch=False, reduce=None):
         self.to_torch = to_torch
+        self.reduce = reduce
 
     def fit(self, labels):
         from sklearn.preprocessing import (
@@ -194,7 +195,7 @@ class LabelOneHotEncoder(object):
             labels = [labels]
         labels_enc = self.label_enc.transform(labels)
         if self.to_torch:
-            return dougu.torchutil.LongTensor(labels_enc)
+            return torch.LongTensor(labels_enc)
             # return torch.from_numpy(labels_enc).long().cuda()
         return labels_enc
 
@@ -205,8 +206,14 @@ class LabelOneHotEncoder(object):
         if self.to_torch:
             t = self.one_hot_enc.transform(labels_enc)
             # return Tensor(t.astype(float)).long()
-            return dougu.torchutil.LongTensor(t)
-        return np.array(self.one_hot_enc.transform(labels_enc))
+            one_hot = torch.LongTensor(t)
+            if self.reduce == 'sum':
+                return one_hot.sum(dim=0)
+            return one_hot
+        one_hot = np.array(self.one_hot_enc.transform(labels_enc))
+        if self.reduce == 'sum':
+            return one_hot.sum(axis=0)
+        return one_hot
 
     def inverse_transform_one_hot(self, one_hot):
         idx = self.one_hot_enc.inverse_transform(one_hot)

@@ -16,6 +16,8 @@ class Bert():
     MASK = "[MASK]"
     CLS = "[CLS]"
     SEP = "[SEP]"
+    nspecial_symbols_segment1 = 2  # [CLS] sent1... [SEP]
+    nspecial_symbols_segment2 = 1  # sent2... [SEP]
 
     supported_langs = set(lines(
         Path(__file__).parent / "data" / "bert_langs.wiki"))
@@ -55,9 +57,30 @@ class Bert():
             return tokenized
         return list(map(self.tokenize, text))
 
+    def tokenize_sentence_pair(self, sent1, sent2):
+        tokenized_sent1 = self.tokenizer.tokenize(sent1)
+        tokenized_sent2 = self.tokenizer.tokenize(sent2)
+        return self.add_special_symbols(tokenized_sent1, tokenized_sent2)
+
+    def add_special_symbols(self, tokenized_sent1, tokenized_sent2):
+        return (
+            [self.CLS] + tokenized_sent1 + [self.SEP] +
+            tokenized_sent2 + [self.SEP])
+
     def tokenize_to_ids(self, text, masked_idxs=None, pad=True):
         tokens = self.tokenize(text, masked_idxs)
         return self.convert_tokens_to_ids(tokens, pad=pad)
+
+    def tokenize_sentence_pair_to_ids(self, sent1, sent2):
+        tokenized_sent1 = self.tokenizer.tokenize(sent1)
+        segment1_len = len(tokenized_sent1) + self.nspecial_symbols_segment1
+        tokenized_sent2 = self.tokenizer.tokenize(sent2)
+        segment2_len = len(tokenized_sent2) + self.nspecial_symbols_segment2
+        tokenized_sents = self.add_special_symbols(
+            tokenized_sent1, tokenized_sent2)
+        padded_ids, padding_mask = self.convert_tokens_to_ids(tokenized_sents)
+        segment_ids = self.segment_ids(segment1_len, segment2_len)
+        return padded_ids, padding_mask, segment_ids
 
     def mask_mention_and_tokenize_context(
             self, collapse_mask, *, left_ctx, mention, right_ctx, **kwargs):
@@ -181,8 +204,10 @@ class Bert():
         token_starts[0, token_start_idxs] = 1
         return subword_ids, padding_mask, token_starts
 
-    def segment_ids(self, segment1_len, segment2_len):
-        ids = [0] * segment1_len + [1] * segment2_len
+    def segment_ids(self, segment1_len, segment2_len, pad=True):
+        npad = self.max_len - segment1_len - segment2_len
+        ids = [0] * segment1_len + [1] * segment2_len + [0] * npad
+        assert len(ids) == self.max_len
         return torch.tensor([ids]).to(device=self.device)
 
     @staticmethod
