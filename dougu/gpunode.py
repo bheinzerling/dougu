@@ -7,6 +7,7 @@ import json
 from subprocess import run, PIPE
 from copy import deepcopy
 from uuid import uuid4
+import os
 
 from boltons.iterutils import chunked
 
@@ -181,8 +182,8 @@ export __GL_SHADER_DISK_CACHE="0"
     return script_file
 
 
-def slurm_submit(args, **kwargs):
-    script_file = slurm_script(args, **kwargs)
+def slurm_submit(conf, **kwargs):
+    script_file = slurm_script(conf, **kwargs)
     sbatch_cmd = ["sbatch", script_file]
     sbatch_out = run(sbatch_cmd, encoding="utf8", stdout=PIPE).stdout
     msg = "Submitted batch job "
@@ -190,6 +191,68 @@ def slurm_submit(args, **kwargs):
     jobid = sbatch_out.strip().split()[-1]
     assert str(int(jobid)) == jobid
     return jobid
+
+
+def grid_engine_script(
+        conf,
+        pwd=Path("."),
+        env="pt1",
+        file="main.py",
+        outdir=None,
+        log=None,
+        positional_arg=None,
+        verbose=False):
+
+    if not isinstance(conf, list):
+        confs = [conf]
+    else:
+        confs = conf
+
+    py_cmds = [
+        " ".join(["python", file, args_to_str(conf, positional_arg)])
+        for conf in confs]
+
+    home = os.environ['HOME']
+    cd_cmd = f"cd {pwd.absolute()}"
+    env_cmd = f". {home}/conda/bin/activate {env}"
+    if conf[0].cycle_gpus > 0:
+        import shlex
+        py = [
+            ' && '.join([cd_cmd, env_cmd, shlex.quote(py_cmd)])
+            for py_cmd in py_cmds]
+        script = '\n'.join([
+            f'xargs -P{conf[0].cycle_gpus} -I% bash -c "%" <<EOF',
+            *py,
+            'EOF'])
+    else:
+        py = "\n\n".join(py_cmds)
+        script = "\n".join(['#! /usr/bin/env bash', cd_cmd, env_cmd, py])
+    if verbose:
+        print(script)
+    if outdir is None:
+        outdir = Path(home) / 'uge'
+    script_file = mkdir(outdir.absolute()) / f"{conf[0].runid}.sh"
+    with script_file.open("w") as out:
+        out.write(script)
+    return script_file
+
+
+def grid_engine_submit(conf, positional_arg):
+    script_file = grid_engine_script(conf, positional_arg=positional_arg)
+    print(script_file)
+    jobid = 1
+    submit_cmd = [
+        'qsub',
+        '-g', f'{conf[0].group}',
+        '-l', f'{conf[0].queue}=1',
+        '-l', f'h_rt={conf[0].time}',
+        '-j', 'y',
+        script_file]
+    submit_out = run(submit_cmd, encoding="utf8", stdout=PIPE).stdout
+    print(submit_out)
+    jobid = submit_out.split()[2]
+    assert str(int(jobid)) == jobid
+    return int(jobid)
 
 
 def get_jobs(args, configs, index, results):
@@ -200,12 +263,12 @@ def get_jobs(args, configs, index, results):
     for config in configs:
         _args = deepcopy(args)
         _args.__dict__.update(config)
-        _args.gpu_id = 0
+        # _args.gpu_id = 0
         conf_key = tuple(getattr(_args, colname) for colname in index)
         try:
             if df is None:
                 raise KeyError
-            n_done = len(df.loc[conf_key])
+            n_done = len(df.loc(axis=0)[conf_key])
         except (KeyError, TypeError):
             n_done = 0
         for i in range(n_done, _args.trials_per_config):
@@ -240,17 +303,26 @@ def submit_and_collect(args, configs, index, columns, append_results_fn):
                 n_gpus = args.n_gpus
             except AttributeError:
                 n_gpus = 1
+            # submit = {
+            #     'slurm': slurm_submit,
+            #     'grid_engine': grid_engine_submit
+            #     }[args.cluster_scheduler]
+            positional_arg = "command"
             for batch in chunked(jobs, args.configs_per_job):
-                jobid = slurm_submit(
-                    batch,
-                    positional_arg="command",
-                    partition=args.partition,
-                    exclude=args.exclude,
-                    ntasks_per_node=args.ntasks_per_node,
-                    cpus_per_task=args.cpus_per_task,
-                    n_gpus=n_gpus,
-                    time=args.time,
-                    job_name=args.job_name)
+                if args.cluster_scheduler == 'slurm':
+                    jobid = slurm_submit(
+                        batch,
+                        positional_arg=positional_arg,
+                        partition=args.partition,
+                        exclude=args.exclude,
+                        ntasks_per_node=args.ntasks_per_node,
+                        cpus_per_task=args.cpus_per_task,
+                        n_gpus=n_gpus,
+                        time=args.time,
+                        job_name=args.job_name)
+                elif args.cluster_scheduler == 'grid_engine':
+                    jobid = grid_engine_submit(
+                        batch, positional_arg=positional_arg)
                 print(jobid)
                 time.sleep(1)
                 jobids.append(jobid)
