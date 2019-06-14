@@ -260,3 +260,7 @@ class SubclassRegistry:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.subclasses[cls.__name__.lower()] = cls
+
+    @staticmethod
+    def get(cls_name):
+        return SubclassRegistry.subclasses[cls_name]
