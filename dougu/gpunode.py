@@ -201,12 +201,27 @@ def grid_engine_script(
         outdir=None,
         log=None,
         positional_arg=None,
-        verbose=False):
+        verbose=False,
+        jobname=None,
+        stdout_file='$HOME/uge/$JOB_ID'):
 
     if not isinstance(conf, list):
         confs = [conf]
     else:
         confs = conf
+
+    preamble = [
+        '#! /usr/bin/env bash',
+        '-cwd',
+        '-j y',
+        '-o ' + stdout_file]
+    if jobname:
+        preamble.append('-N ' + jobname)
+    if hasattr(conf[0], 'ac') and getattr(conf[0], 'ac'):
+        preamble.append('-ac ' + conf[0].ac)
+    if hasattr(conf[0], 'jc') and getattr(conf[0], 'jc'):
+        preamble.append('-jc ' + conf[0].jc)
+    preamble = '\n#$ '.join(preamble) + '\n'
 
     py_cmds = [
         " ".join(["python", file, args_to_str(conf, positional_arg)])
@@ -214,19 +229,19 @@ def grid_engine_script(
 
     home = os.environ['HOME']
     cd_cmd = f"cd {pwd.absolute()}"
-    env_cmd = f". {home}/conda/bin/activate {env}"
+    env_cmd = f""". {home}/conda/bin/activate {env} && if [ -f $HOME/netvars.sh ]; then . $HOME/netvars.sh; fi"""  # NOQA
     if conf[0].cycle_gpus > 0:
         import shlex
         py = [
             ' && '.join([cd_cmd, env_cmd, shlex.quote(py_cmd)])
             for py_cmd in py_cmds]
-        script = '\n'.join([
+        script = preamble + '\n'.join([
             f'xargs -P{conf[0].cycle_gpus} -I% bash -c "%" <<EOF',
             *py,
             'EOF'])
     else:
         py = "\n\n".join(py_cmds)
-        script = "\n".join(['#! /usr/bin/env bash', cd_cmd, env_cmd, py])
+        script = "\n".join([preamble, cd_cmd, env_cmd, py])
     if verbose:
         print(script)
     if outdir is None:
@@ -241,13 +256,16 @@ def grid_engine_submit(conf, positional_arg):
     script_file = grid_engine_script(conf, positional_arg=positional_arg)
     print(script_file)
     jobid = 1
-    submit_cmd = [
-        'qsub',
-        '-g', f'{conf[0].group}',
-        '-l', f'{conf[0].queue}=1',
-        '-l', f'h_rt={conf[0].time}',
-        '-j', 'y',
-        script_file]
+    submit_args = {
+        'group': ['-g', lambda: f'{conf[0].group}'],
+        'queue': ['-l', lambda: f'{conf[0].queue}=1'],
+        'time': ['-l', lambda: f'h_rt={conf[0].time}'],
+        }
+    submit_cmd = ['qsub', '-j', 'y', '-cwd']
+    for arg, params in submit_args.items():
+        if hasattr(conf[0], arg) and getattr(conf[0], arg):
+            submit_cmd.extend((params[0], params[1]()))
+    submit_cmd.append(script_file)
     submit_out = run(submit_cmd, encoding="utf8", stdout=PIPE).stdout
     print(submit_out)
     jobid = submit_out.split()[2]
