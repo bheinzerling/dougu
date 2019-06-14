@@ -183,9 +183,11 @@ def simple_imshow(
         xtick_locs_labels=None,
         ytick_locs_labels=None,
         xtick_label_rotation='vertical',
-        x_grid=None,
-        y_grid=None,
-        colorbar=True, scale="lin"):
+        xgrid=None,
+        ygrid=None,
+        colorbar=True, scale="lin", cbar_title=None,
+        bad_color=None,
+        origin='upper'):
     if aspect_equal and figsize[1] is None:
         matrix_aspect = matrix.shape[0] / matrix.shape[1]
         width = figsize[0]
@@ -202,7 +204,11 @@ def simple_imshow(
     if ylabel:
         ax.set_ylabel(ylabel)
     norm = matplotlib.colors.SymLogNorm(1) if scale == "log" else None
-    im = plt.imshow(matrix, interpolation='nearest', cmap=cmap, norm=norm)
+    cmap = mpl.cm.get_cmap(cmap)
+    if bad_color is not None:
+        cmap.set_bad(bad_color)
+    im = plt.imshow(
+        matrix, interpolation='nearest', cmap=cmap, norm=norm, origin=origin)
     if xtick_labels is not None:
         assert xtick_locs_labels is None
         locs = np.arange(0, len(xtick_labels))
@@ -215,14 +221,16 @@ def simple_imshow(
         plt.xticks(*xtick_locs_labels, rotation=xtick_label_rotation)
     if ytick_locs_labels is not None:
         plt.yticks(*ytick_locs_labels)
-    if x_grid is not None or y_grid is not None:
-        if x_grid is not None:
-            ax.set_xticks(x_grid, minor=True)
-        if y_grid is not None:
-            ax.set_yticks(y_grid, minor=True)
+    if xgrid is not None or ygrid is not None:
+        if xgrid is not None:
+            ax.set_xticks(xgrid, minor=True)
+        if ygrid is not None:
+            ax.set_yticks(ygrid, minor=True)
         ax.grid(which="minor")
     if colorbar:
-        add_colorbar(im)
+        cbar = add_colorbar(im)
+        if cbar_title:
+            cbar.ax.set_ylabel(cbar_title, rotation=270)
     plt.tight_layout()
     if outfile:
         plt.savefig(outfile)
