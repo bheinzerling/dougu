@@ -79,8 +79,8 @@ def get_and_increment_runid(file=Path("runid")):
     return runid
 
 
-def next_rundir(basedir=Path("out"), runid_fn="runid", log=None):
-    runid = get_and_increment_runid(basedir / runid_fn)
+def next_rundir(basedir=Path("out"), runid_fname="runid", log=None):
+    runid = get_and_increment_runid(basedir / runid_fname)
     rundir = basedir / str(runid)
     rundir.mkdir(exist_ok=True, parents=True)
     if log:
@@ -260,3 +260,7 @@ class SubclassRegistry:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.subclasses[cls.__name__.lower()] = cls
+    
+    @staticmethod
+    def get(name):
+        return SubclassRegistry.subclasses[name]
