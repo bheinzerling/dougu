@@ -163,7 +163,7 @@ class ModelCheckpoint(object):
 
             suffix = ""
             if self._score_name is not None:
-                suffix = "_{}={:.7}".format(self._score_name, abs(priority))
+                suffix = "_{}{:.7}".format(self._score_name, abs(priority))
 
             for name, obj in to_save.items():
                 fname = '{}_{}_{}{}.pth'.format(self._fname_prefix, name, self._iteration, suffix)
