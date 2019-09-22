@@ -13,3 +13,5 @@ from .running_average import RunningAverage
 from .metrics_lambda import MetricsLambda
 from .confusion_matrix import ConfusionMatrix, IoU, mIoU
 from .accumulation import VariableAccumulation, Average, GeometricAverage
+from .mean_reciprocal_rank import MeanReciprocalRank
+from .scalar import Scalar

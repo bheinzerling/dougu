@@ -1,7 +1,23 @@
+import collections
+import six
+
+
 def flatten(list_of_lists):
     for list in list_of_lists:
         for item in list:
             yield item
+
+
+def split_lengths_for_ratios(nitems, *ratios):
+    """Return the lengths of the splits obtained when splitting nitems
+    by the given ratios"""
+    lengths = [int(ratio * nitems) for ratio in ratios]
+    i = 1
+    while sum(lengths) != nitems and i < len(ratios):
+        lengths[-i] += 1
+        i += 1
+    assert sum(lengths) == nitems, f'{sum(lengths)} != {nitems}\n{ratios}'
+    return lengths
 
 
 def split_idxs_for_ratios(nitems, *ratios, end_inclusive=False):
@@ -9,7 +25,7 @@ def split_idxs_for_ratios(nitems, *ratios, end_inclusive=False):
     assert len(ratios) >= 1
     assert all(0 < ratio < 1 for ratio in ratios)
     assert sum(ratios) <= 1.0
-    idxs = list(np.cumsum([int(ratio * nitems) for ratio in ratios]))
+    idxs = list(np.cumsum(split_lengths_for_ratios(nitems, *ratios)))
     if end_inclusive:
         return [0] + idxs + [nitems]
     return idxs
@@ -105,10 +121,20 @@ def map_skip_assert_error(map_fn, iterable, verbose=False):
 
 
 def groupby(keys, values):
+    """Group values according to their key."""
     d = {}
     for k, v in zip(keys, values):
         d.setdefault(k, []).append(v)
     return d
+
+
+# https://stackoverflow.com/a/1055378
+def is_non_string_iterable(arg):
+    """Return True if arg is an iterable, but not a string."""
+    return (
+        isinstance(arg, collections.Iterable)
+        and not isinstance(arg, six.string_types)
+    )
 
 
 if __name__ == "__main__":

@@ -178,6 +178,8 @@ def simple_imshow(
         matrix,
         cmap="viridis", figsize=(10, 10), aspect_equal=True, outfile=None,
         title=None, xlabel=None, ylabel=None,
+        xticks=True,
+        yticks=True,
         xtick_labels=None,
         ytick_labels=None,
         xtick_locs_labels=None,
@@ -227,6 +229,18 @@ def simple_imshow(
         if ygrid is not None:
             ax.set_yticks(ygrid, minor=True)
         ax.grid(which="minor")
+    if xticks is not True:
+        plt.tick_params(
+            axis='x',          # changes apply to the x-axis
+            which='both',      # both major and minor ticks are affected
+            bottom=False,      # ticks along the bottom edge are off
+            top=False,)         # ticks along the top edge are off
+    if yticks is not True:
+        plt.tick_params(
+            axis='y',          # changes apply to the x-axis
+            which='both',      # both major and minor ticks are affected
+            left=False,      # ticks along the bottom edge are off
+            right=False,)         # ticks along the top edge are off
     if colorbar:
         cbar = add_colorbar(im)
         if cbar_title:
@@ -550,7 +564,7 @@ class Figure():
     >>> Figure.set_defaults(xlim=(0, 100), ylim=(0, 1.0))
     >>> # context manager will call plt.xlim(0, 100) and plt.ylim(0, 1.0)
     """
-    fig_dir = Path("out/figs")
+    fig_dir = Path("out/fig")
     file_types = ["png", "pdf"]
     default_plt_calls = {}
     late_calls = ["xscale", "xlim", "yscale", "ylim"]  # order is important

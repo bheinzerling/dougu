@@ -39,7 +39,10 @@ def jsonlines_load(jsonlines_file, max=None, skip=None, filter_fn=None):
 
 
 def lines(file, max=None, skip=0, apply_func=str.strip):
-    """Iterate over stripped lines in (text) file."""
+    """Iterate over lines in (text) file. Optionally skip first `skip` 
+    lines, only read the first `max` lines, and apply `apply_func` to 
+    each line. By default lines are stripped, set `apply_func` to None 
+    to disable this."""
     from itertools import islice
     if apply_func:
         with open(str(file), encoding="utf8") as f:
@@ -107,10 +110,26 @@ def deserialize_protobuf_instances(cls, protobuf_file, max_bytes=None):
         yield c
 
 
+def _maybe_to_str(v):
+    try:
+        json.dumps(v)
+    except TypeError:
+        return str(v)
+    return v
+
+
+def args_to_json(args):
+    """Same as json.dumps, but more lenient by converting non-serializable
+    objects like PosixPaths to strings."""
+    return json.dumps({k: _maybe_to_str(v) for k, v in args.__dict__.items()})
+
+
 def dump_args(args, file):
     """Write argparse args to file."""
     with to_path(file).open("w", encoding="utf8") as out:
-        json.dump({k: str(v) for k, v in args.__dict__.items()}, out, indent=4)
+        json.dump({
+            k: _maybe_to_str(v)
+            for k, v in args.__dict__.items()}, out, indent=4)
 
 
 def mkdir(dir, parents=True, exist_ok=True):
