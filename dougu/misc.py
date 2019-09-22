@@ -1,9 +1,11 @@
 from pathlib import Path
 from bisect import bisect
 import re
+from collections import defaultdict
 
 
 def now_str():
+    """String representation of the current datetime."""
     from datetime import datetime
     return datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
 
@@ -33,7 +35,7 @@ def autocommit(
 
 
 class _Results():
-    """Thin wrapper around a pandas DataFrame to keep track of
+    """Wrapper around a pandas DataFrame to keep track of
     experimental results."""
 
     def __init__(self, file):
@@ -69,6 +71,8 @@ class _Results():
 
 
 def get_and_increment_runid(file=Path("runid")):
+    """Get the next run id by incrementing the id stored in a file.
+    (faster than taking the maximum over all subdirs)"""
     try:
         with file.open() as f:
             runid = int(f.read()) + 1
@@ -80,6 +84,7 @@ def get_and_increment_runid(file=Path("runid")):
 
 
 def next_rundir(basedir=Path("out"), runid_fname="runid", log=None):
+    """Create a directory for running an experiment."""
     runid = get_and_increment_runid(basedir / runid_fname)
     rundir = basedir / str(runid)
     rundir.mkdir(exist_ok=True, parents=True)
@@ -89,6 +94,7 @@ def next_rundir(basedir=Path("out"), runid_fname="runid", log=None):
 
 
 def color_range(start_color, end_color, steps=10, cformat=lambda c: c.hex_l):
+    """Thin wrapper around the range_to method in the colour library."""
     from colour import Color
     if isinstance(start_color, str):
         start_color = Color(start_color)
@@ -187,6 +193,21 @@ def df_to_latex(
         na_rep="-",
         supertabular=False,
         midrule_after=None):
+    """Converts a pandas dataframe into a latex table.
+
+        :col_aligns: Optional format string for column alignments in the
+                     tabular environment, e.g. 'l|c|rrr'. Will default
+                     to right-align for numeric columns and left-align
+                     for everthing else.
+        :header: Optional header row. Default is the df column names.
+        :bold_max_cols: Indexes of the columns among which the maximum
+                        value will be bolded.
+        :na_rep: string representation of missing values.
+        :supertabular: Whether to use the supertabular package (for long
+                       tables).
+        :midrule_after: Indexes of the rows after which a midrule should
+                        be inserted.
+    """
     import numpy as np
     if bold_max_cols:
         max_cols_names = set(bold_max_cols)
@@ -225,7 +246,7 @@ def df_to_latex(
     for i, (_, row) in enumerate(df.iterrows()):
         rows.append(" & ".join(row_to_strings(row)) + "\\\\\n")
         if midrule_after and i in midrule_after:
-            rows.append("\midrule\n")
+            rows.append(r"\midrule\n")
     if supertabular:
 
         latex_tbl = (r"""\tablehead{
@@ -255,12 +276,21 @@ class SubclassRegistry:
     '''Mixin that automatically registers all subclasses of the
     given class.
     '''
-    subclasses = dict()
+    classes = dict()
+    subclasses = defaultdict(set)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.subclasses[cls.__name__.lower()] = cls
+        cls.classes[cls.__name__.lower()] = cls
+        for super_cls in cls.__mro__:
+            if super_cls == cls:
+                continue
+            SubclassRegistry.subclasses[super_cls].add(cls)
 
     @staticmethod
     def get(cls_name):
-        return SubclassRegistry.subclasses[cls_name]
+        return SubclassRegistry.classes[cls_name]
+
+    @staticmethod
+    def get_subclasses(super_cls):
+        return SubclassRegistry.subclasses.get(super_cls, {})
