@@ -125,8 +125,18 @@ class LabelEncoder(object):
         self.to_torch = to_torch
         self.device = device
 
-    def fit(self, labels):
+    def fit(self, labels, min_count=0, unk_label=None):
         from sklearn.preprocessing import LabelEncoder as _LabelEncoder
+        self.unk_label = unk_label
+        if min_count > 0:
+            from collections import Counter
+            counts = Counter(labels)
+            labels = [
+                label for label in set(labels)
+                if counts[label] > min_count]
+            assert unk_label is not None
+            labels.append(unk_label)
+            self.label_set = set(labels)
         self.label_enc = _LabelEncoder().fit(labels)
         self.labels = self.label_enc.classes_
         self.nlabels = len(self.labels)
@@ -140,9 +150,16 @@ class LabelEncoder(object):
     def transform(self, labels):
         if isinstance(labels, str):
             labels = [labels]
-        if isinstance(labels[0], list):
+        if labels and isinstance(labels[0], list):
             return [self.transform(l) for l in labels]
+        if self.unk_label is not None:
+            labels = [
+                label if label in self.label_set else self.unk_label
+                for label in labels]
         if self.to_torch:
+            if not labels:
+                return torch.tensor([]).to(
+                    dtype=torch.int64, device=self.device)
             tensors = []
             bs = 1000000
             for i in range(0, len(labels), bs):
@@ -153,20 +170,37 @@ class LabelEncoder(object):
         else:
             return self.label_enc.transform(labels)
 
-    def inverse_transform(self, idx):
+    def inverse_transform(self, idx, ignore_idx=None):
+        if ignore_idx is not None:
+            def filter_idxs(idxs):
+                return [i for i in idxs if i != ignore_idx]
+        else:
+            def filter_idxs(idxs):
+                return idxs
+        try:
+            idx = idx.tolist()
+        except AttributeError:
+            pass
         if isinstance(idx[0], list):
             return [
-                self.label_enc.inverse_transform(_idx).tolist()
+                self.label_enc.inverse_transform(filter_idxs(_idx)).tolist()
                 for _idx in idx]
-        return self.label_enc.inverse_transform(idx)
+        return self.label_enc.inverse_transform(filter_idxs(idx))
 
     @staticmethod
-    def from_file(file, to_torch=False, save_to=None, device="cuda"):
+    def from_file(
+            file,
+            additional_labels=None,
+            to_torch=False,
+            save_to=None,
+            device="cuda"):
         """Create LabelEncoder instance from file, which contains
         one label per line. Optionally dump instance to save_to."""
         from .io import lines
         codec = LabelEncoder(to_torch, device=device)
-        codec.fit(list(lines(file)))
+        if additional_labels is None:
+            additional_labels = []
+        codec.fit(list(lines(file)) + additional_labels)
         if save_to:
             import joblib
             joblib.dump(codec, save_to)
