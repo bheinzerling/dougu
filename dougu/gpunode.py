@@ -14,6 +14,9 @@ from boltons.iterutils import chunked
 from dougu import random_string, args_to_str, mkdir
 from dougu.results import Results
 
+import warnings
+import pandas.errors
+
 
 def get_gpu_node(
         sentinel, nodes_dir, proc_per_gpu, poll_period=300, log=None):
@@ -274,6 +277,7 @@ def grid_engine_submit(conf, positional_arg):
 
 
 def get_jobs(args, configs, index, results):
+    warnings.simplefilter('ignore', pandas.errors.PerformanceWarning)
     try:
         df = results.dataframe
     except KeyError:
