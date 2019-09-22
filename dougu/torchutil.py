@@ -8,8 +8,9 @@ import sklearn
 import numpy as np
 import torch
 from torch import nn, optim, tensor, arange
+from torch.utils.data import Dataset, random_split, DataLoader
 
-from .iters import flatten
+from .iters import flatten, split_lengths_for_ratios
 
 
 class TensorBatcher():
@@ -182,11 +183,12 @@ def load_model(model, model_file, strict=True):
 
 def emb_layer(
         vecs, trainable=False, use_weights=True, dtype=torch.float32,
+        device='cuda',
         **kwargs):
     """Create an Embedding layer from a gensim KeyedVectors instance
      or an embedding matrix."""
     try:
-        emb_weights = tensor(vecs.syn0, dtype=dtype)
+        emb_weights = tensor(vecs.syn0, dtype=dtype).to(device=device)
     except AttributeError:
         emb_weights = vecs
     emb = nn.Embedding(*emb_weights.shape, **kwargs)
@@ -407,22 +409,55 @@ class LossTrackers():
         return self.loss_trackers[i]
 
 
-def get_optim(args, model):
+def get_optim(conf, model, optimum='max', n_train_instances=None):
     """Create an optimizer according to command line args."""
     params = [p for p in model.parameters() if p.requires_grad]
-    if args.optim.lower() == "adam":
-        return optim.Adam(params, lr=args.learning_rate)
-    elif args.optim.lower() == "sgd":
+    optim_name = conf.optim.lower()
+    if optim_name == "adam":
+        return optim.Adam(params, lr=conf.learning_rate)
+    elif optim_name == "sgd":
         return optim.SGD(
             params,
-            lr=args.learning_rate,
-            momentum=args.momentum,
-            weight_decay=args.weight_decay)
-    raise ValueError("Unknown optimizer: " + args.optim)
+            lr=conf.learning_rate,
+            momentum=conf.momentum,
+            weight_decay=conf.weight_decay)
+    elif optim_name == 'bertadam':
+        return get_bert_optim(conf, model, n_train_instances)
+    elif optim_name == 'radam':
+        from .radam import RAdam
+        return RAdam(params, lr=conf.learning_rate)
+    raise ValueError("Unknown optimizer: " + conf.optim)
 
 
-def get_bert_optim(args, model, num_train_steps):
+def get_lr_scheduler(conf, optimizer, optimum='max'):
+    if conf.learning_rate_scheduler == "plateau":
+        from torch.optim.lr_scheduler import ReduceLROnPlateau
+        lr_scheduler = ReduceLROnPlateau(
+            optimizer, factor=0.5,
+            patience=conf.learning_rate_scheduler_patience,
+            mode=optimum,
+            verbose=True)
+    elif conf.learning_rate_scheduler:
+        raise ValueError(
+            "Unknown lr_scheduler: " + conf.learning_rate_scheduler)
+    else:
+        lr_scheduler = None
+    return lr_scheduler
+
+
+def get_optim_and_lr_scheduler(
+        conf, model, optimum='max', n_train_instances=None):
+    optimizer = get_optim(conf, model, n_train_instances=n_train_instances)
+    lr_scheduler = get_lr_scheduler(conf, optimizer, optimum=optimum)
+    return optimizer, lr_scheduler
+
+
+def get_bert_optim(args, model, n_train_instances):
     from pytorch_pretrained_bert.optimization import BertAdam
+    num_train_optimization_steps = int(
+            n_train_instances /
+            args.batch_size /
+            args.gradient_accumulation_steps) * args.max_epochs
     if args.bert_half_precision:
         param_optimizer = [
             (n, param.clone().detach().to('cpu').float().requires_grad_())
@@ -444,7 +479,7 @@ def get_bert_optim(args, model, num_train_steps):
             p for n, p in param_optimizer
             if any(nd in n for nd in no_decay)],
         'weight_decay_rate': 0.0}]
-    t_total = num_train_steps
+    t_total = num_train_optimization_steps
     if args.local_rank != -1:
         t_total = t_total // torch.distributed.get_world_size()
 
@@ -546,3 +581,64 @@ def set_random_seed(seed):
 # https://discuss.pytorch.org/t/how-do-i-check-the-number-of-parameters-of-a-model/4325/9
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+class ListDataset(Dataset):
+    def __init__(self, instances, max_instances=None):
+        super().__init__()
+        if max_instances is not None and max_instances < len(instances):
+            instances = [
+                instances[idx]
+                for idx in torch.randperm(max_instances)]
+        self.instances = instances
+
+    def __getitem__(self, index):
+        return self.instances.__getitem__(index)
+
+    def __len__(self):
+        return self.instances.__len__()
+
+
+class RandomSplitDataset(ListDataset):
+    def __init__(
+            self,
+            instances,
+            split_ratios=(0.8, 0.1, 0.1),
+            split_lengths=None,
+            split_names=('train', 'dev', 'test')):
+        super().__init__(
+            instances,
+            max_instances=(
+                sum(split_lengths) if split_lengths is not None else None))
+        self.split_names = split_names
+        self.split_lengths = split_lengths or (
+            split_lengths_for_ratios(len(self.instances), *split_ratios))
+        if sum(self.split_lengths) < len(instances):
+            rnd_idxs = iter(torch.randperm(len(instances)))
+            splits = [
+                [instances[next(rnd_idxs)] for _ in range(split_length)]
+                for split_length in split_lengths]
+        else:
+            splits = random_split(self, self.split_lengths)
+        for name, split in zip(split_names, splits):
+            setattr(self, name, split)
+
+    def loaders(self, *args, split_names=None, **kwargs):
+        if not split_names:
+            split_names = self.split_names
+        return {
+            split_name: getattr(
+                self, split_name + '_loader')(*args, **kwargs)
+            for split_name in split_names}
+
+    def train_loader(self, *args, **kwargs):
+        assert 'train' in self.split_names
+        return DataLoader(self.train, *args, **kwargs)
+
+    def dev_loader(self, *args, **kwargs):
+        assert 'dev' in self.split_names
+        return DataLoader(self.dev, *args, **kwargs, shuffle=False)
+
+    def test_loader(self, *args, **kwargs):
+        assert 'test' in self.split_names
+        return DataLoader(self.test, *args, **kwargs, shuffle=False)
