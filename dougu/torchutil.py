@@ -689,15 +689,18 @@ class Splits():
 
     def train_loader(self, *args, **kwargs):
         assert 'train' in self.split_names
-        return DataLoader(self.train, *args, **kwargs)
+        return DataLoader(
+            self.train, *args, **kwargs)
 
     def dev_loader(self, *args, **kwargs):
         assert 'dev' in self.split_names
-        return DataLoader(self.dev, *args, **kwargs, shuffle=False)
+        return DataLoader(
+            self.dev, *args, **kwargs, shuffle=False)
 
     def test_loader(self, *args, **kwargs):
         assert 'test' in self.split_names
-        return DataLoader(self.test, *args, **kwargs, shuffle=False)
+        return DataLoader(
+            self.test, *args, **kwargs, shuffle=False)
 
 
 class RandomSplits(Splits):
