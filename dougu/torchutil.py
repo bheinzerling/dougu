@@ -654,17 +654,6 @@ class TransposedTensorDataset(Dataset):
     def __len__(self):
         return self.tensors[0].size(0)
 
-    def batch_sampler(self, batch_size):
-        idxs = torch.arange(len(self))
-        return BatchSampler(
-            RandomSampler(idxs), batch_size=batch_size, drop_last=False)
-
-
-def batch_sampler_fn(dataset):
-    idxs = torch.arange(len(dataset))
-    return lambda batch_size: BatchSampler(
-        RandomSampler(idxs), batch_size=batch_size, drop_last=False)
-
 
 class Splits():
     def __init__(
@@ -697,26 +686,16 @@ class Splits():
                 self, split_name + '_loader')(*args, **kwargs)
             for split_name in split_names}
 
-    def maybe_batch_sampler(self, dataset, **kwargs):
-        if hasattr(dataset, 'batch_sampler'):
-            bs = kwargs['batch_size']
-            kwargs['batch_size'] = 1
-            batch_sampler = dataset.batch_sampler(bs)
-            kwargs['batch_sampler'] = batch_sampler
-
     def train_loader(self, *args, **kwargs):
         assert 'train' in self.split_names
-        self.maybe_batch_sampler(self.train, **kwargs)
         return DataLoader(self.train, *args, **kwargs)
 
     def dev_loader(self, *args, **kwargs):
         assert 'dev' in self.split_names
-        self.maybe_batch_sampler(self.dev, **kwargs)
         return DataLoader(self.dev, *args, **kwargs, shuffle=False)
 
     def test_loader(self, *args, **kwargs):
         assert 'test' in self.split_names
-        self.maybe_batch_sampler(self.test, **kwargs)
         return DataLoader(self.test, *args, **kwargs, shuffle=False)
 
 
@@ -729,9 +708,6 @@ class RandomSplits(Splits):
                 for split_length in self.split_lengths]
         else:
             splits = random_split(instances, self.split_lengths)
-        if hasattr(instances, 'batch_sampler'):
-            for split in splits:
-                split.batch_sampler = batch_sampler_fn(split)
         return splits
 
 
