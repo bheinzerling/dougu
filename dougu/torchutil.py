@@ -697,7 +697,7 @@ class Splits():
                 self, split_name + '_loader')(*args, **kwargs)
             for split_name in split_names}
 
-    def maybe_batch_sampler(self, dataset, **kwargs):
+    def maybe_batch_sampler(self, dataset, kwargs):
         if hasattr(dataset, 'batch_sampler'):
             bs = kwargs['batch_size']
             kwargs['batch_size'] = 1
