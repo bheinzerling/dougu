@@ -87,9 +87,11 @@ class Transformer():
             [self.CLS] + tokenized_sent1 + [self.SEP] +
             tokenized_sent2 + [self.SEP])
 
-    def tokenize_to_ids(self, text, masked_idxs=None, pad=True):
+    def tokenize_to_ids(
+            self, text, masked_idxs=None, pad=True, clip_long_seq=False):
         tokens = self.tokenize(text, masked_idxs)
-        return self.convert_tokens_to_ids(tokens, pad=pad)
+        return self.convert_tokens_to_ids(
+            tokens, pad=pad, clip_long_seq=False)
 
     def tokenize_sentence_pair_to_ids(self, sent1, sent2):
         tokenized_sent1 = self.tokenizer.tokenize(sent1)
@@ -136,7 +138,7 @@ class Transformer():
             for ment_ctx in mentions_and_contexts]
         return tokens, self.convert_tokens_to_ids(tokens)
 
-    def convert_tokens_to_ids(self, tokens, pad=True, clip_to_max_len=False):
+    def convert_tokens_to_ids(self, tokens, pad=True, clip_long_seq=False):
         if isinstance(tokens[0], list):
             token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
             padded_ids = torch.zeros(
@@ -149,7 +151,7 @@ class Transformer():
             return padded_ids, mask
         token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
         ids = torch.tensor([token_ids]).to(device=self.device)
-        if clip_to_max_len:
+        if clip_long_seq:
             ids = ids[:, :self.max_len]
         else:
             assert ids.size(1) < self.max_len
@@ -169,7 +171,8 @@ class Transformer():
             mask_end_idx=None,
             add_mask_start_end_markers=False,
             collapse_mask=True,
-            apply_mask=True):
+            apply_mask=True,
+            clip_long_seq=False):
         """Segment each token into subwords while keeping track of
         token boundaries.
 
