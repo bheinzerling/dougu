@@ -707,14 +707,17 @@ class Splits():
 
     def train_loader(self, *args, **kwargs):
         assert 'train' in self.split_names
+        self.maybe_batch_sampler(self.train, kwargs)
         return DataLoader(self.train, *args, **kwargs)
 
     def dev_loader(self, *args, **kwargs):
         assert 'dev' in self.split_names
+        self.maybe_batch_sampler(self.dev, kwargs)
         return DataLoader(self.dev, *args, **kwargs, shuffle=False)
 
     def test_loader(self, *args, **kwargs):
         assert 'test' in self.split_names
+        self.maybe_batch_sampler(self.test, kwargs)
         return DataLoader(self.test, *args, **kwargs, shuffle=False)
 
 
