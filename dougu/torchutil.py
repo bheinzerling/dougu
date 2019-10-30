@@ -719,7 +719,6 @@ class RandomSplits(Splits):
         if hasattr(instances, 'batch_sampler'):
             for split in splits:
                 split.batch_sampler = batch_sampler_fn(split)
-        breakpoint()
         return splits
 
 
