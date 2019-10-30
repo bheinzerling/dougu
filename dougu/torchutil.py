@@ -679,7 +679,9 @@ class Splits():
             setattr(self, name, split)
 
     def _split(self, dataset):
-        return split_by_ratios(dataset, self.split_ratios)
+        return list(map(
+            type(dataset),
+            split_by_ratios(dataset, self.split_ratios))
 
     def loaders(self, *args, split_names=None, **kwargs):
         if not split_names:
