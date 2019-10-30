@@ -646,8 +646,8 @@ class TransposedTensorDataset(Dataset):
         assert all(len(tensors[0]) == len(tensor) for tensor in tensors)
         self.tensors = tensors
 
-    def __getitem__(self, index):
-        return tuple(tensor[index] for tensor in self.tensors)
+    def __getitem__(self, batch_idxs):
+        return [tensor[batch_idxs] for tensor in self.tensors]
 
     def __len__(self):
         return self.tensors[0].size(0)
