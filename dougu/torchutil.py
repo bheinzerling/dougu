@@ -660,6 +660,12 @@ class TransposedTensorDataset(Dataset):
             RandomSampler(idxs), batch_size=batch_size, drop_last=False)
 
 
+def batch_sampler(dataset, batch_size):
+    idxs = torch.arange(len(dataset))
+    return BatchSampler(
+        RandomSampler(idxs), batch_size=batch_size, drop_last=False)
+
+
 class Splits():
     def __init__(
             self,
