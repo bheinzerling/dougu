@@ -638,6 +638,21 @@ class TensorDataset(Dataset):
         return self.tensors[0].size(0)
 
 
+class TransposedTensorDataset(Dataset):
+    """Same as pytorch's TensorDataset, but instead of yielding
+    batch_size n-tuples, yields n tensors of len batch_size.
+    """
+    def __init__(self, *tensors):
+        assert all(len(tensors[0]) == len(tensor) for tensor in tensors)
+        self.tensors = tensors
+
+    def __getitem__(self, index):
+        return tuple(tensor[index] for tensor in self.tensors)
+
+    def __len__(self):
+        return self.tensors[0].size(0)
+
+
 class Splits():
     def __init__(
             self,
