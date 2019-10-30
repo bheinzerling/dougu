@@ -10,7 +10,7 @@ import torch
 from torch import nn, optim, tensor, arange
 from torch.utils.data import Dataset, random_split, DataLoader
 
-from .iters import flatten, split_lengths_for_ratios
+from .iters import flatten, split_lengths_for_ratios, split_by_ratios
 
 
 class TensorBatcher():
@@ -409,12 +409,37 @@ class LossTrackers():
         return self.loss_trackers[i]
 
 
-def get_optim(conf, model, optimum='max', n_train_instances=None):
+def get_optim(
+        conf, model, optimum='max', n_train_instances=None,
+        additional_params_dict=None):
     """Create an optimizer according to command line args."""
     params = [p for p in model.parameters() if p.requires_grad]
     optim_name = conf.optim.lower()
     if optim_name == "adam":
         return optim.Adam(params, lr=conf.learning_rate)
+    elif optim_name == "adamw":
+        from transformers import AdamW
+        no_decay = ['bias', 'LayerNorm.weight']
+        additional_params = (
+            set(additional_params_dict['params'])
+            if additional_params_dict
+            else {})
+        grouped_params = [
+            {
+                'params': [
+                    p for n, p in model.named_parameters()
+                    if not any(nd in n for nd in no_decay)
+                    and not p in additional_params],
+                'weight_decay': conf.weight_decay},
+            {
+                'params': [
+                    p for n, p in model.named_parameters()
+                    if any(nd in n for nd in no_decay)
+                    and not p in additional_params],
+                'weight_decay': 0.0}]
+        if additional_params_dict:
+            grouped_params.append(additional_params_dict)
+        return AdamW(grouped_params, lr=conf.learning_rate, eps=1e-8)
     elif optim_name == "sgd":
         return optim.SGD(
             params,
@@ -599,29 +624,39 @@ class ListDataset(Dataset):
         return self.instances.__len__()
 
 
-class RandomSplitDataset(ListDataset):
+class TensorDataset(Dataset):
+    """Same as pytorch's TensorDataset, but doesn't require tensors to
+    have a .size method"""
+    def __init__(self, *tensors):
+        assert all(len(tensors[0]) == len(tensor) for tensor in tensors)
+        self.tensors = tensors
+
+    def __getitem__(self, index):
+        return tuple(tensor[index] for tensor in self.tensors)
+
+    def __len__(self):
+        return self.tensors[0].size(0)
+
+
+class Splits():
     def __init__(
             self,
-            instances,
+            dataset,
             split_ratios=(0.8, 0.1, 0.1),
             split_lengths=None,
-            split_names=('train', 'dev', 'test')):
-        super().__init__(
-            instances,
-            max_instances=(
-                sum(split_lengths) if split_lengths is not None else None))
+            split_names=('train', 'dev', 'test'),
+            splits=None):
         self.split_names = split_names
+        self.split_ratios = split_ratios
         self.split_lengths = split_lengths or (
-            split_lengths_for_ratios(len(self.instances), *split_ratios))
-        if sum(self.split_lengths) < len(instances):
-            rnd_idxs = iter(torch.randperm(len(instances)))
-            splits = [
-                [instances[next(rnd_idxs)] for _ in range(split_length)]
-                for split_length in split_lengths]
-        else:
-            splits = random_split(self, self.split_lengths)
+            split_lengths_for_ratios(len(dataset), *split_ratios))
+        if splits is None:
+            splits = self._split(dataset)
         for name, split in zip(split_names, splits):
             setattr(self, name, split)
+
+    def _split(self, dataset):
+        return split_by_ratios(dataset, self.split_ratios)
 
     def loaders(self, *args, split_names=None, **kwargs):
         if not split_names:
@@ -642,3 +677,18 @@ class RandomSplitDataset(ListDataset):
     def test_loader(self, *args, **kwargs):
         assert 'test' in self.split_names
         return DataLoader(self.test, *args, **kwargs, shuffle=False)
+
+
+class RandomSplits(Splits):
+    def _split(self, instances):
+        if sum(self.split_lengths) < len(instances):
+            rnd_idxs = iter(torch.randperm(len(instances)))
+            splits = [
+                [instances[next(rnd_idxs)] for _ in range(split_length)]
+                for split_length in self.split_lengths]
+        else:
+            splits = random_split(instances, self.split_lengths)
+        return splits
+
+
+RandomSplitDataset = RandomSplits
