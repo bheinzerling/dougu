@@ -711,12 +711,12 @@ class Splits():
 
     def dev_loader(self, *args, **kwargs):
         assert 'dev' in self.split_names
-        self.maybe_batch_sampler(self.dev, kwargs)
+        self.maybe_batch_sampler(self.dev, **kwargs)
         return DataLoader(self.dev, *args, **kwargs, shuffle=False)
 
     def test_loader(self, *args, **kwargs):
         assert 'test' in self.split_names
-        self.maybe_batch_sampler(self.test, kwargs)
+        self.maybe_batch_sampler(self.test, **kwargs)
         return DataLoader(self.test, *args, **kwargs, shuffle=False)
 
 
