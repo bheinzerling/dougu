@@ -641,6 +641,7 @@ class TensorDataset(Dataset):
 class TransposedTensorDataset(Dataset):
     """Same as pytorch's TensorDataset, but instead of yielding
     batch_size n-tuples, yields n tensors of len batch_size.
+    Use with batch_sampler in DataLoader.
     """
     def __init__(self, *tensors):
         assert all(len(tensors[0]) == len(tensor) for tensor in tensors)
