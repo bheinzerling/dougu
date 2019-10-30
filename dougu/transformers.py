@@ -136,7 +136,7 @@ class Transformer():
             for ment_ctx in mentions_and_contexts]
         return tokens, self.convert_tokens_to_ids(tokens)
 
-    def convert_tokens_to_ids(self, tokens, pad=True):
+    def convert_tokens_to_ids(self, tokens, pad=True, clip_to_max_len=False):
         if isinstance(tokens[0], list):
             token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
             padded_ids = torch.zeros(
@@ -149,7 +149,10 @@ class Transformer():
             return padded_ids, mask
         token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
         ids = torch.tensor([token_ids]).to(device=self.device)
-        assert ids.size(1) < self.max_len
+        if clip_to_max_len:
+            ids = ids[:, :self.max_len]
+        else:
+            assert ids.size(1) < self.max_len
         if pad:
             padded_ids = torch.zeros(1, self.max_len).to(ids)
             padded_ids[0, :ids.size(1)] = ids
