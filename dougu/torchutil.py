@@ -8,7 +8,8 @@ import sklearn
 import numpy as np
 import torch
 from torch import nn, optim, tensor, arange
-from torch.utils.data import Dataset, random_split, DataLoader
+from torch.utils.data import (
+    RandomSampler, BatchSampler, Dataset, random_split, DataLoader)
 
 from .iters import flatten, split_lengths_for_ratios, split_by_ratios
 
@@ -652,6 +653,11 @@ class TransposedTensorDataset(Dataset):
 
     def __len__(self):
         return self.tensors[0].size(0)
+
+    def batch_sampler(self):
+        idxs = torch.arange(len(self))
+        list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=False))
+        breakpoint()
 
 
 class Splits():
