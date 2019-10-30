@@ -674,14 +674,12 @@ class Splits():
             split_lengths_for_ratios(len(dataset), *split_ratios))
         if splits is None:
             splits = self._split(dataset)
-        breakpoint()
+        splits = list(map(type(dataset), splits))
         for name, split in zip(split_names, splits):
             setattr(self, name, split)
 
     def _split(self, dataset):
-        return list(map(
-            type(dataset),
-            split_by_ratios(dataset, self.split_ratios)))
+        return split_by_ratios(dataset, self.split_ratios)
 
     def loaders(self, *args, split_names=None, **kwargs):
         if not split_names:
