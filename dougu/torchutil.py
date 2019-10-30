@@ -669,9 +669,6 @@ class Splits():
             split_lengths_for_ratios(len(dataset), *split_ratios))
         if splits is None:
             splits = self._split(dataset)
-            if hasattr(dataset, 'batch_sampler'):
-                for split in splits:
-                    split.batch_sampler = batch_sampler_fn(split)
         for name, split in zip(split_names, splits):
             setattr(self, name, split)
 
