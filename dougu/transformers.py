@@ -41,6 +41,7 @@ class Transformer():
         self.model = AutoModel.from_pretrained(model_name)
         device_count = torch.cuda.device_count()
         print('device count:', device_count)
+        breakpoint()
         if device_count > 1:
             self.model = torch.nn.DataParallel(self.model)
         self.model.to(device=self.device)
