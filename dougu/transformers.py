@@ -43,7 +43,7 @@ class Transformer():
         device_count = torch.cuda.device_count()
         self.log.info(f'device count: {device_count}')
         if device_count > 1:
-            device_ids = list(range(device_count))
+            # device_ids = list(range(device_count))
             self.model = torch.nn.DataParallel(
                 self.model
                 # , device_ids=device_ids
