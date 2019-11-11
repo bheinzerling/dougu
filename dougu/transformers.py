@@ -41,7 +41,7 @@ class Transformer():
             self.add_tokens_key: additional_special_tokens})
         self.model = AutoModel.from_pretrained(model_name)
         device_count = torch.cuda.device_count()
-        self.log.info('device count:', device_count)
+        self.log.info(f'device count: {device_count}')
         if device_count > 1:
             self.model = torch.nn.DataParallel(self.model)
             self.module = self.model.module
