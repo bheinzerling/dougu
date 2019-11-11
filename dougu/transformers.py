@@ -42,10 +42,9 @@ class Transformer():
         self.model = AutoModel.from_pretrained(model_name)
         device_count = torch.cuda.device_count()
         self.log.info(f'device count: {device_count}')
-        self.module = self.model
         self.model.to(device=self.device)
         self.max_len = max_len or self.tokenizer.max_len
-        self.dim = self.module.embeddings.position_embeddings.weight.size(1)
+        self.dim = self.model.embeddings.position_embeddings.weight.size(1)
         if self.model_name.startswith('roberta'):
             self.add_special_symbols = self.add_special_symbols_roberta
         else:
