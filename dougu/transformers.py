@@ -40,6 +40,7 @@ class Transformer():
             self.add_tokens_key: additional_special_tokens})
         self.model = AutoModel.from_pretrained(model_name).to(
             device=self.device)
+        breakpoint()
         self.max_len = max_len or self.tokenizer.max_len
         self.dim = self.model.embeddings.position_embeddings.weight.size(1)
         if self.model_name.startswith('roberta'):
