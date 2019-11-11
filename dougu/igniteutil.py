@@ -113,6 +113,7 @@ def make_engines(
         sign = {
             'max': 1,
             'min': -1}[checkpoint_metric_optimum]
+        breakpoint()
         checkpointer = ModelCheckpoint(
             rundir,
             checkpoint_prefix,
