@@ -47,7 +47,7 @@ class Transformer():
             self.model = torch.nn.DataParallel(
                 self.model, device_ids=device_ids)
             self.module = self.model.module
-            self.model.to(device='cuda')
+            # self.model.to(device='cuda')
             breakpoint()
         else:
             self.module = self.model
