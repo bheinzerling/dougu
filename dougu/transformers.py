@@ -44,6 +44,7 @@ class Transformer():
         self.log.info(f'device count: {device_count}')
         self.model.to(device=self.device)
         self.max_len = max_len or self.tokenizer.max_len
+        self.vocab_size = self.model.embeddings.word_embeddings.weight.size(0)
         self.dim = self.model.embeddings.position_embeddings.weight.size(1)
         if self.model_name.startswith('roberta'):
             self.add_special_symbols = self.add_special_symbols_roberta
