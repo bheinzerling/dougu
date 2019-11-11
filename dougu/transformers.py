@@ -8,7 +8,7 @@ import numpy as np
 from dougu import flatten, lines
 
 
-_device = torch.device("cuda:0")
+_device = torch.device("cuda")
 
 
 class Transformer():
