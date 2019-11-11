@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from .ignite import Engine, Events
-from .ignite.handlers import EarlyStopping, ModelCheckpoint
+from .ignite.handlers import ModelCheckpoint
 from .ignite.contrib.handlers import CustomPeriodicEvent
 
 
@@ -20,7 +20,7 @@ def attach_lr_scheduler(
     else:
         lr_scheduler = None
 
-    if lr_scheduler is not None:
+    if lr_scheduler is not None and metric_name is not None:
         @evaluator.on(Events.COMPLETED)
         def scheduler_step(evaluator):
             try:
@@ -70,6 +70,9 @@ def attach_result_log(
 
 
 def make_trainer(name='trainer'):
+    """Decorator that turns an ignite update function into a training
+    engine creation function.
+    """
     def actual_decorator(update_func):
         def wrapper(*args, **kwargs):
             return Engine(update_func, name=name)
@@ -79,6 +82,9 @@ def make_trainer(name='trainer'):
 
 def make_evaluator(
         metrics, optim, conf, lr_metric='acc', optimum='max'):
+    """Decorator that turns an ignite inference function into a test
+    creation function.
+    """
     def actual_decorator(inference_func):
         def wrapper(*args, **kwargs):
             engine = Engine(inference_func)
@@ -99,7 +105,8 @@ def make_evaluator(
 def make_engines(
         model, update, inference, *, rundir,
         checkpoint_metric='acc',
-        checkpoint_metric_optimum='max'):
+        checkpoint_metric_optimum='max',
+        checkpoint_prefix=''):
     trainer = update()
     evaluator = inference()
     if checkpoint_metric:
@@ -107,11 +114,11 @@ def make_engines(
             'max': 1,
             'min': -1}[checkpoint_metric_optimum]
         checkpointer = ModelCheckpoint(
-            rundir, 'final',
+            rundir, checkpoint_prefix,,
             score_name=checkpoint_metric,
             score_function=lambda _: sign * evaluator.state.metrics[
                 checkpoint_metric],
-            n_saved=1)
-    trainer.add_event_handler(
-        Events.COMPLETED, checkpointer, {'model': model})
+            n_saved=3)
+        trainer.add_event_handler(
+            Events.EPOCH_COMPLETED, checkpointer, {'model': model})
     return trainer, evaluator
