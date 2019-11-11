@@ -45,7 +45,9 @@ class Transformer():
         if device_count > 1:
             device_ids = list(range(device_count))
             self.model = torch.nn.DataParallel(
-                self.model, device_ids=device_ids)
+                self.model
+                # , device_ids=device_ids
+                )
             self.module = self.model.module
             # self.model.to(device='cuda')
             breakpoint()
