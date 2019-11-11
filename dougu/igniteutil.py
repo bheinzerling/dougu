@@ -114,7 +114,8 @@ def make_engines(
             'max': 1,
             'min': -1}[checkpoint_metric_optimum]
         checkpointer = ModelCheckpoint(
-            rundir, checkpoint_prefix,,
+            rundir,
+            checkpoint_prefix,
             score_name=checkpoint_metric,
             score_function=lambda _: sign * evaluator.state.metrics[
                 checkpoint_metric],
