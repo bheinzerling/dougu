@@ -144,7 +144,6 @@ class Transformer():
 
     def convert_tokens_to_ids(self, tokens, pad=True, clip_long_seq=False):
         if not tokens:
-            token_ids = []
             dummy = torch.tensor([]).to(device=self.device)
             if pad:
                 return dummy, dummy
