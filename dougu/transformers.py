@@ -145,6 +145,10 @@ class Transformer():
     def convert_tokens_to_ids(self, tokens, pad=True, clip_long_seq=False):
         if not tokens:
             token_ids = []
+            dummy = torch.tensor([]).to(device=self.device)
+            if pad:
+                return dummy, dummy
+            return dummy
         elif isinstance(tokens[0], list):
             token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
             padded_ids = torch.zeros(
@@ -155,8 +159,7 @@ class Transformer():
             padded_ids = padded_ids.to(device=self.device)
             mask = padded_ids > 0
             return padded_ids, mask
-        if tokens:
-            token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
+        token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
         ids = torch.tensor([token_ids]).to(device=self.device)
         if clip_long_seq:
             ids = ids[:, :self.max_len]
