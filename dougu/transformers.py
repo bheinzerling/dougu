@@ -47,9 +47,10 @@ class Transformer():
             self.model = torch.nn.DataParallel(
                 self.model, device_ids=device_ids)
             self.module = self.model.module
+            self.model.to(device='cuda')
         else:
             self.module = self.model
-        self.model.to(device=self.device)
+            self.model.to(device=self.device)
         self.max_len = max_len or self.tokenizer.max_len
         self.dim = self.module.embeddings.position_embeddings.weight.size(1)
         if self.model_name.startswith('roberta'):
