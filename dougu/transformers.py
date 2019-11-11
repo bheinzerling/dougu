@@ -5,7 +5,7 @@ from transformers import AutoTokenizer, AutoModel
 
 import numpy as np
 
-from dougu import flatten, lines
+from dougu import flatten, lines, get_logger
 
 
 _device = torch.device("cuda")
@@ -30,6 +30,7 @@ class Transformer():
         super().__init__()
         self.model_name = model_name
         self.device = device or _device
+        self.log = get_logger()
         do_lower_case = "uncased" in model_name
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name, do_lower_case=do_lower_case)
@@ -40,7 +41,7 @@ class Transformer():
             self.add_tokens_key: additional_special_tokens})
         self.model = AutoModel.from_pretrained(model_name)
         device_count = torch.cuda.device_count()
-        print('device count:', device_count)
+        self.log.info('device count:', device_count)
         if device_count > 1:
             self.model = torch.nn.DataParallel(self.model)
             self.module = self.model.module
