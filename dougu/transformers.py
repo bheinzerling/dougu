@@ -43,7 +43,7 @@ class Transformer():
         print('device count:', device_count)
         if device_count > 1:
             self.model = torch.nn.DataParallel(self.model)
-        model.to(device=self.device)
+        self.model.to(device=self.device)
         self.max_len = max_len or self.tokenizer.max_len
         self.dim = self.model.embeddings.position_embeddings.weight.size(1)
         if self.model_name.startswith('roberta'):
