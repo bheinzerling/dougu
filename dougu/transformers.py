@@ -48,6 +48,7 @@ class Transformer():
                 self.model, device_ids=device_ids)
             self.module = self.model.module
             self.model.to(device='cuda')
+            breakpoint()
         else:
             self.module = self.model
             self.model.to(device=self.device)
