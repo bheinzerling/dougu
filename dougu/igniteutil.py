@@ -120,6 +120,6 @@ def make_engines(
             score_function=lambda _: sign * evaluator.state.metrics[
                 checkpoint_metric],
             n_saved=3)
-        trainer.add_event_handler(
-            Events.EPOCH_COMPLETED, checkpointer, {'model': model})
+        evaluator.add_event_handler(
+            Events.COMPLETED, checkpointer, {'model': model})
     return trainer, evaluator
