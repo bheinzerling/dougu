@@ -143,6 +143,9 @@ class Transformer():
         return tokens, self.convert_tokens_to_ids(tokens)
 
     def convert_tokens_to_ids(self, tokens, pad=True, clip_long_seq=False):
+        if not tokens:
+            
+                torch.tensor([], dtype=torch.long)
         if isinstance(tokens[0], list):
             token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
             padded_ids = torch.zeros(
