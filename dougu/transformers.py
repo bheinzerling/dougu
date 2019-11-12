@@ -142,7 +142,13 @@ class Transformer():
             for ment_ctx in mentions_and_contexts]
         return tokens, self.convert_tokens_to_ids(tokens)
 
-    def convert_tokens_to_ids(self, tokens, pad=True, clip_long_seq=False):
+    def convert_tokens_to_ids(
+            self,
+            tokens,
+            pad=True,
+            max_len=None,
+            clip_long_seq=False):
+        max_len = max_len or self.max_len
         if not tokens:
             dummy = torch.tensor([]).to(device=self.device)
             if pad:
@@ -151,7 +157,7 @@ class Transformer():
         elif isinstance(tokens[0], list):
             token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
             padded_ids = torch.zeros(
-                (len(tokens,), self.max_len), dtype=torch.long)
+                (len(tokens,), max_len), dtype=torch.long)
             for row_idx, token_ids in enumerate(token_idss):
                 token_ids = torch.tensor(token_ids)
                 padded_ids[row_idx, :len(token_ids)] = token_ids
@@ -161,13 +167,13 @@ class Transformer():
         token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
         ids = torch.tensor([token_ids]).to(device=self.device)
         if clip_long_seq:
-            ids = ids[:, :self.max_len]
+            ids = ids[:, :max_len]
         else:
-            assert ids.size(1) < self.max_len
+            assert ids.size(1) < max_len
         if pad:
-            padded_ids = torch.zeros(1, self.max_len).to(ids)
+            padded_ids = torch.zeros(1, max_len).to(ids)
             padded_ids[0, :ids.size(1)] = ids
-            mask = torch.zeros(1, self.max_len).to(ids)
+            mask = torch.zeros(1, max_len).to(ids)
             mask[0, :ids.size(1)] = 1
             return padded_ids, mask
         else:
@@ -180,9 +186,7 @@ class Transformer():
             mask_end_idx=None,
             add_mask_start_end_markers=False,
             collapse_mask=True,
-            apply_mask=True,
-            max_len=None,
-            clip_long_seq=False):
+            apply_mask=True):
         """Segment each token into subwords while keeping track of
         token boundaries.
 
