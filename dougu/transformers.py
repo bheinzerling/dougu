@@ -154,9 +154,9 @@ class Transformer():
             clip_long_seq=False):
         max_len = max_len or self.max_len
         if not tokens:
-            dummy = torch.tensor([]).to(device=self.device, dtype=torch.long)
+            dummy = torch.tensor([]).to(device=self.device)
             if pad:
-                return dummy, dummy
+                return dummy.to(dtype=torch.long), dummy.to(dtype=torch.byte)
             return dummy
         elif isinstance(tokens[0], list):
             token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
