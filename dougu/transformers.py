@@ -92,10 +92,14 @@ class Transformer():
             tokenized_sent2 + [self.SEP])
 
     def tokenize_to_ids(
-            self, text, masked_idxs=None, pad=True, clip_long_seq=False):
+            self, text,
+            masked_idxs=None, pad=True, max_len=None, clip_long_seq=False):
         tokens = self.tokenize(text, masked_idxs)
         return self.convert_tokens_to_ids(
-            tokens, pad=pad, clip_long_seq=False)
+            tokens,
+            pad=pad,
+            max_len=max_len,
+            clip_long_seq=False)
 
     def tokenize_sentence_pair_to_ids(self, sent1, sent2):
         tokenized_sent1 = self.tokenizer.tokenize(sent1)
