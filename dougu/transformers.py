@@ -99,7 +99,7 @@ class Transformer():
             tokens,
             pad=pad,
             max_len=max_len,
-            clip_long_seq=False)
+            clip_long_seq=clip_long_seq)
 
     def tokenize_sentence_pair_to_ids(self, sent1, sent2):
         tokenized_sent1 = self.tokenizer.tokenize(sent1)
