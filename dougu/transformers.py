@@ -156,7 +156,7 @@ class Transformer():
         if not tokens:
             dummy = torch.tensor([]).to(device=self.device)
             if pad:
-                return dummy.to(dtype=torch.long), dummy.to(dtype=torch.int8)
+                return dummy.to(dtype=torch.long), dummy.to(dtype=torch.uint8)
             return dummy
         elif isinstance(tokens[0], list):
             token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
