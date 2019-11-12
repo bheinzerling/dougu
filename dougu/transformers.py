@@ -154,7 +154,7 @@ class Transformer():
             clip_long_seq=False):
         max_len = max_len or self.max_len
         if not tokens:
-            dummy = torch.tensor([]).to(device=self.device, dtype=torch.int64)
+            dummy = torch.tensor([]).to(device=self.device, dtype=torch.long)
             if pad:
                 return dummy, dummy
             return dummy
