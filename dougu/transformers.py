@@ -164,6 +164,8 @@ class Transformer():
                 (len(tokens,), max_len), dtype=torch.long)
             for row_idx, token_ids in enumerate(token_idss):
                 token_ids = torch.tensor(token_ids)
+                if clip_long_seq:
+                    token_ids = token_ids[:max_len]
                 padded_ids[row_idx, :len(token_ids)] = token_ids
             padded_ids = padded_ids.to(device=self.device)
             mask = padded_ids > 0
