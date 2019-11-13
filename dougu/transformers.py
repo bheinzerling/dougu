@@ -55,6 +55,7 @@ class Transformer():
             self.BEGIN_MENTION)
         self.END_MENTION_IDX = self.tokenizer.convert_tokens_to_ids(
             self.END_MENTION)
+        self.pad_idx = self.tokenizer.convert_tokens_to_ids(self.PAD)
 
     def update_special_tokens(self, additional_special_tokens):
         current = self.tokenizer.special_tokens_map[self.add_tokens_key]
