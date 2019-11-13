@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch import nn, optim, tensor, arange
 from torch.utils.data import (
-    RandomSampler, BatchSampler, Dataset, random_split, DataLoader)
+    Subset, BatchSampler, Dataset, random_split, DataLoader)
 
 from .iters import flatten, split_lengths_for_ratios, split_by_ratios
 
