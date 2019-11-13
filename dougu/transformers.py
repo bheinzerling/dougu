@@ -16,6 +16,7 @@ class Transformer():
     MASK = "[MASK]"
     CLS = "[CLS]"
     SEP = "[SEP]"
+    PAD = "[PAD]"
     BOS = "<s>"
     EOS = "</s>"
     BEGIN_MENTION = '[unused0]'
