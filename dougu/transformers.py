@@ -54,6 +54,7 @@ class Transformer():
             self.BEGIN_MENTION)
         self.END_MENTION_IDX = self.tokenizer.convert_tokens_to_ids(
             self.END_MENTION)
+        self.pad_idx = self.tokenizer.pad_token_id
 
     def update_special_tokens(self, additional_special_tokens):
         current = self.tokenizer.special_tokens_map[self.add_tokens_key]
@@ -161,7 +162,7 @@ class Transformer():
         elif isinstance(tokens[0], list):
             token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
             padded_ids = torch.zeros(
-                (len(tokens,), max_len), dtype=torch.long)
+                (len(tokens,), max_len), dtype=torch.long) + self.pad_idx
             for row_idx, token_ids in enumerate(token_idss):
                 token_ids = torch.tensor(token_ids)
                 if clip_long_seq:
