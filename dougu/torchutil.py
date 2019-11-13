@@ -661,12 +661,15 @@ class Splits():
             dataset,
             split_ratios=(0.8, 0.1, 0.1),
             split_lengths=None,
+            split_max_lengths=(None, None, None),
             split_names=('train', 'dev', 'test'),
             splits=None):
         self.split_names = split_names
         self.split_ratios = split_ratios
         self.split_lengths = split_lengths or (
             split_lengths_for_ratios(len(dataset), *split_ratios))
+        assert len(split_max_lengths) == len(split_legnths)
+        self.split_max_lengths = self.split_max_lenghts
         if splits is None:
             splits = self._split(dataset)
         for name, split in zip(split_names, splits):
@@ -674,6 +677,11 @@ class Splits():
 
     def _split(self, dataset):
         return split_by_ratios(dataset, self.split_ratios)
+
+    def _apply_max_lengths(self, splits):
+        return [
+            split[:max_len]
+            for split, max_len in zip(splits, self.split_max_lenghts)]
 
     def loaders(self, *args, split_names=None, **kwargs):
         if not split_names:
