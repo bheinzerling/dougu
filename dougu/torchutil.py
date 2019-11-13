@@ -676,7 +676,8 @@ class Splits():
             setattr(self, name, split)
 
     def _split(self, dataset):
-        return split_by_ratios(dataset, self.split_ratios)
+        return self._apply_max_lengths(
+            split_by_ratios(dataset, self.split_ratios))
 
     def _apply_max_lengths(self, splits):
         return [
@@ -713,7 +714,7 @@ class RandomSplits(Splits):
                 for split_length in self.split_lengths]
         else:
             splits = random_split(instances, self.split_lengths)
-        return splits
+        return self._apply_max_lengths(splits)
 
 
 RandomSplitDataset = RandomSplits
