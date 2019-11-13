@@ -704,7 +704,7 @@ class Splits():
 
     def dev_loader(self, *args, **kwargs):
         assert 'dev' in self.split_names
-        return DataLoader(self.dev, *args, batch_size=100,  shuffle=False)
+        return DataLoader(self.dev, *args, **kwargs, shuffle=False)
 
     def test_loader(self, *args, **kwargs):
         assert 'test' in self.split_names
