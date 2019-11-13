@@ -178,7 +178,7 @@ class Transformer():
         else:
             assert ids.size(1) < max_len
         if pad:
-            padded_ids = torch.zeros(1, max_len).to(ids)
+            padded_ids = torch.zeros(1, max_len).to(ids) + self.pad_idx
             padded_ids[0, :ids.size(1)] = ids
             mask = torch.zeros(1, max_len).to(ids)
             mask[0, :ids.size(1)] = 1
