@@ -668,7 +668,7 @@ class Splits():
         self.split_ratios = split_ratios
         self.split_lengths = split_lengths or (
             split_lengths_for_ratios(len(dataset), *split_ratios))
-        assert len(split_max_lengths) == len(split_legnths)
+        assert len(split_max_lengths) == len(split_lengths)
         self.split_max_lengths = self.split_max_lenghts
         if splits is None:
             splits = self._split(dataset)
