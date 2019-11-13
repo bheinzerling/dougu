@@ -163,6 +163,7 @@ class Transformer():
             token_idss = map(self.tokenizer.convert_tokens_to_ids, tokens)
             padded_ids = torch.zeros(
                 (len(tokens,), max_len), dtype=torch.long) + self.pad_idx
+            breakpoint()
             for row_idx, token_ids in enumerate(token_idss):
                 token_ids = torch.tensor(token_ids)
                 if clip_long_seq:
