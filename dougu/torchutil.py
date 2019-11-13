@@ -682,7 +682,7 @@ class Splits():
     def _apply_max_lengths(self, splits):
         return [
             split[:max_len]
-            for split, max_len in zip(splits, self.split_max_lenghts)]
+            for split, max_len in zip(splits, self.split_max_lengths)]
 
     def loaders(self, *args, split_names=None, **kwargs):
         if not split_names:
