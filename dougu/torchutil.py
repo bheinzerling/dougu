@@ -436,7 +436,7 @@ def get_optim(
                 'params': [
                     p for n, p in model.named_parameters()
                     if any(nd in n for nd in no_decay)
-                    and not p in additional_params],
+                    and p not in additional_params],
                 'weight_decay': 0.0}]
         if additional_params_dict:
             grouped_params.append(additional_params_dict)
