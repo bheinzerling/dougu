@@ -430,7 +430,7 @@ def get_optim(
                 'params': [
                     p for n, p in model.named_parameters()
                     if not any(nd in n for nd in no_decay)
-                    and not p in additional_params],
+                    and p not in additional_params],
                 'weight_decay': conf.weight_decay},
             {
                 'params': [
