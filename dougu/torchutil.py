@@ -694,9 +694,12 @@ class Splits():
             self,
             batch_size,
             *args,
-            eval_batch_size=None, split_names=None, **kwargs):
+            eval_batch_size=None, split_names=None,
+            **kwargs):
         if not split_names:
             split_names = self.split_names
+        self.batch_size = batch_size
+        self.eval_batch_size = eval_batch_size or batch_size
         return {
             split_name: getattr(
                 self, split_name + '_loader')(*args, **kwargs)
@@ -704,14 +707,26 @@ class Splits():
 
     def train_loader(self, *args, **kwargs):
         assert 'train' in self.split_names
-        return DataLoader(self.train, *args, **kwargs)
+        batch_size = (
+            kwargs.pop('batch_size')
+            if 'batch_size' in kwargs
+            else self.batch_size)
+        return DataLoader(self.train, *args, batch_size=batch_size, **kwargs)
 
     def dev_loader(self, *args, batch_size, eval_batch_size=None, **kwargs):
         assert 'dev' in self.split_names
+        batch_size = (
+            kwargs.pop('batch_size')
+            if 'batch_size' in kwargs
+            else self.eval_batch_size)
         return DataLoader(self.dev, *args, **kwargs, shuffle=False)
 
     def test_loader(self, *args, **kwargs):
         assert 'test' in self.split_names
+        batch_size = (
+            kwargs.pop('batch_size')
+            if 'batch_size' in kwargs
+            else self.eval_batch_size)
         return DataLoader(self.test, *args, **kwargs, shuffle=False)
 
 
