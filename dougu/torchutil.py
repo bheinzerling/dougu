@@ -711,7 +711,8 @@ class Splits():
             kwargs.pop('batch_size')
             if 'batch_size' in kwargs
             else self.batch_size)
-        return DataLoader(self.train, *args, batch_size=batch_size, **kwargs)
+        return DataLoader(
+            self.train, batch_size=batch_size, *args, **kwargs)
 
     def dev_loader(self, *args, batch_size, eval_batch_size=None, **kwargs):
         assert 'dev' in self.split_names
@@ -719,7 +720,8 @@ class Splits():
             kwargs.pop('batch_size')
             if 'batch_size' in kwargs
             else self.eval_batch_size)
-        return DataLoader(self.dev, *args, **kwargs, shuffle=False)
+        return DataLoader(
+            self.dev, batch_size=batch_size, *args, **kwargs, shuffle=False)
 
     def test_loader(self, *args, **kwargs):
         assert 'test' in self.split_names
@@ -727,7 +729,8 @@ class Splits():
             kwargs.pop('batch_size')
             if 'batch_size' in kwargs
             else self.eval_batch_size)
-        return DataLoader(self.test, *args, **kwargs, shuffle=False)
+        return DataLoader(
+            self.test, batch_size=batch_size, *args, **kwargs, shuffle=False)
 
 
 class RandomSplits(Splits):
