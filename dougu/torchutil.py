@@ -714,7 +714,7 @@ class Splits():
         return DataLoader(
             self.train, *args, batch_size=batch_size, **kwargs)
 
-    def dev_loader(self, *args, batch_size, eval_batch_size=None, **kwargs):
+    def dev_loader(self, *args, **kwargs):
         assert 'dev' in self.split_names
         batch_size = (
             kwargs.pop('batch_size')
