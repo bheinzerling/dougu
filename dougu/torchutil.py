@@ -690,7 +690,11 @@ class Splits():
                 truncated_splits.append(split)
         return truncated_splits
 
-    def loaders(self, *args, split_names=None, **kwargs):
+    def loaders(
+            self,
+            batch_size,
+            *args,
+            eval_batch_size=None, split_names=None, **kwargs):
         if not split_names:
             split_names = self.split_names
         return {
@@ -702,7 +706,7 @@ class Splits():
         assert 'train' in self.split_names
         return DataLoader(self.train, *args, **kwargs)
 
-    def dev_loader(self, *args, **kwargs):
+    def dev_loader(self, *args, batch_size, eval_batch_size=None, **kwargs):
         assert 'dev' in self.split_names
         return DataLoader(self.dev, *args, **kwargs, shuffle=False)
 
