@@ -41,6 +41,7 @@ class Loss(Metric):
             kwargs = {}
         else:
             y_pred, y, kwargs = output
+        breakpoint()
         average_loss = self._loss_fn(y_pred, y, **kwargs)
 
         if len(average_loss.shape) != 0:
