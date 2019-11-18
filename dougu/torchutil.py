@@ -700,10 +700,13 @@ class Splits():
             split_names = self.split_names
         self.batch_size = batch_size
         self.eval_batch_size = eval_batch_size or batch_size
-        return {
+        loaders = {
             split_name: getattr(
                 self, split_name + '_loader')(*args, **kwargs)
             for split_name in split_names}
+        if eval_batch_size and eval_batch_size != batch_size:
+            loaders['train_inference'] = DataLoader(
+            self.train, batch_size=eval_batch_size)
 
     def train_loader(self, *args, **kwargs):
         assert 'train' in self.split_names
