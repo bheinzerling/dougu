@@ -706,7 +706,8 @@ class Splits():
             for split_name in split_names}
         if eval_batch_size and eval_batch_size != batch_size:
             loaders['train_inference'] = DataLoader(
-                self.train, batch_size=eval_batch_size)
+                    self.train[:len(self(dev))],
+                    batch_size=eval_batch_size)
 
     def train_loader(self, *args, **kwargs):
         assert 'train' in self.split_names
