@@ -705,9 +705,9 @@ class Splits():
                 self, split_name + '_loader')(*args, **kwargs)
             for split_name in split_names}
         if eval_batch_size and eval_batch_size != batch_size:
-            breakpoint()
+            breakpoint(batch_size=eval_batch_size))
             loaders['train_inference'] = DataLoader(
-                self.train[:len(self.dev)],
+                Subset(self.train, list(range(len(self.dev)))),
                 batch_size=eval_batch_size)
         return loaders
 
