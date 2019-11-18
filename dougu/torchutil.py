@@ -708,6 +708,7 @@ class Splits():
             loaders['train_inference'] = DataLoader(
                 self.train[:len(self.dev)],
                 batch_size=eval_batch_size)
+        return loaders
 
     def train_loader(self, *args, **kwargs):
         assert 'train' in self.split_names
