@@ -530,7 +530,6 @@ def plot_embeddings_bokeh(
                 x='x', y='y',
                 source=source,
                 color=color_conf,
-                legend=legend,
                 **circle_kwargs)
     if labels is not None:
         from bokeh.models import HoverTool
