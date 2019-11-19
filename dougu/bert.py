@@ -1,7 +1,7 @@
 from pathlib import Path
 import torch
 
-import pytorch_pretrained_bert as _bert
+import pytorch_transformers as _bert
 
 import numpy as np
 
