@@ -514,15 +514,24 @@ def plot_embeddings_bokeh(
             **circle_kwargs)
         p.add_glyph(source, glyph)
     else:
-        p.circle(
-            x='x', y='y',
-            source=source,
-            color=color_conf,
-            legend=(
-                'class' if classes is not None else
-                'color' if color is not None else
-                None),
-            **circle_kwargs)
+        legend = (
+            'class' if classes is not None else
+            'color' if color is not None else
+            None)
+        if legend:
+            p.circle(
+                x='x', y='y',
+                source=source,
+                color=color_conf,
+                legend=legend,
+                **circle_kwargs)
+        else:
+            p.circle(
+                x='x', y='y',
+                source=source,
+                color=color_conf,
+                legend=legend,
+                **circle_kwargs)
     if labels is not None:
         from bokeh.models import HoverTool
         from collections import OrderedDict
