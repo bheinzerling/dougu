@@ -170,6 +170,7 @@ class Transformer():
                 padded_ids[row_idx, :len(token_ids)] = token_ids
             padded_ids = padded_ids.to(device=self.device)
             mask = padded_ids > 0
+            breakpoint()
             return padded_ids, mask
         token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
         ids = torch.tensor([token_ids]).to(device=self.device)
