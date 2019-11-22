@@ -182,7 +182,6 @@ class Transformer():
             padded_ids[0, :ids.size(1)] = ids
             mask = torch.zeros(1, max_len).to(ids)
             mask[0, :ids.size(1)] = 1
-            breakpoint()
             return padded_ids, mask
         else:
             return ids
