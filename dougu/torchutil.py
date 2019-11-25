@@ -701,6 +701,7 @@ class Splits():
             split_names = self.split_names
         self.batch_size = batch_size
         self.eval_batch_size = eval_batch_size or batch_size
+        self.use_batch_sampler = use_batch_sampler
         loaders = {
             split_name: getattr(
                 self, split_name + '_loader')(*args, **kwargs)
@@ -717,7 +718,10 @@ class Splits():
             kwargs.pop('batch_size')
             if 'batch_size' in kwargs
             else self.batch_size)
-        batch_sampler = BatchSampler(RandomSampler(self.train), batch_size)
+        if self.use_batch_sampler:
+            batch_sampler = BatchSampler(RandomSampler(self.train), batch_size)
+            return DataLoader(
+                self.train, *args, batch_size=batch_size, **kwargs)
         return DataLoader(
             self.train, *args, batch_size=batch_size, **kwargs)
 
