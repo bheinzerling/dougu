@@ -695,6 +695,7 @@ class Splits():
             batch_size,
             *args,
             eval_batch_size=None, split_names=None,
+            use_batch_sampler=False,
             **kwargs):
         if not split_names:
             split_names = self.split_names
