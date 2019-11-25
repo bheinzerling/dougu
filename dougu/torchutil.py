@@ -528,7 +528,7 @@ def tensorize_varlen_items(
     and a 'startends' tensor which contains the start and end offsets of
     each item (e.g. the start and end offset of each sentence).
     """
-    if isisntance(items[0], torch.Tensor):
+    if isinstance(items[0], torch.Tensor):
         store = torch.cat(items)
     else:
         store = torch.tensor(
