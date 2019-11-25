@@ -531,7 +531,8 @@ def tensorize_varlen_items(
     if isisntance(items[0], torch.Tensor):
         store = torch.cat(items)
     else:
-        store = torch.tensor(list(flatten(items)), device=device, dtype=item_dtype)
+        store = torch.tensor(
+            list(flatten(items)), device=device, dtype=item_dtype)
     lengths = list(map(len, items))
     starts = np.cumsum([0] + lengths[:-1])
     ends = np.cumsum(lengths)
