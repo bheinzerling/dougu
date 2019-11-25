@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch import nn, optim, tensor, arange
 from torch.utils.data import (
-    Subset, Dataset, random_split, DataLoader)
+    Subset, Dataset, random_split, DataLoader, RandomSampler, BatchSampler)
 
 from .iters import flatten, split_lengths_for_ratios, split_by_ratios
 
@@ -716,6 +716,7 @@ class Splits():
             kwargs.pop('batch_size')
             if 'batch_size' in kwargs
             else self.batch_size)
+        batch_sampler = 
         return DataLoader(
             self.train, *args, batch_size=batch_size, **kwargs)
 
