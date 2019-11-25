@@ -716,8 +716,7 @@ class Splits():
             kwargs.pop('batch_size')
             if 'batch_size' in kwargs
             else self.batch_size)
-        batch_sampler = BatchSampler(
-            RandomSampler(self.train), batch_size)
+        batch_sampler = BatchSampler(RandomSampler(self.train), batch_size)
         return DataLoader(
             self.train, *args, batch_size=batch_size, **kwargs)
 
