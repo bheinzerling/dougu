@@ -719,7 +719,8 @@ class Splits():
             if 'batch_size' in kwargs
             else self.batch_size)
         if self.use_batch_sampler:
-            batch_sampler = BatchSampler(RandomSampler(self.train), batch_size)
+            batch_sampler = BatchSampler(
+                RandomSampler(self.train), batch_size, drop_last=False)
             return DataLoader(
                 self.train, *args, batch_sampler=batch_sampler, **kwargs)
         return DataLoader(
