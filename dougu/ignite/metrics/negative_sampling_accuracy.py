@@ -38,8 +38,7 @@ class NegativeSamplingAccuracy(Metric):
     def update(self, output):
         pos_scores, neg_scores = output
         is_higher = (pos_scores.unsqueeze(dim=1) > neg_scores)
-        n_higher = is_higher.to(dtype=torch.float).sum(dim=1)
-        self._sum += n_higher.mean()
+        self._sum += is_higher.to(dtype=torch.float).mean()
         self._num_examples += 1
 
     def compute(self):
