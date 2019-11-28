@@ -42,7 +42,6 @@ class NegativeSamplingAccuracy(Metric):
         self._sum += n_higher.mean()
         print(n_higher.mean())
         self._num_examples += 1
-        breakpoint()
 
     def compute(self):
         if self._num_examples == 0:
