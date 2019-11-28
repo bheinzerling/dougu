@@ -41,6 +41,7 @@ class NegativeSamplingAccuracy(Metric):
         n_higher = is_higher.to(dtype=torch.float).sum(dim=1)
         self._sum += n_higher.mean()
         self._num_examples += 1
+        breakpoint()
 
     def compute(self):
         if self._num_examples == 0:
