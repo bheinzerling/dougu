@@ -131,6 +131,9 @@ class Accuracy(_BaseClassification):
         elif self._type == "multiclass":
             indices = torch.argmax(y_pred, dim=1)
             correct = torch.eq(indices, y).view(-1)
+            if self.ignore_idx is not None:
+                mask = y != self.ignore_idx
+                correct = correct[mask]
         elif self._type == "multilabel":
             # if y, y_pred shape is (N, C, ...) -> (N x ..., C)
             num_classes = y_pred.size(1)
