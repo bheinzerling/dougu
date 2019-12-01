@@ -700,6 +700,7 @@ class Splits():
             *args,
             eval_batch_size=None, split_names=None,
             use_batch_sampler=False,
+            log=None,
             **kwargs):
         if not split_names:
             split_names = self.split_names
@@ -714,6 +715,9 @@ class Splits():
             loaders['train_inference'] = DataLoader(
                 Subset(self.train, list(range(len(self.dev)))),
                 batch_size=eval_batch_size)
+        if log is not None:
+            for split_name, loader in loaders.items():
+                log(f'{split_name} batches: {len(loader)}')
         return loaders
 
     def train_loader(self, *args, **kwargs):
