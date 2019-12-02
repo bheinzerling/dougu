@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from .ignite import Engine, Events
 from .ignite.handlers import ModelCheckpoint
-from .ignite.contrib.handlers import CustomPeriodicEvent
+from .ignite.contrib.handlers import CustomPeriodicEvent, ProgressBar
 
 
 def attach_lr_scheduler(
