@@ -112,8 +112,6 @@ def make_engines(
         checkpoint_metric_optimum='max',
         checkpoint_prefix=''):
     trainer = update()
-    pbar = ProgressBar()
-    pbar.attach(trainer)
     evaluator = inference()
     if checkpoint_metric:
         sign = {
