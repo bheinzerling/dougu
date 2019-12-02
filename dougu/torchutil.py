@@ -518,7 +518,6 @@ def get_bert_optim(args, model, n_train_instances):
 
 def tensorize_varlen_items(
         items,
-        device="cuda",
         item_dtype=torch.int64,
         startends_dtype=torch.int64):
     """Tensorize variable-length items, e.g. a list of sentences in,
@@ -532,12 +531,12 @@ def tensorize_varlen_items(
         store = torch.cat(items)
     else:
         store = torch.tensor(
-            list(flatten(items)), device=device, dtype=item_dtype)
+            list(flatten(items)), dtype=item_dtype)
     lengths = list(map(len, items))
     starts = np.cumsum([0] + lengths[:-1])
     ends = np.cumsum(lengths)
     startends = np.stack([starts, ends]).T
-    startends = torch.tensor(startends, device=device, dtype=startends_dtype)
+    startends = torch.tensor(startends, dtype=startends_dtype)
     return store, startends
 
 
