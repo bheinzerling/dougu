@@ -101,7 +101,6 @@ def make_evaluator(
 
             for name, metric in metrics.items():
                 metric.attach(engine, name)
-            breakpoint()
             return engine
         return wrapper
     return actual_decorator
@@ -116,7 +115,6 @@ def make_engines(
     # pbar = ProgressBar()
     # pbar.attach(trainer)
     evaluator = inference()
-    breakpoint()
     if checkpoint_metric:
         sign = {
             'max': 1,
