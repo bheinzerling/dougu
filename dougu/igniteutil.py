@@ -101,6 +101,7 @@ def make_evaluator(
 
             for name, metric in metrics.items():
                 metric.attach(engine, name)
+            breakpoint()
             return engine
         return wrapper
     return actual_decorator
