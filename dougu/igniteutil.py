@@ -99,6 +99,7 @@ def make_evaluator(
             def reset_io(engine):
                 engine.state.io = defaultdict(list)
 
+            breakpoint()
             for name, metric in metrics.items():
                 metric.attach(engine, name)
             return engine
