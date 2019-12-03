@@ -686,7 +686,7 @@ class Splits():
         truncated_splits = []
         for split, max_len in zip(splits, self.split_max_lengths):
             if max_len:
-                idxs = list(range(min(max_len, len(split)))
+                idxs = list(range(min(max_len, len(split))))
                 truncated_split = Subset(split, idxs)
                 truncated_splits.append(truncated_split)
             else:
