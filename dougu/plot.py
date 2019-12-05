@@ -492,7 +492,7 @@ def plot_embeddings_bokeh(
             color_mapper = LinearColorMapper(cmap)
         if all(len(entry) == 3 for entry in colors):
             from bokeh.colors import RGB
-            color_conf = list(map(RGB, color))
+            color_conf = [RGB(*c) for c in color]
         else:
             color_conf = {
                 "field": "color",
