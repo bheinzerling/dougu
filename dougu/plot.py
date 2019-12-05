@@ -496,6 +496,8 @@ def plot_embeddings_bokeh(
             if cmap_reverse:
                 cmap.reverse()
             color_mapper = LinearColorMapper(cmap)
+        if raw_colors:
+            color_conf = {"field": "color"}
         else:
             color_conf = {
                 "field": "color",
