@@ -506,7 +506,6 @@ def plot_embeddings_bokeh(
                 color_mapper=color_mapper, ticker=ticker)
     else:
         color_conf = "red"
-    breakpoint()
     tools = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
     figure_kwargs = figure_kwargs or {}
     p = figure(tools=tools, sizing_mode='stretch_both')
