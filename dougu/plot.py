@@ -490,6 +490,7 @@ def plot_embeddings_bokeh(
             if cmap_reverse:
                 cmap.reverse()
             color_mapper = LinearColorMapper(cmap)
+        breakpoint()
         if all(len(entry) == 3 for entry in colors):
             from bokeh.colors import RGB
             color_conf = [RGB(*c) for c in color]
