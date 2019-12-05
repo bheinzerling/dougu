@@ -453,6 +453,10 @@ def plot_embeddings_bokeh(
     if labels is not None:
         source_dict["label"] = labels
     if color is not None:
+        if all(len(entry) == 3 for entry in color):
+            from bokeh.colors import RGB
+            color = [RGB(*c) for c in color]
+            assert cmap is None
         source_dict["color"] = color
     if classes is not None:
         source_dict["class"] = classes
@@ -490,9 +494,6 @@ def plot_embeddings_bokeh(
             if cmap_reverse:
                 cmap.reverse()
             color_mapper = LinearColorMapper(cmap)
-        if all(len(entry) == 3 for entry in color):
-            from bokeh.colors import RGB
-            color_conf = [RGB(*c) for c in color]
         else:
             color_conf = {
                 "field": "color",
