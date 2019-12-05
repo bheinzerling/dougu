@@ -490,9 +490,12 @@ def plot_embeddings_bokeh(
             if cmap_reverse:
                 cmap.reverse()
             color_mapper = LinearColorMapper(cmap)
-        color_conf = {
-            "field": "color",
-            "transform": color_mapper}
+        if all(len(entry) == 3 for entry in colors):
+            color_conf=color
+        else:
+            color_conf = {
+                "field": "color",
+                "transform": color_mapper}
         if colorbar:
             if colorbar_ticks:
                 ticker = FixedTicker(ticks=colorbar_ticks)
