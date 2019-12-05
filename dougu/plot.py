@@ -525,7 +525,7 @@ def plot_embeddings_bokeh(
     else:
         legend = (
             'class' if classes is not None else
-            'color' if color is not None else
+            'color' if color is not None and not raw_colors and not cmap else
             None)
         if legend:
             p.circle(
