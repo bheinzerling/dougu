@@ -452,11 +452,13 @@ def plot_embeddings_bokeh(
     source_dict = dict(x=emb[:, 0], y=emb[:, 1])
     if labels is not None:
         source_dict["label"] = labels
+    raw_colors = False
     if color is not None:
         if all(len(entry) == 3 for entry in color):
+            assert cmap is None
             from bokeh.colors import RGB
             color = [RGB(*c) for c in color]
-            assert cmap is None
+            raw_colors = True
         source_dict["color"] = color
     if classes is not None:
         source_dict["class"] = classes
