@@ -1,5 +1,4 @@
 from collections import defaultdict
-from copy import deepcopy
 
 from .ignite import Engine, Events
 from .ignite.handlers import ModelCheckpoint
@@ -101,7 +100,6 @@ def make_evaluator(
                 engine.state.io = defaultdict(list)
 
             for name, metric in metrics.items():
-                metric = deepcopy(metric)
                 metric.attach(engine, name)
             return engine
         return wrapper
