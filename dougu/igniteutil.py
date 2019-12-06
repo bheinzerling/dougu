@@ -103,8 +103,8 @@ def make_evaluator(
     return actual_decorator
 
 
-def make_engines(
-        model, trainer, evaluators, *, rundir,
+def attach_checkpointer(
+        model, evaluators, *, rundir,
         checkpoint_metric='acc',
         checkpoint_metric_optimum='max',
         checkpoint_prefix=''):
@@ -125,4 +125,4 @@ def make_engines(
             require_empty=False)
         main_evaluator.add_event_handler(
             Events.COMPLETED, checkpointer, {'model': model})
-    return trainer, main_evaluator
+    return main_evaluator
