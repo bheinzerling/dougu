@@ -109,7 +109,6 @@ def make_engines(
         checkpoint_metric_optimum='max',
         checkpoint_prefix=''):
     trainer = update()
-    evaluators = {k: v() for k, v in evaluators.items()}
     main_evaluator = evaluators['dev']
     # pbar = ProgressBar()
     # pbar.attach(trainer)
