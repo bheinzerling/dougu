@@ -104,11 +104,10 @@ def make_evaluator(
 
 
 def attach_checkpointer(
-        model, evaluators, *, rundir,
+        model, evaluator, *, rundir,
         checkpoint_metric='acc',
         checkpoint_metric_optimum='max',
         checkpoint_prefix=''):
-    main_evaluator = evaluators['dev']
     # pbar = ProgressBar()
     # pbar.attach(trainer)
     if checkpoint_metric:
@@ -123,6 +122,5 @@ def attach_checkpointer(
                 checkpoint_metric],
             n_saved=3,
             require_empty=False)
-        main_evaluator.add_event_handler(
+        evaluator.add_event_handler(
             Events.COMPLETED, checkpointer, {'model': model})
-    return main_evaluator
