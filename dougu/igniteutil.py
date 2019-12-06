@@ -104,7 +104,7 @@ def make_evaluator(
 
 
 def make_engines(
-        model, update, evaluators, *, rundir,
+        model, trainer, evaluators, *, rundir,
         checkpoint_metric='acc',
         checkpoint_metric_optimum='max',
         checkpoint_prefix=''):
