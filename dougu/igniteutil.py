@@ -54,11 +54,8 @@ def attach_result_log(
         trainer, evaluators, data_loaders,
         eval_every=1):
     def _log_results(_trainer):
-        for split_name in split_names:
-            if split_name == 'train' and 'train_inference' in data_loaders:
-                data_loader = data_loaders['train_inference']
-            else:
-                data_loader = data_loaders[split_name]
+        split_name, evaluator in evaluators.items():
+            data_loader = data_loaders[split_name]
             evaluator.run(data_loader)
             log_results(_trainer, evaluator, split_name)
 
