@@ -54,7 +54,7 @@ def attach_result_log(
         trainer, evaluators, data_loaders,
         eval_every=1):
     def _log_results(_trainer):
-        split_name, evaluator in evaluators.items():
+        for split_name, evaluator in evaluators.items():
             data_loader = data_loaders[split_name]
             evaluator.run(data_loader)
             log_results(_trainer, evaluator, split_name)
