@@ -110,7 +110,7 @@ def make_engines(
         checkpoint_prefix=''):
     trainer = update()
     evaluators = {k: v() for k, v in evaluators.items()}
-    evaluator = evaluators['dev']
+    main_evaluator = evaluators['dev']
     # pbar = ProgressBar()
     # pbar.attach(trainer)
     if checkpoint_metric:
@@ -121,10 +121,10 @@ def make_engines(
             rundir,
             checkpoint_prefix,
             score_name=checkpoint_metric,
-            score_function=lambda _: sign * evaluator.state.metrics[
+            score_function=lambda _: sign * main_evaluator.state.metrics[
                 checkpoint_metric],
             n_saved=3,
             require_empty=False)
-        evaluator.add_event_handler(
+        main_evaluator.add_event_handler(
             Events.COMPLETED, checkpointer, {'model': model})
-    return trainer, evaluator
+    return trainer, main_evaluator
