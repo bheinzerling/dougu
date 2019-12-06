@@ -118,7 +118,7 @@ def attach_checkpointer(
             rundir,
             checkpoint_prefix,
             score_name=checkpoint_metric,
-            score_function=lambda _: sign * main_evaluator.state.metrics[
+            score_function=lambda _: sign * evaluator.state.metrics[
                 checkpoint_metric],
             n_saved=3,
             require_empty=False)
