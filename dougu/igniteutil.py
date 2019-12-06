@@ -110,7 +110,7 @@ def make_engines(
         checkpoint_prefix=''):
     trainer = update()
     evaluators = {k: v() for k, v in evaluators}
-    evaluator = evaluator['dev']
+    evaluator = evaluators['dev']
     # pbar = ProgressBar()
     # pbar.attach(trainer)
     if checkpoint_metric:
