@@ -727,6 +727,7 @@ class Splits(Loaders):
             split_max_lengths=(None, None, None),
             split_names=('train', 'dev', 'test'),
             splits=None):
+        super().__init__()
         self.split_names = split_names
         self.split_ratios = split_ratios
         self.split_lengths = split_lengths or (
