@@ -3,6 +3,7 @@ from collections import defaultdict, deque
 from pprint import pprint
 import random
 import heapq
+from functools import wraps
 
 import sklearn
 import numpy as np
@@ -693,6 +694,8 @@ class Splits():
                 truncated_splits.append(split)
         return truncated_splits
 
+
+class Loaders():
     def loaders(
             self,
             batch_size,
@@ -764,3 +767,23 @@ class RandomSplits(Splits):
 
 
 RandomSplitDataset = RandomSplits
+
+
+def torch_cached(cache_dir, object_name, conf_str, log_fn=None):
+    def actual_decorator(make_object):
+        @wraps(make_object)
+        def wrapper(*args, **kwargs):
+            fname = f'{object_name}.{conf_str}.pth'
+            cache_file = cache_dir / fname
+            if cache_file.exists():
+                if log_fn:
+                    log_fn(f'loading {object_name} from {cache_file}')
+                obj = torch.load(cache_file)
+            else:
+                obj = make_object(*args, **kwargs)
+                if log_fn:
+                    log_fn(f'saving {object_name} to {cache_file}')
+                torch.save(obj, cache_file)
+            return obj
+        return wrapper
+    return actual_decorator
