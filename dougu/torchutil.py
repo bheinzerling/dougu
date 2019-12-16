@@ -659,42 +659,6 @@ class TransposedTensorDataset(Dataset):
         return self.tensors[0].size(0)
 
 
-class Splits(Loaders):
-    def __init__(
-            self,
-            dataset,
-            split_ratios=(0.8, 0.1, 0.1),
-            split_lengths=None,
-            split_max_lengths=(None, None, None),
-            split_names=('train', 'dev', 'test'),
-            splits=None):
-        self.split_names = split_names
-        self.split_ratios = split_ratios
-        self.split_lengths = split_lengths or (
-            split_lengths_for_ratios(len(dataset), *split_ratios))
-        assert len(split_max_lengths) == len(self.split_lengths)
-        self.split_max_lengths = split_max_lengths
-        if splits is None:
-            splits = self._split(dataset)
-        for name, split in zip(split_names, splits):
-            setattr(self, name, split)
-
-    def _split(self, dataset):
-        return self._apply_max_lengths(
-            split_by_ratios(dataset, self.split_ratios))
-
-    def _apply_max_lengths(self, splits):
-        truncated_splits = []
-        for split, max_len in zip(splits, self.split_max_lengths):
-            if max_len:
-                idxs = list(range(min(max_len, len(split))))
-                truncated_split = Subset(split, idxs)
-                truncated_splits.append(truncated_split)
-            else:
-                truncated_splits.append(split)
-        return truncated_splits
-
-
 class Loaders():
     def loaders(
             self,
@@ -752,6 +716,42 @@ class Loaders():
             else self.eval_batch_size)
         return DataLoader(
             self.test, *args, batch_size=batch_size, **kwargs, shuffle=False)
+
+
+class Splits(Loaders):
+    def __init__(
+            self,
+            dataset,
+            split_ratios=(0.8, 0.1, 0.1),
+            split_lengths=None,
+            split_max_lengths=(None, None, None),
+            split_names=('train', 'dev', 'test'),
+            splits=None):
+        self.split_names = split_names
+        self.split_ratios = split_ratios
+        self.split_lengths = split_lengths or (
+            split_lengths_for_ratios(len(dataset), *split_ratios))
+        assert len(split_max_lengths) == len(self.split_lengths)
+        self.split_max_lengths = split_max_lengths
+        if splits is None:
+            splits = self._split(dataset)
+        for name, split in zip(split_names, splits):
+            setattr(self, name, split)
+
+    def _split(self, dataset):
+        return self._apply_max_lengths(
+            split_by_ratios(dataset, self.split_ratios))
+
+    def _apply_max_lengths(self, splits):
+        truncated_splits = []
+        for split, max_len in zip(splits, self.split_max_lengths):
+            if max_len:
+                idxs = list(range(min(max_len, len(split))))
+                truncated_split = Subset(split, idxs)
+                truncated_splits.append(truncated_split)
+            else:
+                truncated_splits.append(split)
+        return truncated_splits
 
 
 class RandomSplits(Splits):
