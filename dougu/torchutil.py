@@ -660,6 +660,8 @@ class TransposedTensorDataset(Dataset):
 
 
 class Loaders():
+    split_names = ['train', 'dev', 'test']
+
     def loaders(
             self,
             batch_size,
