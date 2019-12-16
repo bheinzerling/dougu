@@ -659,7 +659,7 @@ class TransposedTensorDataset(Dataset):
         return self.tensors[0].size(0)
 
 
-class Splits():
+class Splits(Loaders):
     def __init__(
             self,
             dataset,
