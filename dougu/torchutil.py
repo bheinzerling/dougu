@@ -790,3 +790,24 @@ def torch_cached(cache_dir, object_name, conf_str, log_fn=None):
             return obj
         return wrapper
     return actual_decorator
+
+
+def fix_dataparallel_statedict(model, state_dict):
+    """The state_dict of PyTorch DataParallel model cannot be loaded by
+    a non-DataParallel model and vice-versa."""
+    has_module = hasattr(model, 'module')
+    if any(k.startswith('module.') for k in state_dict.keys()):
+        if not has_module:
+            # saved model is DataParallel, but current model is not
+            state_dict = {
+                k[7:]: v for k, v in state_dict.items()
+                if k.startswith('module.')}
+    if has_module:
+        model_state_dict_keys = set(model.state_dict().keys())
+        if model_state_dict_keys != set(state_dict.keys()):
+            new_state_dict = {
+                'module.' + k: v for k, v in state_dict.items()
+                if not k.startswith('module.')}
+            assert model_state_dict_keys == set(new_state_dict.keys())
+            state_dict = new_state_dict
+    return state_dict
