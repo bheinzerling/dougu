@@ -3,7 +3,6 @@ from collections.abc import Sequence
 import six
 
 from .decorators import cached_property
-from .log import get_logger
 
 
 def flatten(list_of_lists):
@@ -165,6 +164,7 @@ class LazyList(Sequence):
         super().__init__()
         self.generator = generator
         self.name = name
+        from .log import get_logger
         self.log = get_logger()
 
     @cached_property
