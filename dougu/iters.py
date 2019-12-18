@@ -1,4 +1,5 @@
 import collections
+from collections.abc import Sequence
 import six
 
 
