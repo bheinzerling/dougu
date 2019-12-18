@@ -163,6 +163,8 @@ class LazyList(Sequence):
     def __init__(self, generator, name='items'):
         super().__init__()
         self.generator = generator
+        self.name = name
+        slef.log = get_logger()
 
     @cached_property
     def items(self):
