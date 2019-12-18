@@ -169,7 +169,7 @@ class LazyList(Sequence):
     @cached_property
     def items(self):
         items = list(self.generator)
-        self.log(f'loaded {len(items)} {self.name})
+        self.log(f'loaded {len(items)} {self.name}')
 
     def __getitem__(self, idx):
         return self.items[idx]
