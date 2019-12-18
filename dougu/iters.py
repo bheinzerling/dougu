@@ -165,6 +165,9 @@ class LazyList(Sequence):
     def __getitem__(self, idx):
         return self.items[idx]
 
+    def __len(self):
+        return len(self.items)
+
 
 if __name__ == "__main__":
     print(split_idxs_for_ratios(100, 0.6, 0.2))
