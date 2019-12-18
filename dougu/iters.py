@@ -154,11 +154,15 @@ def to_list(item):
     return [item]
 
 
-class LazyList():
+class LazyList(Sequence):
     """Like list(generator), but with lazy evaluation, i.e.
     the generator is evaluated and turned into a list on first
     access, but left unevaluated otherwise."""
-    def 
+    def __init__(self, generator):
+        super().__init__()
+        self.generator = generator
+
+    def __getitem__
 
 
 if __name__ == "__main__":
