@@ -27,7 +27,9 @@ def split_idxs_for_ratios(nitems, *ratios, end_inclusive=False):
     assert sum(ratios) <= 1.0
     idxs = list(np.cumsum(split_lengths_for_ratios(nitems, *ratios)))
     if end_inclusive:
-        return [0] + idxs + [nitems]
+        idxs = [0] + idxs
+        if idxs[-1] != nitems:
+            idxs.append(nitems)
     return idxs
 
 
@@ -37,6 +39,13 @@ def split_by_ratios(items, *ratios):
     return [
         items[split_idxs[i]:split_idxs[i+1]]
         for i in range(len(split_idxs) - 1)]
+
+
+def split_by_lengths(items, *lengths):
+    idxs = [0]
+    for l in lengths:
+        idxs.append(idxs[-1] + l)
+    return [items[idxs[i]:idxs[i+1]] for i in range(len(idxs) - 1)]
 
 
 def random_split_by_ratios(items, *ratios, inplace_shuffle=False):
@@ -135,6 +144,20 @@ def is_non_string_iterable(arg):
         isinstance(arg, collections.Iterable)
         and not isinstance(arg, six.string_types)
     )
+
+
+def to_list(item):
+    """Puts item into a list if it isn't an iterable already."""
+    if is_non_string_iterable(item):
+        return item
+    return [item]
+
+
+class LazyList():
+    """Like list(generator), but with lazy evaluation, i.e.
+    the generator is evaluated and turned into a list on first
+    access, but left unevaluated otherwise."""
+    def 
 
 
 if __name__ == "__main__":
