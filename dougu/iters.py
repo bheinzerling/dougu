@@ -3,6 +3,7 @@ from collections.abc import Sequence
 import six
 
 from .decorators import cached_property
+from .log import get_logger
 
 
 def flatten(list_of_lists):
