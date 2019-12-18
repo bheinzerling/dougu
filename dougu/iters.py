@@ -171,6 +171,7 @@ class LazyList(Sequence):
     def items(self):
         items = list(self.generator)
         self.log.info(f'loaded {len(items)} {self.name}')
+        return items
 
     def __getitem__(self, idx):
         return self.items[idx]
