@@ -175,7 +175,7 @@ class LazyList(Sequence):
     def __getitem__(self, idx):
         return self.items[idx]
 
-    def __len(self):
+    def __len__(self):
         return len(self.items)
 
 
