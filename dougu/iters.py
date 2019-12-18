@@ -162,7 +162,8 @@ class LazyList(Sequence):
         super().__init__()
         self.generator = generator
 
-    def __getitem__
+    def __getitem__(self, idx):
+        return self.items[idx]
 
 
 if __name__ == "__main__":
