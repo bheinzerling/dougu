@@ -160,7 +160,7 @@ class LazyList(Sequence):
     """Like list(generator), but with lazy evaluation, i.e.
     the generator is evaluated and turned into a list on first
     access, but left unevaluated otherwise."""
-    def __init__(self, generator):
+    def __init__(self, generator, name='items'):
         super().__init__()
         self.generator = generator
 
