@@ -162,6 +162,10 @@ class LazyList(Sequence):
         super().__init__()
         self.generator = generator
 
+    @cached_property
+    def items(self):
+        return list(self.generator)
+
     def __getitem__(self, idx):
         return self.items[idx]
 
