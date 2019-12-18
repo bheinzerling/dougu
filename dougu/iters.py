@@ -2,6 +2,8 @@ import collections
 from collections.abc import Sequence
 import six
 
+from .decorators import cached_property
+
 
 def flatten(list_of_lists):
     for list in list_of_lists:
