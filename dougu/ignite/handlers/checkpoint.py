@@ -94,6 +94,7 @@ class ModelCheckpoint(object):
         self._saved = []  # list of tuples (priority, saved_objects)
         self._iteration = 0
         self._save_as_state_dict = save_as_state_dict
+        self._first_save_after = first_save_after
 
         if not (save_interval is None) ^ (score_function is None):
             raise ValueError("Exactly one of `save_interval`, or `score_function` "
