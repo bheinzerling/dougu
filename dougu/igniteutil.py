@@ -107,7 +107,8 @@ def attach_checkpointer(
         model, evaluator, *, rundir,
         checkpoint_metric='acc',
         checkpoint_metric_optimum='max',
-        checkpoint_prefix=''):
+        checkpoint_prefix='',
+        first_save_after=0):
     # pbar = ProgressBar()
     # pbar.attach(trainer)
     if checkpoint_metric:
@@ -121,6 +122,7 @@ def attach_checkpointer(
             score_function=lambda _: sign * evaluator.state.metrics[
                 checkpoint_metric],
             n_saved=3,
-            require_empty=False)
+            require_empty=False,
+            first_save_after=first_save_after)
         evaluator.add_event_handler(
             Events.COMPLETED, checkpointer, {'model': model})
