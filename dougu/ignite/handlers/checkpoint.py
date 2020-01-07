@@ -81,7 +81,8 @@ class ModelCheckpoint(object):
                  n_saved=1,
                  atomic=True, require_empty=True,
                  create_dir=True,
-                 save_as_state_dict=True):
+                 save_as_state_dict=True,
+                 first_save_after=0):
 
         self._dirname = os.path.expanduser(dirname)
         self._fname_prefix = filename_prefix
@@ -174,6 +175,7 @@ class ModelCheckpoint(object):
 
             self._saved.append((priority, saved_objs))
             self._saved.sort(key=lambda item: item[0])
+            engine.log(path)
 
         if len(self._saved) > self._n_saved:
             _, paths = self._saved.pop(0)
