@@ -440,7 +440,6 @@ def get_optim(
                     and p not in additional_params],
                 'weight_decay': 0.0}]
         if additional_params_dict:
-            print(additional_params_dict)
             grouped_params.append(additional_params_dict)
         return AdamW(grouped_params, lr=conf.learning_rate, eps=1e-8)
     elif optim_name == "sgd":
