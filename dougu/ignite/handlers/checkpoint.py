@@ -151,7 +151,7 @@ class ModelCheckpoint(object):
             raise RuntimeError("No objects to checkpoint found.")
 
         self._iteration += 1
-        if self._iteration < self.first_save_after:
+        if self._iteration < self._first_save_after:
             return
 
         if self._score_function is not None:
