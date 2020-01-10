@@ -37,6 +37,7 @@ def jsonlines_load(jsonlines_file, max=None, skip=None, filter_fn=None):
     else:
         yield from map(json.loads, lines(jsonlines_file, max=max, skip=skip))
 
+
 def jsonlines_dump(items, outfile):
     with outfile.open('w') as out:
         for item in items:
