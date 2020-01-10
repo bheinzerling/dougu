@@ -37,6 +37,11 @@ def jsonlines_load(jsonlines_file, max=None, skip=None, filter_fn=None):
     else:
         yield from map(json.loads, lines(jsonlines_file, max=max, skip=skip))
 
+def jsonlines_dump(items, outfile):
+    with outfile.open('w') as out:
+        for item in items:
+            out.write(json.dumps(item) + '\n')
+
 
 def lines(file, max=None, skip=0, apply_func=str.strip):
     """Iterate over lines in (text) file. Optionally skip first `skip` 
