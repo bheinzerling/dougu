@@ -39,6 +39,7 @@ def jsonlines_load(jsonlines_file, max=None, skip=None, filter_fn=None):
 
 
 def jsonlines_dump(items, outfile):
+    """Write items to jsonlines file, i.e. one item per line."""
     with outfile.open('w') as out:
         for item in items:
             out.write(json.dumps(item) + '\n')
