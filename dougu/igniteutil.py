@@ -14,7 +14,7 @@ def attach_lr_scheduler(
     lr_scheduler = get_lr_scheduler(
         conf, optim, optimum=optimum, t_total=t_total)
 
-    if lr_scheduler is not None and metric_name is not None:
+    if lr_scheduler is not None:
         @engine.on(event)
         def scheduler_step(evaluator):
             if log:
@@ -82,7 +82,6 @@ def make_trainer(
         def wrapper(*args, **kwargs):
             engine = Engine(update_func, name=name)
             if conf and optim and conf.learning_rate_scheduler != 'plateau':
-                breakpoint()
                 attach_lr_scheduler(
                     engine, optim, conf, log=log,
                     metric_name=metric_name,
