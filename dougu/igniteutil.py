@@ -71,7 +71,7 @@ def make_trainer(name='trainer', optim=None, conf=None):
     def actual_decorator(update_func):
         def wrapper(*args, **kwargs):
             engine = Engine(update_func, name=name)
-            if conf.lr_scheduler != 'plateau':
+            if conf.scheduler != 'plateau':
                 attach_lr_scheduler(engine, optim, conf)
             return engine
         return wrapper
