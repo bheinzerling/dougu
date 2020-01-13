@@ -456,7 +456,7 @@ def get_optim(
     raise ValueError("Unknown optimizer: " + conf.optim)
 
 
-def get_lr_scheduler(conf, optimizer, optimum='max'):
+def get_lr_scheduler(conf, optimizer, optimum='max', t_total=None):
     if conf.learning_rate_scheduler == "plateau":
         from torch.optim.lr_scheduler import ReduceLROnPlateau
         lr_scheduler = ReduceLROnPlateau(
@@ -464,6 +464,20 @@ def get_lr_scheduler(conf, optimizer, optimum='max'):
             patience=conf.learning_rate_scheduler_patience,
             mode=optimum,
             verbose=True)
+    elif conf.learning_rate_scheduler == 'warmup_linear':
+        from transformers import WarmupLinearSchedule
+        assert t_total
+        lr_scheduler = WarmupLinearSchedule(
+            optimizer, warmup_steps=conf.warmup_steps, t_total=t_total)
+    elif conf.learning_rate_scheduler == 'cyclic':
+        from torch.optim.lr_scheduler import CyclicLR
+        lr_scheduler = CyclicLR(
+            optimizer,
+            base_lr=conf.learning_rate,
+            max_lr=10 * conf.learning_rate,
+            # cycle_momentum='momentum' in optimizer.defaults)
+            step_size_up=1
+            cycle_momentum=False)
     elif conf.learning_rate_scheduler:
         raise ValueError(
             "Unknown lr_scheduler: " + conf.learning_rate_scheduler)
