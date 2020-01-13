@@ -476,7 +476,7 @@ def get_lr_scheduler(conf, optimizer, optimum='max', t_total=None):
             base_lr=conf.learning_rate,
             max_lr=10 * conf.learning_rate,
             # cycle_momentum='momentum' in optimizer.defaults)
-            step_size_up=10,
+            step_size_up=1000,
             cycle_momentum=False)
     elif conf.learning_rate_scheduler:
         raise ValueError(
