@@ -17,8 +17,6 @@ def attach_lr_scheduler(
     if lr_scheduler is not None:
         @engine.on(event)
         def scheduler_step(evaluator):
-            if log:
-                log(f'lr: {lr_scheduler.get_lr()}')
             try:
                 if metric_name:
                     lr_scheduler.step(evaluator.state.metrics[metric_name])
