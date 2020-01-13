@@ -20,7 +20,10 @@ def attach_lr_scheduler(
             if log:
                 log(f'lr: {lr_scheduler.get_lr()}')
             try:
-                lr_scheduler.step(evaluator.state.metrics[metric_name])
+                if metric_name:
+                    lr_scheduler.step(evaluator.state.metrics[metric_name])
+                else:
+                    lr_scheduler.step()
             except Exception:
                 import traceback
                 traceback.print_exc()
