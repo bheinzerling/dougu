@@ -82,6 +82,7 @@ def make_trainer(
         def wrapper(*args, **kwargs):
             engine = Engine(update_func, name=name)
             if conf and optim and conf.learning_rate_scheduler != 'plateau':
+                breakpoint()
                 attach_lr_scheduler(
                     engine, optim, conf, log=log,
                     metric_name=metric_name,
