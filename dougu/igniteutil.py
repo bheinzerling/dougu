@@ -10,13 +10,15 @@ from .ignite.contrib.handlers import CustomPeriodicEvent, ProgressBar
 def attach_lr_scheduler(
         engine, optim, conf,
         event=Events.COMPLETED,
-        metric_name='acc', optimum='max', t_total=None):
+        metric_name='acc', optimum='max', t_total=None, log=None):
     lr_scheduler = get_lr_scheduler(
         conf, optim, optimum=optimum, t_total=t_total)
 
     if lr_scheduler is not None and metric_name is not None:
         @engine.on(event)
         def scheduler_step(evaluator):
+            if log:
+                log(f'lr: {lr_scheduler.get_lr()}')
             try:
                 lr_scheduler.step(evaluator.state.metrics[metric_name])
             except Exception:
