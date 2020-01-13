@@ -76,6 +76,7 @@ def make_trainer(name='trainer', optim=None, conf=None, log=None, metric_name='l
             if conf and optim and conf.learning_rate_scheduler != 'plateau':
                 attach_lr_scheduler(
                     engine, optim, conf, log=log,
+                    metric_name=metric_name,
                     event=Events.ITERATION_COMPLETED)
             return engine
         return wrapper
