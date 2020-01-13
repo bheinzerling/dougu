@@ -66,7 +66,8 @@ def attach_result_log(
     trainer.add_event_handler(eval_event, _log_results)
 
 
-def make_trainer(name='trainer', optim=None, conf=None, log=None, metric_name='loss'):
+def make_trainer(
+        name='trainer', optim=None, conf=None, log=None, metric_name='loss'):
     """Decorator that turns an ignite update function into a training
     engine creation function.
     """
