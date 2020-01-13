@@ -86,7 +86,7 @@ def make_evaluator(
     def actual_decorator(inference_func):
         def wrapper(*args, **kwargs):
             engine = Engine(inference_func)
-            if conf.lr_scheduler == 'plateau':
+            if conf.scheduler == 'plateau':
                 attach_lr_scheduler(
                     engine, optim, conf,
                     metric_name=lr_metric, optimum=optimum)
