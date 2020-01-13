@@ -1,24 +1,17 @@
 from collections import defaultdict
 
+from dougu.torchutil import get_lr_scheduler
+
 from .ignite import Engine, Events
 from .ignite.handlers import ModelCheckpoint
 from .ignite.contrib.handlers import CustomPeriodicEvent, ProgressBar
 
 
 def attach_lr_scheduler(
-        evaluator, optim, conf, metric_name='acc', optimum='max'):
-    if conf.learning_rate_scheduler == "plateau":
-        from torch.optim.lr_scheduler import ReduceLROnPlateau
-        lr_scheduler = ReduceLROnPlateau(
-            optim, factor=0.5,
-            patience=conf.learning_rate_scheduler_patience,
-            mode=optimum,
-            verbose=True)
-    elif conf.learning_rate_scheduler:
-        raise ValueError(
-            "Unknown lr_scheduler: " + conf.learning_rate_scheduler)
-    else:
-        lr_scheduler = None
+        evaluator, optim, conf,
+        metric_name='acc', optimum='max', t_total=None):
+    lr_scheduler = get_lr_scheduler(
+        conf, optim, optimum=optimum, t_total=t_total)
 
     if lr_scheduler is not None and metric_name is not None:
         @evaluator.on(Events.COMPLETED)
@@ -89,8 +82,10 @@ def make_evaluator(
     def actual_decorator(inference_func):
         def wrapper(*args, **kwargs):
             engine = Engine(inference_func)
-            attach_lr_scheduler(
-                engine, optim, conf, metric_name=lr_metric, optimum=optimum)
+            if conf.lr_scheduler == 'plateau':
+                attach_lr_scheduler(
+                    engine, optim, conf,
+                    metric_name=lr_metric, optimum=optimum)
 
             @engine.on(Events.STARTED)
             def reset_io(engine):
