@@ -66,7 +66,7 @@ def attach_result_log(
     trainer.add_event_handler(eval_event, _log_results)
 
 
-def make_trainer(name='trainer', optim=None, conf=None):
+def make_trainer(name='trainer', optim=None, conf=None, log=None):
     """Decorator that turns an ignite update function into a training
     engine creation function.
     """
@@ -75,7 +75,8 @@ def make_trainer(name='trainer', optim=None, conf=None):
             engine = Engine(update_func, name=name)
             if conf and conf.learning_rate_scheduler != 'plateau':
                 attach_lr_scheduler(
-                    engine, optim, conf, event=Events.ITERATION_COMPLETED)
+                    engine, optim, conf, log=log,
+                    event=Events.ITERATION_COMPLETED)
             return engine
         return wrapper
     return actual_decorator
