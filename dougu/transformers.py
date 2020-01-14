@@ -45,6 +45,7 @@ class Transformer():
             self.add_special_symbols = self.add_special_symbols_bert
         self.BEGIN_MENTION_IDX = self.tokenizer.convert_tokens_to_ids(
             self.BEGIN_MENTION)
+        self.begin_mention_idx = self.BEGIN_MENTION_IDX
         self.END_MENTION_IDX = self.tokenizer.convert_tokens_to_ids(
             self.END_MENTION)
         additional_special_tokens = [self.BEGIN_MENTION, self.END_MENTION]
