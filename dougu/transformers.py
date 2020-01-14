@@ -18,8 +18,6 @@ class Transformer():
     SEP = "[SEP]"
     BOS = "<s>"
     EOS = "</s>"
-    BEGIN_MENTION = '[unused0]'
-    END_MENTION = '[unused1]'
     nspecial_symbols_segment1 = 2  # [CLS] sent1... [SEP]
     nspecial_symbols_segment2 = 1  # sent2... [SEP]
     add_tokens_key = 'additional_special_tokens'
@@ -34,11 +32,25 @@ class Transformer():
         do_lower_case = "uncased" in model_name
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name, do_lower_case=do_lower_case)
-        self.begin_mention_idx = self.tokenizer.convert_tokens_to_ids(
+        # self.begin_mention_idx = self.tokenizer.convert_tokens_to_ids(
+        #     self.BEGIN_MENTION)
+
+        if self.model_name.startswith('roberta'):
+            self.BEGIN_MENTION = 'madeupword0000'
+            self.END_MENTION = 'madeupword0001'
+            self.add_special_symbols = self.add_special_symbols_roberta
+        else:
+            self.BEGIN_MENTION = '[unused0]'
+            self.END_MENTION = '[unused1]'
+            self.add_special_symbols = self.add_special_symbols_bert
+        self.BEGIN_MENTION_IDX = self.tokenizer.convert_tokens_to_ids(
             self.BEGIN_MENTION)
+        self.END_MENTION_IDX = self.tokenizer.convert_tokens_to_ids(
+            self.END_MENTION)
         additional_special_tokens = [self.BEGIN_MENTION, self.END_MENTION]
         self.tokenizer.add_special_tokens({
             self.add_tokens_key: additional_special_tokens})
+
         self.model = AutoModel.from_pretrained(model_name)
         device_count = torch.cuda.device_count()
         self.log.info(f'device count: {device_count}')
@@ -46,14 +58,6 @@ class Transformer():
         self.max_len = max_len or self.tokenizer.max_len
         self.vocab_size = self.model.embeddings.word_embeddings.weight.size(0)
         self.dim = self.model.embeddings.position_embeddings.weight.size(1)
-        if self.model_name.startswith('roberta'):
-            self.add_special_symbols = self.add_special_symbols_roberta
-        else:
-            self.add_special_symbols = self.add_special_symbols_bert
-        self.BEGIN_MENTION_IDX = self.tokenizer.convert_tokens_to_ids(
-            self.BEGIN_MENTION)
-        self.END_MENTION_IDX = self.tokenizer.convert_tokens_to_ids(
-            self.END_MENTION)
         self.pad_idx = self.tokenizer.pad_token_id
 
     def update_special_tokens(self, additional_special_tokens):
@@ -176,7 +180,7 @@ class Transformer():
         if clip_long_seq:
             ids = ids[:, :max_len]
         else:
-            assert ids.size(1) < max_len
+            assert ids.size(1) <= max_len, f'{ids.size(1)} > {max_len}'
         if pad:
             padded_ids = torch.zeros(1, max_len).to(ids) + self.pad_idx
             padded_ids[0, :ids.size(1)] = ids
