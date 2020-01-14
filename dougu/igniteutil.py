@@ -100,8 +100,7 @@ def make_evaluator(
             if conf.learning_rate_scheduler == 'plateau':
                 attach_lr_scheduler(
                     engine, optim, conf,
-                    metric_name=lr_metric, optimum=optimum,
-                    metric_name=lr_metric)
+                    metric_name=lr_metric, optimum=optimum)
 
             @engine.on(Events.STARTED)
             def reset_io(engine):
