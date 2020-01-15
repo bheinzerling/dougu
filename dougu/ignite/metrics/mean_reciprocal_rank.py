@@ -20,6 +20,10 @@ class MeanReciprocalRank(Metric):
         rank = (probs >= correct_prob).sum(dim=1)
         self.ranks.append(rank.cpu())
 
+    def update_idx(self, output):
+        probs, target = output
+        breakpoint()
+
     def compute(self):
         rank = torch.cat(self.ranks)
         return (1 / rank.float()).mean()
