@@ -5,7 +5,7 @@ from .metric import Metric
 
 class MeanReciprocalRank(Metric):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, mode='prob', **kwargs):
         super().__init__(*args, **kwargs)
         self.update = {
             'prob': self.update_prob,
