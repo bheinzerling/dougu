@@ -31,9 +31,9 @@ class MeanReciprocalRank(Metric):
         matches = pred_idx == target.unsqueeze(1)
         bs, max_rank = pred_idx.shape
         ranks = torch.zeros(bs).long() + max_rank
-        match_batch_idxs, match_ranks = matches.nonzero().t().cpu()
+        match_batch_idxs, match_rank = matches.nonzero().t().cpu()
         # + 1 to convert from zero-indexed to rank
-        ranks[match_batch_idxs] = match_ranks + 1
+        rank[match_batch_idxs] = match_rank + 1
         self.ranks.append(rank)
 
     def compute(self):
