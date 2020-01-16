@@ -5,11 +5,17 @@ from .metric import Metric
 
 class MeanReciprocalRank(Metric):
 
-    def reset(self, mode='prob'):
-        self.ranks = []
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.update = {
             'prob': self.update_prob,
             'idx': self.update_idx}[mode]
+
+    def reset(self, mode='prob'):
+        self.ranks = []
+
+    def update(self, output):
+        raise NotImplementedError()
 
     def update_prob(self, output):
         probs, target = output
