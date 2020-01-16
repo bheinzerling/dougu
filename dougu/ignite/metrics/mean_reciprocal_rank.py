@@ -27,7 +27,7 @@ class MeanReciprocalRank(Metric):
         self.ranks.append(rank.cpu())
 
     def update_idx(self, output):
-        probs, target = output
+        pred_idx, target = output
         breakpoint()
 
     def compute(self):
