@@ -28,7 +28,7 @@ class MeanReciprocalRank(Metric):
 
     def update_idx(self, output):
         pred_idx, target = output
-        breakpoint()
+        matches = pred_idx == target.unsqueeze(1)
 
     def compute(self):
         rank = torch.cat(self.ranks)
