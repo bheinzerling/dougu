@@ -327,3 +327,8 @@ def add_job_id(args):
         'JOB_SCRIPT' in os.environ and os.environ['JOB_SCRIPT'] != 'QRLOGIN')
     if is_batchjob and 'JOB_ID' in os.environ:
         args.jobid = os.environ['JOB_ID']
+
+
+def make_and_set_rundir(args):
+    """Make rundir and set args.rundir to the corresponding path."""
+
