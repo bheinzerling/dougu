@@ -322,6 +322,7 @@ def auto_debug():
 def add_job_id(args):
     """Add jobid to argparser object if the current program is a
     SGE/UGE batch job."""
+    import os
     is_batchjob = (
         'JOB_SCRIPT' in os.environ and os.environ['JOB_SCRIPT'] != 'QRLOGIN')
     if is_batchjob and 'JOB_ID' in os.environ:
