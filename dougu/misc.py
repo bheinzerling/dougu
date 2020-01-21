@@ -347,3 +347,6 @@ def conf_hash(conf, fields=None):
     given configuration."""
     if fields is None:
         d = conf.__dict__
+    else:
+        d = {k: getattr(conf, k) for k in fields}
+    import hashlib
