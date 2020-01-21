@@ -109,6 +109,9 @@ class Spans():
         self.spans = spans
         self.starts, self.ends = zip(*spans)
 
+    def __iter__(self):
+        return iter(self.spans)
+
     def __contains__(self, offset):
         s_idx = bisect(self.starts, offset)
         e_idx = bisect(self.ends, offset)
@@ -118,7 +121,7 @@ class Spans():
         s_idx = bisect(self.starts, offset)
         e_idx = bisect(self.ends, offset)
         if s_idx - e_idx == 1:
-            return self.spans[e_idx]
+            return self.spans[e_idx], e_idx
 
 
 def args_to_str(args, positional_arg=None):
@@ -291,6 +294,33 @@ class SubclassRegistry:
     def get(cls_name):
         return SubclassRegistry.classes[cls_name]
 
-    @staticmethod
-    def get_subclasses(super_cls):
-        return SubclassRegistry.subclasses.get(super_cls, {})
+    @classmethod
+    def get_subclasses(cls):
+        return SubclassRegistry.subclasses.get(cls, {})
+
+
+def auto_debug():
+    """Automatically start a debugger when an exception occcurs."""
+    import sys
+
+    def info(ty, value, tb):
+        if (
+                ty is KeyboardInterrupt or
+                hasattr(sys, 'ps1') or
+                not sys.stderr.isatty()):
+            # we are in interactive mode or we don't have a tty-like
+            # device, so we call the default hook
+            sys.__excepthook__(ty, value, tb)
+        else:
+            from IPython.core import ultratb
+            ultratb.FormattedTB(
+                mode='Verbose', color_scheme='Linux', call_pdb=1)()
+
+    sys.excepthook = info
+
+
+def add_job_id(args):
+    """Add jobid to argparser object if the current program is a
+    SGE/UGE batch job."""
+    is_batchjob = (
+        'JOB_SCRIPT' in os.environ and os.environ['JOB_SCRIPT'] != 'QRLOGIN')
