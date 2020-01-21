@@ -324,3 +324,5 @@ def add_job_id(args):
     SGE/UGE batch job."""
     is_batchjob = (
         'JOB_SCRIPT' in os.environ and os.environ['JOB_SCRIPT'] != 'QRLOGIN')
+    if is_batchjob and 'JOB_ID' in os.environ:
+        args.jobid = os.environ['JOB_ID']
