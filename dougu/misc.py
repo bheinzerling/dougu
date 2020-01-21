@@ -319,7 +319,7 @@ def auto_debug():
     sys.excepthook = info
 
 
-def add_job_id(args):
+def add_jobid(args):
     """Add jobid to argparser object if the current program is a
     SGE/UGE batch job."""
     import os
