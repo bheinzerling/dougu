@@ -331,4 +331,8 @@ def add_job_id(args):
 
 def make_and_set_rundir(args):
     """Make rundir and set args.rundir to the corresponding path."""
-
+    if args.runid is not None:
+        args.rundir = mkdir(args.outdir / args.runid)
+    else:
+        args.rundir = next_rundir()
+        args.runid = args.rundir.name
