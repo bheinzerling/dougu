@@ -350,3 +350,4 @@ def conf_hash(conf, fields=None):
     else:
         d = {k: getattr(conf, k) for k in fields}
     import hashlib
+    return hashlib.md5(bytes(repr(d), encoding='utf8')).hexdigest()
