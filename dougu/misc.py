@@ -339,3 +339,11 @@ def make_and_set_rundir(args):
     else:
         args.rundir = next_rundir()
         args.runid = args.rundir.name
+
+
+def conf_hash(conf, fields=None):
+    """Return a hash value for the a configuration object, e.g. an
+    argparser instance. Useful for creating filenames based on the
+    given configuration."""
+    if fields is None:
+        d = conf.__dict__
