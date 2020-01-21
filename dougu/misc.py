@@ -4,6 +4,9 @@ import re
 from collections import defaultdict
 
 
+from .io import mkdir
+
+
 def now_str():
     """String representation of the current datetime."""
     from datetime import datetime
