@@ -25,7 +25,7 @@ class Scalar(Metric):
 
     """
 
-    def __init__(self, output_transform=lambda x: x,
+    def __init__(self, loss_fn, output_transform=lambda x: x,
                  batch_size=lambda x: len(x)):
         super(Scalar, self).__init__(output_transform)
         self._loss_fn = loss_fn
