@@ -4,7 +4,7 @@ from dougu.torchutil import get_lr_scheduler
 
 from .ignite import Engine, Events
 from .ignite.handlers import ModelCheckpoint
-from .ignite.contrib.handlers import CustomPeriodicEvent, ProgressBar
+from .ignite.contrib.handlers import CustomPeriodicEvent
 
 
 def attach_lr_scheduler(
