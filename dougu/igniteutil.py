@@ -92,7 +92,7 @@ def make_trainer(
 def make_evaluator(
         metrics, optim, conf, lr_metric='acc', optimum='max'):
     """Decorator that turns an ignite inference function into a test
-    creation function.
+    engine creation function.
     """
     def actual_decorator(inference_func):
         def wrapper(*args, **kwargs):
