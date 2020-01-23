@@ -51,3 +51,9 @@ class cached_property(property):
             value = self.func(obj)
             obj.__dict__[self.__name__] = value
         return value
+
+
+def with_file_cache(self, conf, fields=None):
+    def actual_decorator(*args, **kwargs):
+        def wrapper(data_dict_fn):
+            data_dict = data_dict_fn(*args, **kwargs)
