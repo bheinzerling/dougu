@@ -70,7 +70,8 @@ def with_file_cache(
     def actual_decorator(*args, **kwargs):
         def wrapper(data_dict_fn):
             conf_str = conf_hash(conf, fields)
-            cache_fname = (cache_fname_tpl or '{conf_str}').format(conf_str)
+            cache_fname = (cache_fname_tpl or '{conf_str}').format(
+                conf_str=conf_str)
             cache_file = cache_dir / cache_fname
             if cache_file.exists():
                 if log:
