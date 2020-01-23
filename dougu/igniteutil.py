@@ -47,6 +47,13 @@ def log_results(trainer, evaluator, eval_name):
         trainer.state.last_acc = metrics['acc']
 
 
+def custom_periodic_events(engine, **event_kwargs):
+    events = CustomPeriodicEvent(**event_kwargs)
+    engine.register_events(*event.Events)
+    event.attach(engine)
+    return events
+
+
 def attach_result_log(
         trainer, evaluators, data_loaders,
         eval_every=1):
