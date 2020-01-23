@@ -56,5 +56,11 @@ class cached_property(property):
 def with_file_cache(self, conf, fields=None):
     def actual_decorator(*args, **kwargs):
         def wrapper(data_dict_fn):
-            data_dict = data_dict_fn(*args, **kwargs)
-            return data_dict
+            if cache_file.exists():
+                data_dict = loader(cache_file)
+            else:
+                data_dict = data_dict_fn(*args, **kwargs)
+                saver(data_dict, cache_file)
+            for k, v in data_dict.items():
+                setattr(k, v)
+        return wrapper
