@@ -303,7 +303,7 @@ class SubclassRegistry:
 
 
 def auto_debug():
-    """Automatically start a debugger when an exception occcurs."""
+    """Automatically start a debugger when an exception occurs."""
     import sys
 
     def info(ty, value, tb):
