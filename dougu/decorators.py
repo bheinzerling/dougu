@@ -65,16 +65,21 @@ def with_file_cache(
         saver,
         fields=None,
         cache_dir=Path('cache'),
-        cache_fname_tpl=None):
+        cache_fname_tpl=None,
+        log=None):
     def actual_decorator(*args, **kwargs):
         def wrapper(data_dict_fn):
             conf_str = conf_hash(conf, fields)
             cache_fname = (cache_fname_tpl or '{conf_str}').format(conf_str)
             cache_file = cache_dir / cache_fname
             if cache_file.exists():
+                if log:
+                    log(f'loading {cache_file}')
                 data_dict = loader(cache_file)
             else:
                 data_dict = data_dict_fn(*args, **kwargs)
+                if log:
+                    log(f'saving {cache_file}')
                 saver(data_dict, cache_file)
             for k, v in data_dict.items():
                 setattr(k, v)
