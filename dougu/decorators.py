@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-__all__ = ["cached_property"]
+__all__ = ["cached_property", 'with_file_cache']
 
 
 class _Missing(object):
