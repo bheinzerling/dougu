@@ -67,8 +67,8 @@ def with_file_cache(
         cache_dir=Path('cache'),
         cache_fname_tpl=None,
         log=None):
-    def actual_decorator(*args, **kwargs):
-        def wrapper(data_dict_fn):
+    def actual_decorator(data_dict_fn):
+        def wrapper(*args, **kwargs):
             conf_str = conf_hash(conf, fields)
             cache_fname = (cache_fname_tpl or '{conf_str}').format(
                 conf_str=conf_str)
