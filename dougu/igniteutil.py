@@ -103,6 +103,7 @@ def make_evaluator(
     """
     def actual_decorator(inference_func):
         engine = Engine(inference_func)
+
         def wrapper(*args, **kwargs):
             if conf.learning_rate_scheduler == 'plateau':
                 attach_lr_scheduler(
