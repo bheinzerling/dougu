@@ -83,6 +83,6 @@ def with_file_cache(
                     log(f'saving {cache_file}')
                 saver(data_dict, cache_file)
             for k, v in data_dict.items():
-                setattr(k, v)
+                setattr(self, k, v)
         return wrapper
     return actual_decorator
