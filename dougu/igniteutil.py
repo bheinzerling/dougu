@@ -49,8 +49,8 @@ def log_results(trainer, evaluator, eval_name):
 
 def custom_periodic_events(engine, **event_kwargs):
     events = CustomPeriodicEvent(**event_kwargs)
-    engine.register_events(*event.Events)
-    event.attach(engine)
+    engine.register_events(*events.Events)
+    events.attach(engine)
     return events
 
 
