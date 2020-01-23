@@ -102,8 +102,8 @@ def make_evaluator(
     engine creation function.
     """
     def actual_decorator(inference_func):
+        engine = Engine(inference_func)
         def wrapper(*args, **kwargs):
-            engine = Engine(inference_func)
             if conf.learning_rate_scheduler == 'plateau':
                 attach_lr_scheduler(
                     engine, optim, conf,
