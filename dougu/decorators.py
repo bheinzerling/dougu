@@ -84,3 +84,4 @@ def with_file_cache(
             for k, v in data_dict.items():
                 setattr(k, v)
         return wrapper
+    return actual_decorator
