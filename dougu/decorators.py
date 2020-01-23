@@ -53,7 +53,7 @@ class cached_property(property):
         return value
 
 
-def with_file_cache(self, conf, fields=None):
+def with_file_cache(self, conf, fields=None, cache_dir=Path('cache')):
     def actual_decorator(*args, **kwargs):
         def wrapper(data_dict_fn):
             if cache_file.exists():
