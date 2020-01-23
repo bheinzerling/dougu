@@ -60,7 +60,7 @@ class cached_property(property):
 def with_file_cache(
         self,
         conf,
-        *
+        *,
         loader,
         saver,
         fields=None,
