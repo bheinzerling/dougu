@@ -1,4 +1,5 @@
 from pathlib import Path
+from .misc import conf_hash
 
 
 __all__ = ["cached_property", 'with_file_cache']
@@ -67,6 +68,8 @@ def with_file_cache(
         cache_fname_tpl=None):
     def actual_decorator(*args, **kwargs):
         def wrapper(data_dict_fn):
+            conf_str = conf_hash(conf, fields)
+            cache_fname = (cache_fname_tpl or '{conf_str}').format(conf_str)
             if cache_file.exists():
                 data_dict = loader(cache_file)
             else:
