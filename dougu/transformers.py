@@ -198,8 +198,7 @@ class Transformer():
             mask_end_idx=None,
             add_mask_start_end_markers=False,
             collapse_mask=True,
-            apply_mask=True,
-            max_len=None):
+            apply_mask=True):
         """Segment each token into subwords while keeping track of
         token boundaries.
 
