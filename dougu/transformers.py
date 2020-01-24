@@ -307,8 +307,7 @@ class Transformer():
             mask_end_idx=mask_end_idx,
             add_mask_start_end_markers=add_mask_start_end_markers,
             collapse_mask=collapse_mask,
-            apply_mask=apply_mask,
-            max_len=max_len)
+            apply_mask=apply_mask)
         subword_ids, padding_mask = self.convert_tokens_to_ids(
             subwords, max_len=max_len)
         token_starts = torch.zeros(1, max_len).to(subword_ids)
