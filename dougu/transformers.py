@@ -332,8 +332,9 @@ class Transformer():
                 return subword_ids, padding_mask, token_starts, mask_mask
         return subword_ids, padding_mask, token_starts
 
-    def segment_ids(self, segment1_len, segment2_len, pad=True):
-        npad = self.max_len - segment1_len - segment2_len
+    def segment_ids(self, segment1_len, segment2_len, pad=True, max_len=None):
+        max_len = max_len or self.max_len
+        npad = max_len - segment1_len - segment2_len
         ids = [0] * segment1_len + [1] * segment2_len + [0] * npad
-        assert len(ids) == self.max_len
+        assert len(ids) == max_len
         return torch.tensor([ids]).to(device=self.device)
