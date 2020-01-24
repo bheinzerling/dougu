@@ -271,7 +271,7 @@ class Transformer():
         token_start_idxs = 1 + np.cumsum([0] + subword_lengths[:-1])
         if mask_start_idx is not None:
             return subwords, token_start_idxs, mask_start_ends
-        return subwords, token_start_idxs
+        return subwords, token_start_idxs, None
 
     def subword_tokenize_to_ids(
             self,
