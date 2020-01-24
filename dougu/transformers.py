@@ -282,7 +282,8 @@ class Transformer():
             collapse_mask=True,
             apply_mask=True,
             return_mask_mask=False,
-            return_mask_start_end=False):
+            return_mask_start_end=False,
+            max_len=None):
         """Segment each token into subwords while keeping track of
         token boundaries and convert subwords into IDs.
 
@@ -299,6 +300,7 @@ class Transformer():
             - An array of indices into the list of subwords. See
                 doc of subword_tokenize.
         """
+        max_len = max_len or self.max_len
         subwords, token_start_idxs, mask_start_ends = self.subword_tokenize(
             tokens,
             mask_start_idx=mask_start_idx,
@@ -307,16 +309,16 @@ class Transformer():
             collapse_mask=collapse_mask,
             apply_mask=apply_mask)
         subword_ids, padding_mask = self.convert_tokens_to_ids(subwords)
-        token_starts = torch.zeros(1, self.max_len).to(subword_ids)
+        token_starts = torch.zeros(1, max_len).to(subword_ids)
         token_starts[0, token_start_idxs] = 1
         if return_mask_mask:
-            mask_mask = torch.zeros(1, self.max_len).to(subword_ids)
+            mask_mask = torch.zeros(1, max_len).to(subword_ids)
             for mask_start, mask_end in mask_start_ends:
                 token_mask_idxs = list(range(mask_start, mask_end))
                 subw_mask_idxs = token_start_idxs[token_mask_idxs]
                 mask_mask[0, subw_mask_idxs] = 1
             if return_mask_start_end:
-                mask_start_end = torch.zeros(1, self.max_len).to(subword_ids)
+                mask_start_end = torch.zeros(1, max_len).to(subword_ids)
                 # this only works if there are fewer than seq_len // 2 masks
                 for i, (mask_start, mask_end) in enumerate(mask_start_ends):
                     token_mask_idxs = list(range(mask_start, mask_end))
