@@ -310,8 +310,8 @@ class Transformer():
             collapse_mask=collapse_mask,
             apply_mask=apply_mask,
             max_len=max_len)
-        breakpoint()
-        subword_ids, padding_mask = self.convert_tokens_to_ids(subwords)
+        subword_ids, padding_mask = self.convert_tokens_to_ids(
+            subwords, max_len=max_len)
         token_starts = torch.zeros(1, max_len).to(subword_ids)
         token_starts[0, token_start_idxs] = 1
         if return_mask_mask:
