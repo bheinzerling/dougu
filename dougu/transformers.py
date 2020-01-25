@@ -13,10 +13,6 @@ _device = torch.device("cuda:0")
 
 class Transformer():
 
-    CLS = "[CLS]"
-    SEP = "[SEP]"
-    BOS = "<s>"
-    EOS = "</s>"
     nspecial_symbols_segment1 = 2  # [CLS] sent1... [SEP]
     nspecial_symbols_segment2 = 1  # sent2... [SEP]
     add_tokens_key = 'additional_special_tokens'
@@ -31,7 +27,9 @@ class Transformer():
         do_lower_case = "uncased" in model_name
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name, do_lower_case=do_lower_case)
-        self.MASK = self.tokenizer.mask_token
+        for name in 'mask cls sep bos eos'.split():
+            token = getattr(self.tokenizer, name + '_token')
+            setattr(self, name.upper(), token)
         # self.begin_mention_idx = self.tokenizer.convert_tokens_to_ids(
         #     self.BEGIN_MENTION)
 
