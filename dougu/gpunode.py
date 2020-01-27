@@ -305,9 +305,23 @@ def get_jobs(args, configs, index, results):
 
 def submit_and_collect(args, configs, index, columns, append_results_fn):
     """Create and submit SLURM or SUN/Univa Grid Engine jobs for each
-    configuration in configs, then collect results and store them."""
+    configuration in configs, then collect results and store them.
+    
+    args: an argparser object, used for configuring how jobs
+    should be submitted.
+
+    configs: a list of argparser objects, each one specifying a job
+    to be submitted
+
+    index: list containing names of index columns of a pandas DataFrame.
+    This index represents a particular job configuration and is used to
+    determine which configurations already have results and for which 
+    configurations jobs still need to be submitted.
+    
+    columns: 
+    """
     total_configs = args.trials_per_config * len(configs)
-    with Results(args.results_store, columns, index) as results:
+    with Results(args.results_store, index, result_fields) as results:
         append_results_fn(args, results)
         jobs = list(get_jobs(args, configs, index, results))
         print("Total", total_configs, "configs.", "Todo:", len(jobs))
