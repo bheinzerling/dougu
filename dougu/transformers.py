@@ -54,7 +54,10 @@ class Transformer():
         self.tokenizer.add_special_tokens({
             self.add_tokens_key: additional_special_tokens})
 
-        self.model = AutoModel.from_pretrained(model_name)
+        if self.randinit:
+            breakpoint()
+        else:
+            self.model = AutoModel.from_pretrained(model_name)
         device_count = torch.cuda.device_count()
         self.log.info(f'device count: {device_count}')
         self.model.to(device=self.device)
