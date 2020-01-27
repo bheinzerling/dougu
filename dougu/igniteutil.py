@@ -88,8 +88,8 @@ def make_trainer(
         def wrapper(*args, **kwargs):
             engine = Engine(update_func, name=name)
             if metrics:
-                for name, metric in metrics.items():
-                    metric.attach(engine, name)
+                for metric_name, metric in metrics.items():
+                    metric.attach(engine, metric_name)
             if conf and optim and conf.learning_rate_scheduler != 'plateau':
                 attach_lr_scheduler(
                     engine, optim, conf, log=log,
