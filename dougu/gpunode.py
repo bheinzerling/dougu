@@ -322,6 +322,8 @@ def submit_and_collect(
     result_fields: list containing names of columns in a pandas DataFrame
     which are used to store the actual results for particular configuration
     (as opposed to the configuration itself, such as hyperparamer settings)
+
+    append_results_fn: TODO
     """
     total_configs = args.trials_per_config * len(configs)
     with Results(args.results_store, index, result_fields) as results:
