@@ -316,7 +316,7 @@ def submit_and_collect(
 
     index: list containing names of index columns of a pandas DataFrame.
     This index represents a particular job configuration and is used to
-    determine which configurations already have results and for which 
+    determine which configurations already have results and for which
     configurations jobs still need to be submitted.
     
     result_fields: list containing names of columns in a pandas DataFrame
