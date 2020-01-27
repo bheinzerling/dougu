@@ -1,7 +1,7 @@
 from pathlib import Path
 import torch
 
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoConfig, AutoModel
 
 import numpy as np
 
@@ -54,7 +54,6 @@ class Transformer():
             self.add_tokens_key: additional_special_tokens})
 
         if self.randinit:
-            from transformers import AutoConfig
             model_config = AutoConfig.from_pretrained(self.model_name)
             self.model = AutoModel.from_config(model_config)
         else:
