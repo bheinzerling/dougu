@@ -312,8 +312,7 @@ def submit_and_collect(args, configs, index, columns, append_results_fn):
         jobs = list(get_jobs(args, configs, index, results))
         print("Total", total_configs, "configs.", "Todo:", len(jobs))
         if args.inspect_results:
-            from IPython import embed
-            embed()
+            breakpoint()
             return
         if hasattr(args, "print_configs") and args.print_configs:
             for job in jobs:
