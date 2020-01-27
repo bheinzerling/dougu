@@ -79,6 +79,7 @@ def make_trainer(
         optim=None,
         conf=None,
         log=None,
+        metrics=None,
         metric_name='loss'):
     """Decorator that turns an ignite update function into a training
     engine creation function.
@@ -86,6 +87,9 @@ def make_trainer(
     def actual_decorator(update_func):
         def wrapper(*args, **kwargs):
             engine = Engine(update_func, name=name)
+            if metrics:
+                for name, metric in metrics.items():
+                    metric.attach(engine, name)
             if conf and optim and conf.learning_rate_scheduler != 'plateau':
                 attach_lr_scheduler(
                     engine, optim, conf, log=log,
