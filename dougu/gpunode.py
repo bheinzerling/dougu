@@ -307,7 +307,7 @@ def submit_and_collect(
         args, configs, *, index, result_fields, append_results_fn):
     """Create and submit SLURM or SUN/Univa Grid Engine jobs for each
     configuration in configs, then collect results and store them.
-    
+
     args: an argparser object, used for configuring how jobs
     should be submitted.
 
