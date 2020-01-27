@@ -303,7 +303,8 @@ def get_jobs(args, configs, index, results):
             yield __args
 
 
-def submit_and_collect(args, configs, index, columns, append_results_fn):
+def submit_and_collect(
+        args, configs, *, index, result_fields, append_results_fn):
     """Create and submit SLURM or SUN/Univa Grid Engine jobs for each
     configuration in configs, then collect results and store them.
     
