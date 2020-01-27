@@ -21,7 +21,6 @@ class Transformer():
 
     def __init__(self, model_name, device=None, max_len=None):
         super().__init__()
-        breakpoint()
         self.randinit = model_name.endswith('-randinit')
         if self.randinit:
             model_name = model_name[:-len('-randinit')]
