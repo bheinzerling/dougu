@@ -318,7 +318,9 @@ def submit_and_collect(args, configs, index, columns, append_results_fn):
     determine which configurations already have results and for which 
     configurations jobs still need to be submitted.
     
-    columns: 
+    result_fields: list containing names of columns in a pandas DataFrame
+    which are used to store the actual results for particular configuration
+    (as opposed to the configuration itself, such as hyperparamer settings)
     """
     total_configs = args.trials_per_config * len(configs)
     with Results(args.results_store, index, result_fields) as results:
