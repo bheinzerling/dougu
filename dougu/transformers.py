@@ -54,6 +54,8 @@ class Transformer():
             self.add_tokens_key: additional_special_tokens})
 
         if self.randinit:
+            from transformers import AutoConfig
+            model_config = AutoConfig.from_pretrained(self.model_name
             breakpoint()
         else:
             self.model = AutoModel.from_pretrained(model_name)
