@@ -55,7 +55,7 @@ class Transformer():
 
         if self.randinit:
             from transformers import AutoConfig
-            model_config = AutoConfig.from_pretrained(self.model_name
+            model_config = AutoConfig.from_pretrained(self.model_name)
             self.model = AutoModel.from_config(model_config)
         else:
             self.model = AutoModel.from_pretrained(model_name)
