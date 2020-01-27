@@ -4,9 +4,10 @@ from dougu import now_str
 
 
 class Results():
-    def __init__(self, file, columns, index, backup=True):
+    def __init__(self, file, *, index, result_fields, backup=True):
         self.file = file
         self.key = "df"
+        columns = index + result_fields
         self.columns = columns
         self.default_min_itemsize = 100
         self.min_itemsize = {c: self.default_min_itemsize for c in columns}
