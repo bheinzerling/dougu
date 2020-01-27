@@ -23,6 +23,8 @@ class Transformer():
         super().__init__()
         breakpoint()
         self.randinit = model_name.endswith('-randinit')
+        if self.randinit:
+            model_name = model_name[:-len('-randinit')]
         self.model_name = model_name
         self.device = device or _device
         self.log = get_logger()
