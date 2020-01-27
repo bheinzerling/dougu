@@ -318,7 +318,7 @@ def submit_and_collect(
     This index represents a particular job configuration and is used to
     determine which configurations already have results and for which
     configurations jobs still need to be submitted.
-    
+
     result_fields: list containing names of columns in a pandas DataFrame
     which are used to store the actual results for particular configuration
     (as opposed to the configuration itself, such as hyperparamer settings)
