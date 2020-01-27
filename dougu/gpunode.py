@@ -304,8 +304,8 @@ def get_jobs(args, configs, index, results):
 
 
 def submit_and_collect(args, configs, index, columns, append_results_fn):
-    """Create and submit SLURM jobs for each configuration in configs.
-    Then collect results and store them."""
+    """Create and submit SLURM or Grid Engine jobs for each configuration
+    in configs, Then collect results and store them."""
     total_configs = args.trials_per_config * len(configs)
     with Results(args.results_store, columns, index) as results:
         append_results_fn(args, results)
