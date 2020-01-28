@@ -371,4 +371,4 @@ def submit_and_collect(
         if args.collect_jobs:
             while True:
                 time.sleep(10)
-                append_results_fn(args, results)
+                collect_fn(args, results)
