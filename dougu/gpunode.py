@@ -77,7 +77,7 @@ def run_on_node(
         log=None,
         positional_arg=None):
     """Run a Python file with args on one of the GPUs of one of
-    the nodes listed in the `nodes` directory.
+    the nodes listed in the nodes directory.
     """
     args.sentinel = random_string()
     info = log.info if log else print
