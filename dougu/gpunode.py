@@ -323,7 +323,8 @@ def submit_and_collect(
     which are used to store the actual results for particular configuration
     (as opposed to the configuration itself, such as hyperparamer settings)
 
-    append_results_fn: TODO
+    append_results_fn: a function that appends new results to the
+    results table
     """
     total_configs = args.trials_per_config * len(configs)
     with Results(args.results_store, index, result_fields) as results:
