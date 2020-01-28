@@ -320,7 +320,7 @@ def submit_and_collect(
     configurations jobs still need to be submitted.
 
     scores_fields: list containing names of columns in a pandas DataFrame
-    which are used to store the scores for particular configuration
+    which are used to store the resulting scores for particular configuration
     (as opposed to the configuration itself, such as hyperparamer settings)
 
     collect_fn: a function that collects new results and inserts them into
