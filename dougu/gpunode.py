@@ -277,6 +277,8 @@ def grid_engine_submit(conf, positional_arg):
 
 
 def get_jobs(args, configs, index, results):
+    """Given job configs and results, return the configs that still need
+    to be run."""
     warnings.simplefilter('ignore', pandas.errors.PerformanceWarning)
     try:
         df = results.dataframe
@@ -303,8 +305,7 @@ def get_jobs(args, configs, index, results):
             yield __args
 
 
-def submit_and_collect(
-        args, configs, index, score_fields, collect_fn):
+def submit_and_collect(args, configs, index, score_fields, collect_fn):
     """Create and submit SLURM or SUN/Univa Grid Engine jobs for each
     configuration in configs, then collect results and store them.
 
