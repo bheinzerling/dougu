@@ -328,7 +328,7 @@ def submit_and_collect(
     """
     total_configs = args.trials_per_config * len(configs)
     with Results(args.results_store, index, score_fields) as results:
-        append_results_fn(args, results)
+        collect_fn(args, results)
         jobs = list(get_jobs(args, configs, index, results))
         print("Total", total_configs, "configs.", "Todo:", len(jobs))
         if args.inspect_results:
