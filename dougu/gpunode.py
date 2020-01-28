@@ -304,7 +304,7 @@ def get_jobs(args, configs, index, results):
 
 
 def submit_and_collect(
-        args, configs, *, index, result_fields, collect_fn):
+        args, configs, *, index, score_fields, collect_fn):
     """Create and submit SLURM or SUN/Univa Grid Engine jobs for each
     configuration in configs, then collect results and store them.
 
@@ -319,8 +319,8 @@ def submit_and_collect(
     determine which configurations already have results and for which
     configurations jobs still need to be submitted.
 
-    result_fields: list containing names of columns in a pandas DataFrame
-    which are used to store the actual results for particular configuration
+    scores_fields: list containing names of columns in a pandas DataFrame
+    which are used to store the scores for particular configuration
     (as opposed to the configuration itself, such as hyperparamer settings)
 
     collect_fn: a function that collects new results and inserts them into
