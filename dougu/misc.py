@@ -337,7 +337,7 @@ def make_and_set_rundir(args):
     if args.runid is not None:
         args.rundir = mkdir(args.outdir / args.runid)
     else:
-        args.rundir = next_rundir()
+        args.rundir = next_rundir(log=log)
         args.runid = args.rundir.name
 
 
