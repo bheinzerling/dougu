@@ -125,7 +125,7 @@ def make_evaluator(
 
 
 def attach_checkpointer(
-        model, evaluator, *, rundir,
+        model, trainer, evaluator, *, rundir,
         checkpoint_metric='acc',
         checkpoint_metric_optimum='max',
         checkpoint_prefix='',
