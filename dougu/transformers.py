@@ -262,7 +262,9 @@ class Transformer():
                         if collapse_mask:
                             mask_len = 1
                         else:
-                            breakpoint()
+                            mention = ' '.join(tokens[mask_start:mask_end])
+                            mention_subw = self.tokenize(mention)[1:-1]
+                            mask_len = len(mention_subw)
                         mention = [self.MASK] * mask_len
                     else:
                         mention = tokens[mask_start:mask_end]
