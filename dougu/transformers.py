@@ -208,7 +208,7 @@ class Transformer():
             add_mask_start_end_markers=False,
             collapse_mask=True,
             apply_mask=True,
-            no_special_symbols=False):
+            add_special_symbols=True):
         """Segment each token into subwords while keeping track of
         token boundaries.
 
@@ -299,7 +299,7 @@ class Transformer():
             return_mask_mask=False,
             return_mask_start_end=False,
             max_len=None,
-            no_special_symbols=False):
+            add_special_symbols=True):
         """Segment each token into subwords while keeping track of
         token boundaries and convert subwords into IDs.
 
@@ -324,7 +324,7 @@ class Transformer():
             add_mask_start_end_markers=add_mask_start_end_markers,
             collapse_mask=collapse_mask,
             apply_mask=apply_mask,
-            no_special_symbols=no_special_symbols)
+            add_special_symbols=add_special_symbols)
         subword_ids, padding_mask = self.convert_tokens_to_ids(
             subwords, max_len=max_len)
         token_starts = torch.zeros(1, max_len).to(subword_ids)
