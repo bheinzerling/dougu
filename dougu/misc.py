@@ -341,7 +341,7 @@ def make_and_set_rundir(args):
         args.rundir = next_rundir()
         args.runid = args.rundir.name
     log = get_logger()
-    log.info(f'run dir: {args.run_dir}')
+    log.info(f'run dir: {args.rundir}')
 
 
 def conf_hash(conf, fields=None):
