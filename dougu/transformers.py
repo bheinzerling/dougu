@@ -66,7 +66,8 @@ class Transformer():
         self.model.to(device=self.device)
         self.max_len = max_len or self.tokenizer.max_len
         word_emb = self.model.get_input_embeddings().weight
-        self.vocab_size, self.dim = word_emb.size()
+        self.vocab_size = word_emb.size(0)
+        self.dim = word_emb.size(1)
         self.pad_idx = self.tokenizer.pad_token_id
 
     def update_special_tokens(self, additional_special_tokens):
