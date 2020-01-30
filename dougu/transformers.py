@@ -250,6 +250,9 @@ class Transformer():
                         mask_len = 1
                     else:
                         breakpoint()
+                        mention = ' '.join(tokens[mask_start:mask_end])
+                        mention_subw = self.tokenize(mention)[1:-1]
+                        mask_len = len(mention_subw)
                     tokens = (
                         tokens[:mask_start] +
                         [self.MASK] * mask_len +
