@@ -207,7 +207,8 @@ class Transformer():
             mask_end_idx=None,
             add_mask_start_end_markers=False,
             collapse_mask=True,
-            apply_mask=True):
+            apply_mask=True,
+            no_special_symbols=False):
         """Segment each token into subwords while keeping track of
         token boundaries.
 
@@ -275,9 +276,13 @@ class Transformer():
                     new_mask_starts, new_mask_ends))))
         subwords = list(map(self.tokenizer.tokenize, tokens))
         subword_lengths = list(map(len, subwords))
-        subwords = self.add_special_symbols(list(flatten(subwords)))
-        # + 1: assumes one special symbol is prepended to the input sequence
-        token_start_idxs = 1 + np.cumsum([0] + subword_lengths[:-1])
+        if no_special_symbols:
+            offset = 0
+        else:
+            subwords = self.add_special_symbols(list(flatten(subwords)))
+            offset = 1
+            # + 1: assumes one special symbol is prepended to the input sequence
+        token_start_idxs = offset + np.cumsum([0] + subword_lengths[:-1])
         if mask_start_idx is not None:
             return subwords, token_start_idxs, mask_start_ends
         return subwords, token_start_idxs, None
