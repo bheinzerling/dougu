@@ -19,7 +19,10 @@ class Transformer():
     supported_langs = set(lines(
         Path(__file__).parent / "data" / "bert_langs.wiki"))
 
-    def __init__(self, model_name, device=None, max_len=None):
+    def __init__(
+            self, model_name,
+            device=None, max_len=None,
+            auto_model_cls=AutoModel):
         super().__init__()
         self.randinit = model_name.endswith('-randinit')
         if self.randinit:
@@ -55,9 +58,9 @@ class Transformer():
 
         if self.randinit:
             model_config = AutoConfig.from_pretrained(self.model_name)
-            self.model = AutoModel.from_config(model_config)
+            self.model = auto_model_cls.from_config(model_config)
         else:
-            self.model = AutoModel.from_pretrained(model_name)
+            self.model = auto_model_cls.from_pretrained(model_name)
         device_count = torch.cuda.device_count()
         self.log.info(f'device count: {device_count}')
         self.model.to(device=self.device)
