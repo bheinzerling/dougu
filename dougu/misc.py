@@ -86,11 +86,13 @@ def get_and_increment_runid(file=Path("runid")):
     return runid
 
 
-def next_rundir(basedir=Path("out"), runid_fname="runid"):
+def next_rundir(basedir=Path("out"), runid_fname="runid", log=None):
     """Create a directory for running an experiment."""
     runid = get_and_increment_runid(basedir / runid_fname)
     rundir = basedir / str(runid)
     rundir.mkdir(exist_ok=True, parents=True)
+    if log:
+        log.info(f"rundir: {rundir.resolve()}")
     return rundir
 
 
@@ -337,6 +339,8 @@ def make_and_set_rundir(args):
     else:
         args.rundir = next_rundir()
         args.runid = args.rundir.name
+    log = get_logger()
+    log.info(f'run dir: {args.run_dir}')
 
 
 def conf_hash(conf, fields=None):
