@@ -254,8 +254,10 @@ class Transformer():
             if add_mask_start_end_markers:
                 for mask_start, mask_end in mask_start_ends:
                     if apply_mask:
-                        mask_len = 1 if collapse_mask else (
-                            mask_end - mask_start)
+                        if collapse_mask:
+                            mask_len = 1
+                        else:
+                            breakpoint()
                         mention = [self.MASK] * mask_len
                     else:
                         mention = tokens[mask_start:mask_end]
