@@ -246,7 +246,10 @@ class Transformer():
             mask_start_ends = list(reversed(list(zip(mask_starts, mask_ends))))
             if apply_mask:
                 for mask_start, mask_end in mask_start_ends:
-                    mask_len = 1 if collapse_mask else (mask_end - mask_start)
+                        if collapse_mask:
+                            mask_len = 1
+                        else:
+                            breakpoint()
                     tokens = (
                         tokens[:mask_start] +
                         [self.MASK] * mask_len +
