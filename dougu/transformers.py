@@ -276,10 +276,11 @@ class Transformer():
                     new_mask_starts, new_mask_ends))))
         subwords = list(map(self.tokenizer.tokenize, tokens))
         subword_lengths = list(map(len, subwords))
+        subwords = list(flatten(subwords))
         if no_special_symbols:
             offset = 0
         else:
-            subwords = self.add_special_symbols(list(flatten(subwords)))
+            subwords = self.add_special_symbols(subwords)
             offset = 1
             # + 1: assumes one special symbol is prepended to the input sequence
         token_start_idxs = offset + np.cumsum([0] + subword_lengths[:-1])
