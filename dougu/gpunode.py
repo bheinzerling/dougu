@@ -325,7 +325,7 @@ def submit_and_collect(args, configs, index, score_fields, collect_fn):
     (as opposed to the configuration itself, such as hyperparamer settings)
 
     collect_fn: a function that collects new results and inserts them into
-    results table
+    the results table
     """
     total_configs = args.trials_per_config * len(configs)
     with Results(args.results_store, index, score_fields) as results:
