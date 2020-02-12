@@ -628,7 +628,7 @@ def count_parameters(model):
         params = model.values()
     else:
         params = model.parameters()
-    return sum(p.numel() for p in paramsif p.requires_grad)
+    return sum(p.numel() for p in params if p.requires_grad)
 
 
 class ListDataset(Dataset):
