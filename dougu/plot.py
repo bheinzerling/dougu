@@ -258,7 +258,7 @@ def embed_2d(
         return_proj=False):
     if hasattr(emb_method, 'fit_transform'):
         proj = emb_method
-    elif emb_method == "UMAP":
+    elif emb_method.lower() == "umap":
         try:
             from umap import UMAP
         except ImportError:
@@ -402,6 +402,10 @@ def plot_embeddings_bokeh(
         scatter_labels=False,
         tooltip_fields=None,
         figure_kwargs=None,
+        write_png=False,
+        return_plot=False,
+        plot_width=None,
+        plot_height=None,
         **circle_kwargs):
     """
     Creates an interactive scatterplot of the embeddings contained in emb,
@@ -427,7 +431,6 @@ def plot_embeddings_bokeh(
         ColorBar, FixedTicker, Text)
     from bokeh.palettes import (
         Category20, Category20b, Category20c, Viridis256, viridis)
-    from bokeh.io import export_png
 
     def get_palette(categories):
         n_cat = len(set(categories))
@@ -511,9 +514,13 @@ def plot_embeddings_bokeh(
                 color_mapper=color_mapper, ticker=ticker)
     else:
         color_conf = "red"
-    tools = "crosshair,pan,wheel_zoom,box_zoom,reset,hover,previewsave"
+    tools = "crosshair,pan,wheel_zoom,box_zoom,reset,hover"
     figure_kwargs = figure_kwargs or {}
-    p = figure(tools=tools, sizing_mode='stretch_both')
+    if plot_width is not None:
+        figure_kwargs['plot_width'] = plot_width
+    if plot_height is not None:
+        figure_kwargs['plot_height'] = plot_height
+    p = figure(tools=tools, sizing_mode='stretch_both', **figure_kwargs)
     if title:
         p.title.text = title
     if labels is not None and scatter_labels:
@@ -559,10 +566,14 @@ def plot_embeddings_bokeh(
     if colorbar:
         assert color is not None
         p.add_layout(colorbar, 'right')
+    if return_plot:
+        return p
     if outfile:
         save(p)
-        png_file = outfile.with_suffix('.png')
-        export_png(p, filename=png_file)
+        if write_png:
+            from bokeh.io import export_png
+            png_file = outfile.with_suffix('.png')
+            export_png(p, filename=png_file)
     else:
         show(p)
 

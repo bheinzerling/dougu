@@ -6,6 +6,7 @@ try:
     from colorama import Fore, Back, Style
     red = Fore.RED
     green = Fore.GREEN
+    yellow = Fore.YELLOW
     reset = Style.RESET_ALL
     weight_colors = True
 except ImportError:

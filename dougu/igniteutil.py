@@ -1,30 +1,37 @@
 from collections import defaultdict
+from typing import Callable
 
 from dougu.torchutil import get_lr_scheduler
 
 from .ignite import Engine, Events
-from .ignite.handlers import ModelCheckpoint
+from ignite.handlers import ModelCheckpoint, EarlyStopping
 from .ignite.contrib.handlers import CustomPeriodicEvent
 
 
 def attach_lr_scheduler(
         engine, optim, conf,
         event=Events.COMPLETED,
-        metric_name='acc', optimum='max', t_total=None, log=None):
-    lr_scheduler = get_lr_scheduler(
-        conf, optim, optimum=optimum, t_total=t_total)
+        metric_name='acc',
+        optimum='max',
+        n_train_steps=None,
+        log=None,
+        lr_scheduler=None):
+    if lr_scheduler is None:
+        lr_scheduler = get_lr_scheduler(
+            conf, optim, optimum=optimum, n_train_steps=n_train_steps)
 
     if lr_scheduler is not None:
         @engine.on(event)
         def scheduler_step(evaluator):
             try:
-                if metric_name:
+                if lr_scheduler.requires_metric:
                     lr_scheduler.step(evaluator.state.metrics[metric_name])
                 else:
                     lr_scheduler.step()
             except Exception:
                 import traceback
                 traceback.print_exc()
+    return lr_scheduler
 
 
 def log_results(trainer, evaluator, eval_name):
@@ -56,8 +63,11 @@ def custom_periodic_events(engine, **event_kwargs):
 
 def attach_result_log(
         trainer, evaluators, data_loaders,
-        eval_every=1):
+        eval_every=1,
+        first_eval_epoch=1):
     def _log_results(_trainer):
+        if _trainer.state.epoch < first_eval_epoch:
+            return
         for split_name, evaluator in evaluators.items():
             data_loader = data_loaders[split_name]
             evaluator.run(data_loader)
@@ -125,7 +135,7 @@ def make_evaluator(
 
 
 def attach_checkpointer(
-        model, evaluator, *, rundir,
+        to_save, evaluator, *, rundir,
         checkpoint_metric='acc',
         checkpoint_metric_optimum='max',
         checkpoint_prefix='',
@@ -145,5 +155,34 @@ def attach_checkpointer(
             n_saved=3,
             require_empty=False,
             first_save_after=first_save_after)
+        if not isinstance(to_save, dict):
+            to_save = {'model': to_save}
         evaluator.add_event_handler(
-            Events.COMPLETED, checkpointer, {'model': model})
+            Events.COMPLETED, checkpointer, to_save)
+        return checkpointer
+
+
+class EarlyStoppingWithBurnin(EarlyStopping):
+    def __init__(
+        self,
+        patience: int,
+        score_function: Callable,
+        trainer: Engine,
+        min_delta: float = 0.0,
+        cumulative_delta: bool = False,
+        burnin: int = 0,
+    ):
+        super().__init__(
+            patience,
+            score_function,
+            trainer,
+            min_delta=min_delta,
+            cumulative_delta=cumulative_delta,
+        )
+        self.burnin = burnin
+        self._steps = 0
+
+    def __call__(self, engine: Engine) -> None:
+        self._steps += 1
+        if self._steps > self.burnin:
+            super().__call__(engine)

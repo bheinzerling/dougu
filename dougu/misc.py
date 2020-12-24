@@ -77,9 +77,27 @@ class _Results():
 def get_and_increment_runid(file=Path("runid")):
     """Get the next run id by incrementing the id stored in a file.
     (faster than taking the maximum over all subdirs)"""
+    attempts = 0
+    runid = None
     try:
-        with file.open() as f:
-            runid = int(f.read()) + 1
+        try:
+            from filelock import FileLock
+            lockfile = file.parent / (file.name + '.lock')
+            lock = FileLock(lockfile, timeout=3)
+        except ImportError:
+            import contextlib
+            lock = contextlib.nullcontext()
+        while runid is None:
+            try:
+                with lock:
+                    with file.open() as f:
+                        runid = int(f.read()) + 1
+            except ValueError as e:
+                if attempts < 3:
+                    print('failed to read runid from file', file)
+                    attempts += 1
+                else:
+                    raise e
     except FileNotFoundError:
         runid = 0
     with file.open("w") as out:
@@ -109,9 +127,19 @@ def color_range(start_color, end_color, steps=10, cformat=lambda c: c.hex_l):
 
 class Spans():
     """Find span covering a given offset. Assumes non-overlapping spans"""
-    def __init__(self, spans):
-        self.spans = spans
-        self.starts, self.ends = zip(*spans)
+    def __init__(self, spans=None, starts=None, ends=None):
+        if spans is None:
+            assert starts is not None
+            assert ends is not None
+            self.spans = list(zip(starts, ends))
+            self.starts = starts
+            self.ends = ends
+        else:
+            self.spans = spans
+            self.starts, self.ends = zip(*spans)
+
+    def __getitem__(self, index):
+        return self.spans[index]
 
     def __iter__(self):
         return iter(self.spans)
@@ -127,34 +155,101 @@ class Spans():
         if s_idx - e_idx == 1:
             return self.spans[e_idx], e_idx
 
+    def indexes_in_range(self, start=None, end=None):
+        if start is None:
+            s_idx = 0
+        else:
+            s_idx = bisect(self.starts, start - 1)
+        if end is None:
+            e_idx = len(self.spans)
+        else:
+            e_idx = bisect(self.ends, end)
+        return s_idx, e_idx
 
-def args_to_str(args, positional_arg=None):
+    def in_range(self, start=None, end=None):
+        s_idx, e_idx = self.indexes_in_range(start=start, end=end)
+        return self.spans[s_idx:e_idx]
+
+
+def args_to_str(
+        args,
+        positional_arg=None,
+        fields=None,
+        to_flag=True,
+        arg_joiner=' ',
+        val_sep=' ',
+        list_joiner=' ',
+        ):
     """Convert an argparse.ArgumentParser object back into a string,
     e.g. for running an external command."""
     def val_to_str(v):
         if isinstance(v, list):
-            return ' '.join(map(str, v))
+            return list_joiner.join(map(str, v))
         return str(v)
 
     def arg_to_str(k, v):
-        k = f"--{k.replace('_', '-')}"
+        if to_flag:
+            k = f"--{k.replace('_', '-')}"
         if v is True:
             return k
         if v is False:
             return ""
         else:
             v = val_to_str(v)
-        return k + " " + v
+        return k + val_sep + v
 
     if positional_arg:
-        pos_args = val_to_str(args.__dict__[positional_arg]) + " "
+        pos_args = val_to_str(args.__dict__[positional_arg]) + val_sep
     else:
         pos_args = ""
 
-    return pos_args + " ".join([
+    if fields is None:
+        items = args.__dict__.items()
+    else:
+        items = [(k, args.__dict__[k]) for k in fields]
+
+    return pos_args + arg_joiner.join([
         arg_to_str(k, v)
-        for k, v in args.__dict__.items()
+        for k, v in items
         if v is not None and k != positional_arg])
+
+
+def args_to_conf_str(args, **kwargs):
+    return args_to_str(
+        args,
+        to_flag=False,
+        arg_joiner='.',
+        list_joiner='_',
+        val_sep='_',
+        **kwargs,
+        )
+
+
+def args_to_list(args, positional_arg=None):
+    def val_to_list(v):
+        if isinstance(v, list):
+            return v
+        return [v]
+
+    def arg_to_items(k, v):
+        k = f"--{k.replace('_', '-')}"
+        if v is True:
+            return [k]
+        if v is False:
+            return []
+        v = val_to_list(v)
+        return [k] + v
+
+    if positional_arg:
+        pos_args = [args.__dict__[positional_arg]]
+    else:
+        pos_args = []
+
+    return pos_args + [
+        str(item)
+        for k, v in args.__dict__.items()
+        for item in arg_to_items(k, v)
+        if v is not None and k != positional_arg]
 
 
 def str2bool(s):
@@ -283,24 +378,24 @@ class SubclassRegistry:
     '''Mixin that automatically registers all subclasses of the
     given class.
     '''
-    classes = dict()
-    subclasses = defaultdict(set)
+    registered_classes = dict()
+    registered_subclasses = defaultdict(set)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.classes[cls.__name__.lower()] = cls
+        cls.registered_classes[cls.__name__.lower()] = cls
         for super_cls in cls.__mro__:
             if super_cls == cls:
                 continue
-            SubclassRegistry.subclasses[super_cls].add(cls)
+            SubclassRegistry.registered_subclasses[super_cls].add(cls)
 
     @staticmethod
     def get(cls_name):
-        return SubclassRegistry.classes[cls_name]
+        return SubclassRegistry.registered_classes[cls_name]
 
     @classmethod
     def get_subclasses(cls):
-        return SubclassRegistry.subclasses.get(cls, {})
+        return SubclassRegistry.registered_subclasses.get(cls, {})
 
 
 def auto_debug():
@@ -348,9 +443,12 @@ def conf_hash(conf, fields=None):
     """Return a hash value for the a configuration object, e.g. an
     argparser instance. Useful for creating unique filenames based on
     the given configuration."""
-    if fields is None:
-        d = conf.__dict__
+    if isinstance(conf, dict):
+        d = conf
     else:
-        d = {k: getattr(conf, k) for k in fields}
+        if fields is None:
+            d = conf.__dict__
+        else:
+            d = {k: getattr(conf, k) for k in fields}
     import hashlib
     return hashlib.md5(bytes(repr(d), encoding='utf8')).hexdigest()

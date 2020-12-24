@@ -5,12 +5,12 @@ import random
 import heapq
 from functools import wraps
 
-import sklearn
 import numpy as np
 import torch
 from torch import nn, optim, tensor, arange
 from torch.utils.data import (
-    Subset, Dataset, random_split, DataLoader, RandomSampler, BatchSampler)
+    Subset, Dataset, random_split, DataLoader, RandomSampler, BatchSampler,
+    TensorDataset)
 
 from .iters import flatten, split_lengths_for_ratios, split_by_ratios
 
@@ -307,10 +307,12 @@ class Score():
 
     @staticmethod
     def f1_score(pred, true):
+        import sklearn
         return sklearn.metrics.f1_score(true, pred)
 
     @staticmethod
     def f1_score_multiclass(pred, true, average='macro'):
+        import sklearn
         f1_score = sklearn.metrics.f1_score
         if average == 'macro':
             return np.average([f1_score(t, p) for t, p in zip(true, pred)])
@@ -417,8 +419,13 @@ def get_optim(
     """Create an optimizer according to command line args."""
     params = [p for p in model.parameters() if p.requires_grad]
     optim_name = conf.optim.lower()
+    lr = getattr(conf, 'learning_rate', None) or conf.lr
+    betas = getattr(conf, 'adam_betas', [0.9, 0.999])
+    eps = getattr(conf, 'adam_eps', 1e-8)
+    weight_decay = getattr(conf, 'weight_decay', 0.0)
     if optim_name == "adam":
-        return optim.Adam(params, lr=conf.learning_rate)
+        return optim.Adam(
+            params, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
     elif optim_name == "adamw":
         from transformers import AdamW
         no_decay = ['bias', 'LayerNorm.weight']
@@ -441,46 +448,63 @@ def get_optim(
                 'weight_decay': 0.0}]
         if additional_params_dict:
             grouped_params.append(additional_params_dict)
-        return AdamW(grouped_params, lr=conf.learning_rate, eps=1e-8)
+        return AdamW(
+            grouped_params,
+            betas=betas,
+            weight_decay=weight_decay,
+            lr=lr,
+            eps=eps)
     elif optim_name == "sgd":
         return optim.SGD(
             params,
-            lr=conf.learning_rate,
+            lr=conf.lr,
             momentum=conf.momentum,
             weight_decay=conf.weight_decay)
     elif optim_name == 'bertadam':
         return get_bert_optim(conf, model, n_train_instances)
     elif optim_name == 'radam':
         from .radam import RAdam
-        return RAdam(params, lr=conf.learning_rate)
+        return RAdam(params, lr=lr)
     raise ValueError("Unknown optimizer: " + conf.optim)
 
 
-def get_lr_scheduler(conf, optimizer, optimum='max', t_total=None):
-    if conf.learning_rate_scheduler == "plateau":
+def get_lr_scheduler(conf, optimizer, optimum='max', n_train_steps=None):
+    sched_name = getattr(conf, 'learning_rate_scheduler', conf.lr_scheduler)
+    if sched_name == "plateau":
         from torch.optim.lr_scheduler import ReduceLROnPlateau
         lr_scheduler = ReduceLROnPlateau(
             optimizer, factor=0.5,
-            patience=conf.learning_rate_scheduler_patience,
+            patience=conf.lr_scheduler_patience,
             mode=optimum,
             verbose=True)
-    elif conf.learning_rate_scheduler == 'warmup_linear':
-        from transformers import WarmupLinearSchedule
-        assert t_total
-        lr_scheduler = WarmupLinearSchedule(
-            optimizer, warmup_steps=conf.warmup_steps, t_total=t_total)
-    elif conf.learning_rate_scheduler == 'cyclic':
+        lr_scheduler.requires_metric = True
+    elif sched_name == 'warmup_linear':
+        from transformers.optimization import get_linear_schedule_with_warmup
+        assert n_train_steps
+        lr_scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=conf.warmup_steps,
+            num_training_steps=n_train_steps)
+        lr_scheduler.requires_metric = False
+    elif sched_name == 'cyclic':
         from torch.optim.lr_scheduler import CyclicLR
         lr_scheduler = CyclicLR(
             optimizer,
-            base_lr=conf.learning_rate,
-            max_lr=10 * conf.learning_rate,
+            base_lr=conf.lr,
+            max_lr=10 * conf.lr,
             # cycle_momentum='momentum' in optimizer.defaults)
             step_size_up=100,
             cycle_momentum=False)
-    elif conf.learning_rate_scheduler:
+        lr_scheduler.requires_metric = False
+    elif sched_name == 'polynomial_decay':
+        from transformers.optimization import get_polynomial_decay_schedule_with_warmup
+        lr_scheduler = get_polynomial_decay_schedule_with_warmup(
+            optimizer,
+            conf.warmup_steps,
+            conf.n_train_steps or n_train_steps)
+    elif sched_name:
         raise ValueError(
-            "Unknown lr_scheduler: " + conf.learning_rate_scheduler)
+            "Unknown lr_scheduler: " + sched_name)
     else:
         lr_scheduler = None
     return lr_scheduler
@@ -561,7 +585,7 @@ def take_from_store(startends, store):
 
     Arguments:
 
-    startends (Tensor with Shape(batch_size x 2)):
+    startends (Tensor with Shape(batch_size, 2)):
         A batch of start and end offsets encoding sequences of the same length.
     store (Tensor with Shape(n_tokens)):
         A token store created by tensorize_varlen_items
@@ -625,6 +649,16 @@ def set_random_seed(seed):
 # https://discuss.pytorch.org/t/how-do-i-check-the-number-of-parameters-of-a-model/4325/9
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def count_nontrainable_parameters(model):
+    return sum(p.numel() for p in model.parameters() if not p.requires_grad)
+
+
+def log_param_count(model, log_fn):
+    trainable = count_parameters(model)
+    fixed = count_nontrainable_parameters(model)
+    log_fn(f'model params: {trainable} trainable | {fixed} fixed')
 
 
 class ListDataset(Dataset):
@@ -787,6 +821,7 @@ RandomSplitDataset = RandomSplits
 
 
 def torch_cached(cache_dir, object_name, conf_str, log_fn=None):
+    """Decorator for caching pytorch tensors to a file."""
     def actual_decorator(make_object):
         @wraps(make_object)
         def wrapper(*args, **kwargs):
@@ -822,6 +857,47 @@ def fix_dataparallel_statedict(model, state_dict):
             new_state_dict = {
                 'module.' + k: v for k, v in state_dict.items()
                 if not k.startswith('module.')}
-            assert model_state_dict_keys == set(new_state_dict.keys())
+            assert model_state_dict_keys == set(new_state_dict.keys()), breakpoint()
             state_dict = new_state_dict
     return state_dict
+
+
+class TensorDictDataset():
+    """Like Pytorch's TensorDict, but instead of storing multiple tensors
+    in a tuple, stores tensors in a dict."""
+    def __init__(self, **tensors):
+        assert all(tensors[0].size(0) == t.size(0) for t in tensors.values())
+        self.tensors = tensors
+
+    def __getitem__(self, index):
+        return {k: t[index] for k, t in self.tensors.items()}
+
+    def __len__(self):
+        return len(next(iter(self.tensors.values())))
+
+
+class MarginRankingLoss(nn.Module):
+    """Compute the margin ranking loss for a positive score and
+    k negative scores, as in Eq. 3 in https://arxiv.org/pdf/1412.6575
+    """
+    def __init__(self, reduction='mean', minimum_margin=1):
+        super().__init__()
+        self.minimum_margin = minimum_margin
+        if reduction == 'mean':
+            self.reduce = True
+        elif reduction == 'none':
+            self.reduce = False
+        else:
+            raise ValueError(f'Unknown reduction method: {reduction}')
+
+    def forward(self, pos_scores, negs_scores):
+        """
+        :pos_scores: batch of positive scores with shape: (batch_size, )
+        :negs_scores: batch of scores of k negative samples with shape
+                      (batch_size, k)
+        """
+        margin = negs_scores - pos_scores.unsqueeze(1)
+        loss = (margin + self.minimum_margin).clamp_(min=0)
+        if self.reduce:
+            loss = loss.mean()
+        return loss

@@ -40,25 +40,33 @@ def jsonlines_load(jsonlines_file, max=None, skip=None, filter_fn=None):
 
 def jsonlines_dump(items, outfile):
     """Write items to jsonlines file, i.e. one item per line."""
-    with outfile.open('w') as out:
+    with to_path(outfile).open('w') as out:
         for item in items:
             out.write(json.dumps(item) + '\n')
 
 
-def lines(file, max=None, skip=0, apply_func=str.strip):
-    """Iterate over lines in (text) file. Optionally skip first `skip` 
-    lines, only read the first `max` lines, and apply `apply_func` to 
-    each line. By default lines are stripped, set `apply_func` to None 
+def lines(file, max=None, skip=0, apply_func=str.strip, encoding="utf8"):
+    """Iterate over lines in (text) file. Optionally skip first `skip`
+    lines, only read the first `max` lines, and apply `apply_func` to
+    each line. By default lines are stripped, set `apply_func` to None
     to disable this."""
     from itertools import islice
     if apply_func:
-        with open(str(file), encoding="utf8") as f:
+        with open(str(file), encoding=encoding) as f:
             for line in islice(f, skip, max):
                 yield apply_func(line)
     else:
-        with open(str(file), encoding="utf8") as f:
+        with open(str(file), encoding=encoding) as f:
             for line in islice(f, skip, max):
                 yield line
+
+
+def tsv_load(*args, **kwargs):
+    """Returns an iterator over parsed lines of a TSV file.
+    Arguments same as for lines().
+    """
+    import csv
+    return csv.reader(lines(*args, **kwargs), delimiter='\t')
 
 
 def dict_load(

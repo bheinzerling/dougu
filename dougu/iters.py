@@ -1,5 +1,4 @@
-import collections
-from collections.abc import Sequence
+from collections.abc import Sequence, Iterable
 import six
 
 from .decorators import cached_property
@@ -140,11 +139,21 @@ def groupby(keys, values):
     return d
 
 
+def groupby_lambda(key_fn, values):
+    """Group values according to their key.
+    The key is the result of applying key_fn to a value."""
+    d = {}
+    for v in values:
+        k = key_fn(v)
+        d.setdefault(k, []).append(v)
+    return d
+
+
 # https://stackoverflow.com/a/1055378
 def is_non_string_iterable(arg):
     """Return True if arg is an iterable, but not a string."""
     return (
-        isinstance(arg, collections.Iterable)
+        isinstance(arg, Iterable)
         and not isinstance(arg, six.string_types)
     )
 
@@ -177,6 +186,12 @@ class LazyList(Sequence):
 
     def __len__(self):
         return len(self.items)
+
+
+def masked_select(items, mask):
+    """Select items whose corresponding entry in mask is truthy.
+    """
+    return [item for item, entry in zip(items, mask) if entry]
 
 
 if __name__ == "__main__":

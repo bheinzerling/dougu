@@ -8,7 +8,7 @@ import numpy as np
 from dougu import flatten, lines, get_logger
 
 
-_device = torch.device("cuda:0")
+_device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
 
 class Transformer():
@@ -22,7 +22,10 @@ class Transformer():
     def __init__(
             self, model_name,
             device=None, max_len=None,
-            auto_model_cls=AutoModel):
+            auto_model_cls=AutoModel,
+            only_tokenizer=False,
+            custom_n_hidden=None,
+            custom_n_layers=None):
         super().__init__()
         self.randinit = model_name.endswith('-randinit')
         if self.randinit:
@@ -55,20 +58,31 @@ class Transformer():
         additional_special_tokens = [self.BEGIN_MENTION, self.END_MENTION]
         self.tokenizer.add_special_tokens({
             self.add_tokens_key: additional_special_tokens})
-
-        if self.randinit:
-            model_config = AutoConfig.from_pretrained(self.model_name)
-            self.model = auto_model_cls.from_config(model_config)
-        else:
-            self.model = auto_model_cls.from_pretrained(model_name)
-        device_count = torch.cuda.device_count()
-        self.log.info(f'device count: {device_count}')
-        self.model.to(device=self.device)
         self.max_len = max_len or self.tokenizer.max_len
-        word_emb = self.model.get_input_embeddings().weight
-        self.vocab_size = word_emb.size(0)
-        self.dim = word_emb.size(1)
         self.pad_idx = self.tokenizer.pad_token_id
+        self.mask_idx = self.tokenizer.mask_token_id
+        self.vocab_size = len(self.tokenizer)
+
+        if not only_tokenizer:
+            if self.randinit:
+                model_config = AutoConfig.from_pretrained(self.model_name)
+                print('creating model with random init', self.model_name)
+                if custom_n_hidden:
+                    ratio = model_config.intermediate_size // model_config.hidden_size
+                    model_config.hidden_size = custom_n_hidden
+                    model_config.intermediate_size = ratio * custom_n_hidden
+                if custom_n_layers:
+                    model_config.num_hidden_layers = custom_n_layers
+                self.model = auto_model_cls.from_config(model_config)
+                print('custom model_config:', model_config)
+            else:
+                print('loading model', self.model_name)
+                self.model = auto_model_cls.from_pretrained(model_name)
+            word_emb = self.model.get_input_embeddings().weight
+            self.dim = word_emb.size(1)
+            device_count = torch.cuda.device_count()
+            self.log.info(f'device count: {device_count}')
+            self.model.to(device=self.device)
 
     def update_special_tokens(self, additional_special_tokens):
         current = self.tokenizer.special_tokens_map[self.add_tokens_key]
@@ -190,7 +204,7 @@ class Transformer():
         if clip_long_seq:
             ids = ids[:, :max_len]
         else:
-            assert ids.size(1) <= max_len, f'{ids.size(1)} > {max_len}'
+            assert ids.size(1) <= max_len, f'{ids.size(1)} > {max_len}\n{len(tokens)} {tokens}'
         if pad:
             padded_ids = torch.zeros(1, max_len).to(ids) + self.pad_idx
             padded_ids[0, :ids.size(1)] = ids
