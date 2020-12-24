@@ -118,15 +118,36 @@ class MultiNgramCodec(object):
             for order, idxss in order2idxss.items()}
 
 
+class DictLabelEncoder():
+    def fit(self, labels):
+        self.label2idx = {label: idx for idx, label in enumerate(labels)}
+        self.idx2label = self.classes_ = labels
+        return self
+
+    def transform(self, labels):
+        return np.array(list(map(self.label2idx.__getitem__, labels)))
+
+    def inverse_transform(self, idxs):
+        return list(map(self.idx2label.__getitem__, idxs))
+
+
 class LabelEncoder(object):
     """Encodes and decodes labels. Decoding from idx representation.
-    Optionally return pytorch tensors instead of numpy arrays."""
-    def __init__(self, to_torch=False, device="cuda"):
+    Optionally return pytorch tensors instead of numpy arrays.
+    Use backend 'sklearn' (default) for speed or backend 'dict' if the
+    order of labels should be preserved (i.e. first label will be idx 0...)."""
+    def __init__(self, to_torch=False, device="cuda", backend='sklearn'):
         self.to_torch = to_torch
         self.device = device
+        if backend == 'sklearn':
+            from sklearn.preprocessing import LabelEncoder as _LabelEncoder
+            self._LabelEncoder = _LabelEncoder
+        elif backend == 'dict':
+            self._LabelEncoder = DictLabelEncoder
+        else:
+            raise ValueError('unknown backend:', backend)
 
     def fit(self, labels, min_count=0, unk_label=None):
-        from sklearn.preprocessing import LabelEncoder as _LabelEncoder
         self.unk_label = unk_label
         if min_count > 0:
             from collections import Counter
@@ -137,7 +158,7 @@ class LabelEncoder(object):
             assert unk_label is not None
             labels.append(unk_label)
             self.label_set = set(labels)
-        self.label_enc = _LabelEncoder().fit(labels)
+        self.label_enc = self._LabelEncoder().fit(labels)
         self.labels = self.label_enc.classes_
         self.nlabels = len(self.labels)
         idxs = list(range(self.nlabels))
@@ -166,7 +187,6 @@ class LabelEncoder(object):
                 labels_enc = self.label_enc.transform(labels[i:i+bs])
                 tensors.append(torch.LongTensor(labels_enc))
             return torch.cat(tensors).to(device=self.device)
-            # return torch.from_numpy(labels_enc).long().cuda()
         else:
             return self.label_enc.transform(labels)
 
@@ -181,10 +201,14 @@ class LabelEncoder(object):
             idx = idx.tolist()
         except AttributeError:
             pass
-        if isinstance(idx[0], list):
-            return [
-                self.label_enc.inverse_transform(filter_idxs(_idx)).tolist()
-                for _idx in idx]
+        try:
+            if isinstance(idx[0], list):
+                return [
+                    self.label_enc.inverse_transform(
+                        filter_idxs(_idx)).tolist()
+                    for _idx in idx]
+        except TypeError:
+            return self.label_enc.inverse_transform([idx])[0]
         return self.label_enc.inverse_transform(filter_idxs(idx))
 
     @staticmethod
