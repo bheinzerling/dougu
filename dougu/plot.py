@@ -387,6 +387,29 @@ def plot_dendrogram(dist, labels, outfile=None, method="centroid"):
     plt.close(fig)
 
 
+def get_palette(categories, cmap=None):
+    from bokeh.palettes import (
+        Category20,
+        Category20b,
+        Category20c,
+        viridis,
+        )
+    n_cat = len(set(categories))
+    if cmap is not None:
+        return cmap[n_cat]
+    if n_cat <= 20:
+        if n_cat <= 2:
+            palette = Category20[3]
+            return [palette[0], palette[-1]]
+        else:
+            return Category20[n_cat]
+    if n_cat <= 40:
+        return Category20[20] + Category20b[20]
+    if n_cat <= 60:
+        return Category20[20] + Category20b[20] + Category20c[20]
+    return viridis(n_cat)
+
+
 def plot_embeddings_bokeh(
         emb,
         emb_method=None,
@@ -394,11 +417,15 @@ def plot_embeddings_bokeh(
         class_category=None,
         labels=None,
         color=None,
+        raw_colors=None,
         color_category=None,
         color_categorical=False,
-        cmap=None, cmap_reverse=False,
-        colorbar=False, colorbar_ticks=None,
-        outfile=None, title=None,
+        cmap=None,
+        cmap_reverse=False,
+        colorbar=False,
+        colorbar_ticks=None,
+        outfile=None,
+        title=None,
         scatter_labels=False,
         tooltip_fields=None,
         figure_kwargs=None,
@@ -406,7 +433,8 @@ def plot_embeddings_bokeh(
         return_plot=False,
         plot_width=None,
         plot_height=None,
-        **circle_kwargs):
+        **circle_kwargs,
+        ):
     """
     Creates an interactive scatterplot of the embeddings contained in emb,
     using the bokeh library.
@@ -429,22 +457,7 @@ def plot_embeddings_bokeh(
     from bokeh.models import (
         ColumnDataSource, CategoricalColorMapper, LinearColorMapper,
         ColorBar, FixedTicker, Text)
-    from bokeh.palettes import (
-        Category20, Category20b, Category20c, Viridis256, viridis)
-
-    def get_palette(categories):
-        n_cat = len(set(categories))
-        if n_cat <= 20:
-            if n_cat <= 2:
-                palette = Category20[3]
-                return [palette[0], palette[-1]]
-            else:
-                return Category20[n_cat]
-        if n_cat <= 40:
-            return Category20[20] + Category20b[20]
-        if n_cat <= 60:
-            return Category20[20] + Category20b[20] + Category20c[20]
-        return viridis(n_cat)
+    from bokeh.palettes import Viridis256
 
     if emb_method:
         emb = embed_2d(emb, emb_method)
@@ -452,68 +465,70 @@ def plot_embeddings_bokeh(
     if outfile:
         output_file(outfile)
 
+    if cmap is not None:
+        if isinstance(cmap, str):
+            import bokeh.palettes
+            # matplotib suffix for reverse color maps
+            if cmap.endswith("_r"):
+                cmap_reverse = True
+                cmap = cmap[:-2]
+            cmap = getattr(bokeh.palettes, cmap)
+        elif isinstance(cmap, dict):
+            cmap = cmap[max(cmap.keys())]
+        if cmap_reverse:
+            if isinstance(cmap, dict):
+                new_cmap = {}
+                for k, v in cmap.items():
+                    v = list(v)
+                    v.reverse()
+                    new_cmap[k] = v
+                cmap = new_cmap
+            else:
+                cmap = list(cmap)
+                cmap.reverse()
+
     source_dict = dict(x=emb[:, 0], y=emb[:, 1])
     if labels is not None:
         source_dict["label"] = labels
-    raw_colors = False
-    if color is not None:
-        if all(len(entry) == 3 for entry in color):
+
+    if raw_colors is not None:
+        assert color is None
+        if any(isinstance(c, str) for c in raw_colors):
+            assert all(isinstance(c, str) for c in raw_colors)
+        else:
+            assert all(len(c) == 3 for c in raw_colors)
             assert cmap is None
             from bokeh.colors import RGB
-            color = [RGB(*c) for c in color]
-            raw_colors = True
+            raw_colors = [RGB(*c) for c in raw_colors]
+        source_dict["color"] = raw_colors
+        color_conf = {"field": "color"}
+    elif color is not None:
+        if any(isinstance(c, str) for c in color):
+            assert all(isinstance(c, str) for c in color)
+            palette = get_palette(color, cmap=cmap)
+            color_mapper = CategoricalColorMapper(
+                    factors=sorted(set(color)),
+                    palette=palette)
+        else:
+            if cmap is None:
+                cmap = Viridis256
+            elif isinstance(cmap, dict):
+                cmap = cmap[max(cmap.keys())]
+            color_mapper = LinearColorMapper(cmap)
+        color_conf = {
+            "field": "color",
+            "transform": color_mapper}
         source_dict["color"] = color
+    else:
+        color_conf = "red"
+
     if classes is not None:
         source_dict["class"] = classes
     if tooltip_fields:
         for k, v in tooltip_fields.items():
             source_dict[k] = v
     source = ColumnDataSource(source_dict)
-    if classes is not None and color is None:
-        palette = get_palette(classes)
-        color_conf = {
-            "field": "class",
-            "transform": CategoricalColorMapper(
-                factors=list(set(classes)),
-                palette=palette)}
-    elif color is not None:
-        # TODO only coloring by class works
-        if color_categorical:
-            palette = get_palette(colors)
-            color_mapper = CategoricalColorMapper(
-                    factors=list(set(colors)),
-                    palette=palette)
-        else:
-            if cmap is not None:
-                if isinstance(cmap, str):
-                    import bokeh.palettes
-                    # matplotib suffix for reverse color maps
-                    if cmap.endswith("_r"):
-                        cmap_reverse = True
-                        cmap = cmap[:-2]
-                    cmap = getattr(bokeh.palettes, cmap)
-                elif isinstance(cmap, dict):
-                    cmap = cmap[max(cmap.keys())]
-            else:
-                cmap = Viridis256
-            if cmap_reverse:
-                cmap.reverse()
-            color_mapper = LinearColorMapper(cmap)
-        if raw_colors:
-            color_conf = {"field": "color"}
-        else:
-            color_conf = {
-                "field": "color",
-                "transform": color_mapper}
-        if colorbar:
-            if colorbar_ticks:
-                ticker = FixedTicker(ticks=colorbar_ticks)
-            else:
-                ticker = None
-            colorbar = ColorBar(
-                color_mapper=color_mapper, ticker=ticker)
-    else:
-        color_conf = "red"
+
     tools = "crosshair,pan,wheel_zoom,box_zoom,reset,hover"
     figure_kwargs = figure_kwargs or {}
     if plot_width is not None:
@@ -523,6 +538,15 @@ def plot_embeddings_bokeh(
     p = figure(tools=tools, sizing_mode='stretch_both', **figure_kwargs)
     if title:
         p.title.text = title
+
+    if colorbar:
+        if colorbar_ticks:
+            ticker = FixedTicker(ticks=colorbar_ticks)
+        else:
+            ticker = None
+        colorbar = ColorBar(
+            color_mapper=color_mapper, ticker=ticker)
+
     if labels is not None and scatter_labels:
         glyph = Text(
             x="x", y="y", text="label", angle=0.0,
@@ -530,23 +554,30 @@ def plot_embeddings_bokeh(
             **circle_kwargs)
         p.add_glyph(source, glyph)
     else:
-        legend = (
-            'class' if classes is not None else
-            'color' if color is not None and not raw_colors and not cmap else
-            None)
-        if legend:
-            p.circle(
+        plot_kwargs = dict(
                 x='x', y='y',
                 source=source,
                 color=color_conf,
-                legend=legend,
-                **circle_kwargs)
+                **circle_kwargs
+                )
+        if classes is not None:
+            legend_field = 'class'
+        elif color is not None and not raw_colors:
+            legend_field = 'color'
         else:
-            p.circle(
-                x='x', y='y',
-                source=source,
-                color=color_conf,
-                **circle_kwargs)
+            legend_field = None
+        if legend_field:
+            plot_kwargs['legend_field'] = legend_field
+            # sort by color field to order the legend entries nicely
+            sorted_source = source.to_df().sort_values(legend_field)
+            plot_kwargs['source'] = source.from_df(sorted_source)
+
+        p.circle(**plot_kwargs)
+
+        if legend_field:
+            for li in p.legend.items:
+                print(li)
+
     if labels is not None:
         from bokeh.models import HoverTool
         from collections import OrderedDict
