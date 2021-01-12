@@ -574,10 +574,6 @@ def plot_embeddings_bokeh(
 
         p.circle(**plot_kwargs)
 
-        if legend_field:
-            for li in p.legend.items:
-                print(li)
-
     if labels is not None:
         from bokeh.models import HoverTool
         from collections import OrderedDict
