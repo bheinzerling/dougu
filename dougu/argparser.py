@@ -12,15 +12,28 @@ class Configurable():
         super().__init__(*args, **kwargs)
         self.conf = conf
 
+    @property
+    def arg_keys(self):
+        return [
+            arg[2:].replace('-', '_') for arg in getattr(self, 'args', [])
+            ]
+
 
 class AutoArgParser(ArgumentParser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        added_names = set()
+        added_names = dict()
         for cls in Configurable.classes:
             for arg in getattr(cls, 'args', []):
                 name, kwargs = arg
                 if name in added_names:
-                    continue
+                    other_cls, other_kwargs = added_names[name]
+                    if kwargs != other_kwargs:
+                        raise ValueError(
+                            f'Argument conflict. Argument "{name}" exists '
+                            f'in {other_cls} with options {other_kwargs} '
+                            f'and in {cls} with options {kwargs}')
+                    else:
+                        continue
                 self.add_argument(name, **kwargs)
-                added_names.add(name)
+                added_names[name] = (cls, kwargs)
