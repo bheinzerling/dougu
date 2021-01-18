@@ -12,10 +12,9 @@ class Configurable():
         super().__init__(*args, **kwargs)
         self.conf = conf
 
-    @property
     def arg_keys(self):
         return [
-            arg[2:].replace('-', '_') for arg in getattr(self, 'args', [])
+            arg[0][2:].replace('-', '_') for arg in getattr(self, 'args', [])
             ]
 
 
