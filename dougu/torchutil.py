@@ -655,10 +655,14 @@ def count_nontrainable_parameters(model):
     return sum(p.numel() for p in model.parameters() if not p.requires_grad)
 
 
-def log_param_count(model, log_fn):
+def log_param_count(model, log_fn, per_param=False):
     trainable = count_parameters(model)
     fixed = count_nontrainable_parameters(model)
     log_fn(f'model params: {trainable} trainable | {fixed} fixed')
+    if per_param:
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                log_fn(f'{name}: {param.data.numel()}')
 
 
 class ListDataset(Dataset):
