@@ -3,9 +3,9 @@ from typing import Callable
 
 from dougu.torchutil import get_lr_scheduler
 
-from .ignite import Engine, Events
+from ignite.engine import Engine, Events
 from ignite.handlers import ModelCheckpoint, EarlyStopping
-from .ignite.contrib.handlers import CustomPeriodicEvent
+from ignite.contrib.handlers import CustomPeriodicEvent
 
 
 def attach_lr_scheduler(
