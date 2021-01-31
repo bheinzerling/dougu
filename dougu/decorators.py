@@ -8,6 +8,7 @@ __all__ = [
     'file_cached_property',
     'torch_cached_property',
     'numpy_cached_property',
+    'datasets_cached_property',
     'with_file_cache']
 
 
@@ -195,6 +196,21 @@ def hdf5_cached_property(func=None, **kwargs):
         def wrapper(func):
             return _file_cached_property(
                 func, loader=loader, saver=saver, **kwargs)
+        return wrapper
+
+
+def datasets_cached_property(func=None, **kwargs):
+    from datasets import load_from_disk
+
+    def saver(obj, cache_file):
+        return obj.save_to_disk(cache_file)
+
+    if func:
+        return _file_cached_property(func, loader=load_from_disk, saver=saver)
+    else:
+        def wrapper(func):
+            return _file_cached_property(
+                func, loader=load_from_disk, saver=saver, **kwargs)
         return wrapper
 
 
