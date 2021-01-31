@@ -4,7 +4,7 @@ import time
 import mlflow
 
 from .log import WithLog
-from .argparser import ConfigurableWithLog
+from .argparser import Configurable
 
 import logging
 logger = logging.getLogger('alembic.runtime.migration')

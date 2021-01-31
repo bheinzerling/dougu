@@ -69,6 +69,14 @@ def tsv_load(*args, **kwargs):
     return csv.reader(lines(*args, **kwargs), delimiter='\t')
 
 
+def csv_load(*args, **kwargs):
+    """Returns an iterator over parsed lines of a TSV file.
+    Arguments same as for lines().
+    """
+    import csv
+    return csv.reader(lines(*args, **kwargs))
+
+
 def dict_load(
         file,
         max=None, skip=0, splitter=None,
