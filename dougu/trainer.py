@@ -512,7 +512,7 @@ class TrainerBase(Configurable, WithLog):
 
     def save_stdout(self):
         jobid = getattr(self.conf, 'jobid', None)
-        if jobid and hasattr(self.conf, 'stdout_dir')::
+        if jobid and hasattr(self.conf, 'stdout_dir'):
             stdout_file = (self.conf.stdout_dir / str(jobid)).expanduser()
             stdout_copy = self.conf.rundir / 'stdout.txt'
             try:
