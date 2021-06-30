@@ -208,3 +208,10 @@ if __name__ == "__main__":
         energies = np.random.gamma(2, 2, len(tokens))
         attn = np.exp(energies) / np.sum(np.exp(energies), axis=0)
         print(color_by_weight(tokens, attn))
+
+
+def conditional_color(string, condition, true_color=green, false_color=red):
+    """Color string according to whether condition is True or False.
+    """
+    color = true_color if condition else false_color
+    return f"{color}{string}{reset}"
