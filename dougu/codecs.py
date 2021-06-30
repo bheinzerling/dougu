@@ -217,11 +217,13 @@ class LabelEncoder(object):
             additional_labels=None,
             to_torch=False,
             save_to=None,
-            device="cuda"):
+            device="cuda",
+            backend='sklearn',
+            ):
         """Create LabelEncoder instance from file, which contains
         one label per line. Optionally dump instance to save_to."""
         from .io import lines
-        codec = LabelEncoder(to_torch, device=device)
+        codec = LabelEncoder(to_torch, device=device, backend=backend)
         if additional_labels is None:
             additional_labels = []
         codec.fit(list(lines(file)) + additional_labels)
@@ -247,6 +249,10 @@ class LabelOneHotEncoder(object):
         self.one_hot_enc = LabelBinarizer().fit(labels_enc)
         self.nlabels = len(self.label_enc.classes_)
         return self
+
+    def fit_transform(self, labels):
+        enc = self.fit(labels)
+        return self.transform_one_hot(labels)
 
     def transform_idx(self, labels):
         if isinstance(labels, str):
