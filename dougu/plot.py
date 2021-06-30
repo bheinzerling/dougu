@@ -237,7 +237,7 @@ def simple_imshow(
             top=False,)         # ticks along the top edge are off
     if yticks is not True:
         plt.tick_params(
-            axis='y',          # changes apply to the x-axis
+            axis='y',          # changes apply to the y-axis
             which='both',      # both major and minor ticks are affected
             left=False,      # ticks along the bottom edge are off
             right=False,)         # ticks along the top edge are off
@@ -358,22 +358,30 @@ def plot_embeddings(
         plt.show()
 
 
-def plot_dendrogram(dist, labels, outfile=None, method="centroid"):
+def plot_dendrogram(
+        dist,
+        labels,
+        outfile=None,
+        method="centroid",
+        figsize=(50, 45),
+        font_size=10,
+        cmap='magma_r',
+        ):
     from scipy.cluster import hierarchy
-    fig = plt.figure(figsize=(50, 45))
+    fig = plt.figure(figsize=figsize)
     # dendrogram
     axdendro = fig.add_axes([0.09, 0.1, 0.2, 0.8])
     axdendro.set_xticks([])
     axdendro.set_yticks([])
     Y = hierarchy.linkage(dist, method=method)
     Z = hierarchy.dendrogram(
-        Y, orientation='right', labels=labels, leaf_font_size=10)
+        Y, orientation='right', labels=labels, leaf_font_size=font_size)
     # distance matrix
     index = Z['leaves']
     D = dist[index, :]
     D = D[:, index]
     axmatrix = fig.add_axes([0.3, 0.1, 0.6, 0.8])
-    im = axmatrix.matshow(D, aspect='auto', origin='lower')
+    im = axmatrix.matshow(D, aspect='auto', origin='lower', cmap=cmap)
     axmatrix.set_xticks([])
     axmatrix.set_yticks([])
     # colorbar
@@ -412,7 +420,7 @@ def get_palette(categories, cmap=None):
 
 def plot_embeddings_bokeh(
         emb,
-        emb_method=None,
+        emb_method='UMAP',
         classes=None,
         class_category=None,
         labels=None,
@@ -433,6 +441,7 @@ def plot_embeddings_bokeh(
         return_plot=False,
         plot_width=None,
         plot_height=None,
+        reuse_figure=None,
         **circle_kwargs,
         ):
     """
@@ -461,6 +470,8 @@ def plot_embeddings_bokeh(
 
     if emb_method:
         emb = embed_2d(emb, emb_method)
+    else:
+        assert emb.shape[1] == 2
 
     if outfile:
         output_file(outfile)
@@ -535,7 +546,10 @@ def plot_embeddings_bokeh(
         figure_kwargs['plot_width'] = plot_width
     if plot_height is not None:
         figure_kwargs['plot_height'] = plot_height
-    p = figure(tools=tools, sizing_mode='stretch_both', **figure_kwargs)
+    if reuse_figure is None:
+        p = figure(tools=tools, sizing_mode='stretch_both', **figure_kwargs)
+    else:
+        p = reuse_figure
     if title:
         p.title.text = title
 
