@@ -16,7 +16,7 @@ class _BaseClassification(Metric):
         self,
         output_transform: Callable = lambda x: x,
         is_multilabel: bool = False,
-        device: Optional[Union[str, torch.device]] = None,
+        device: Optional[Union[str, torch.device]] = 'cpu',
         ignore_idx: int = -100,
     ):
         self._is_multilabel = is_multilabel
@@ -222,7 +222,7 @@ class _BasePrecisionRecall(_BaseClassification):
         output_transform: Callable = lambda x: x,
         average: bool = False,
         is_multilabel: bool = False,
-        device: Optional[Union[str, torch.device]] = None,
+        device: Optional[Union[str, torch.device]] = 'cpu',
         ignore_idx: int = -100,
     ):
 
@@ -277,7 +277,7 @@ class VariableAccumulation(Metric):
     _required_output_keys = None
 
     def __init__(
-        self, op: Callable, output_transform: Callable = lambda x: x, device: Optional[Union[str, torch.device]] = None
+        self, op: Callable, output_transform: Callable = lambda x: x, device: Optional[Union[str, torch.device]] = 'cpu'
     ):
         if not callable(op):
             raise TypeError("Argument op should be a callable, but given {}".format(type(op)))
@@ -343,7 +343,7 @@ class Average(VariableAccumulation):
         device (str of torch.device, optional): optional device specification for internal storage.
     """
 
-    def __init__(self, output_transform: Callable = lambda x: x, device: Optional[Union[str, torch.device]] = None):
+    def __init__(self, output_transform: Callable = lambda x: x, device: Optional[Union[str, torch.device]] = 'cpu'):
         def _mean_op(a, x):
             if isinstance(x, torch.Tensor) and x.ndim > 1:
                 x = x.sum(dim=0)
@@ -397,7 +397,7 @@ class Accuracy(_BaseClassification):
         self,
         output_transform: Callable = lambda x: x,
         is_multilabel: bool = False,
-        device: Optional[Union[str, torch.device]] = None,
+        device: Optional[Union[str, torch.device]] = 'cpu',
         ignore_idx: int = -100,
     ):
         self._num_correct = None
@@ -532,7 +532,7 @@ class Recall(_BasePrecisionRecall):
         output_transform: Callable = lambda x: x,
         average: bool = False,
         is_multilabel: bool = False,
-        device: Optional[Union[str, torch.device]] = None,
+        device: Optional[Union[str, torch.device]] = 'cpu',
         ignore_idx: int = -100,
     ):
         super(Recall, self).__init__(
@@ -592,7 +592,7 @@ class _BasePrecisionRecall(_BaseClassification):
         output_transform: Callable = lambda x: x,
         average: bool = False,
         is_multilabel: bool = False,
-        device: Optional[Union[str, torch.device]] = None,
+        device: Optional[Union[str, torch.device]] = 'cpu',
         ignore_idx: int = -100,
     ):
         self._average = average
@@ -683,7 +683,7 @@ class Precision(_BasePrecisionRecall):
         output_transform: Callable = lambda x: x,
         average: bool = False,
         is_multilabel: bool = False,
-        device: Optional[Union[str, torch.device]] = None,
+        device: Optional[Union[str, torch.device]] = 'cpu',
         ignore_idx: int = -100,
     ):
         super(Precision, self).__init__(
@@ -745,7 +745,7 @@ def Fbeta(
     precision: Optional[Precision] = None,
     recall: Optional[Recall] = None,
     output_transform: Optional[Callable] = None,
-    device: Optional[Union[str, torch.device]] = None,
+    device: Optional[Union[str, torch.device]] = 'cpu',
 ) -> MetricsLambda:
     """Calculates F-beta score
 
