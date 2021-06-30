@@ -95,6 +95,7 @@ class _file_cached_property(_cached_property):
             saver = joblib.dump
         self.loader = loader
         self.saver = saver
+        self.func_name = func.__name__
         self.fname_tpl = fname_tpl
         self.reload_on_exception = reload_on_exception
         self.log = get_logger().info
@@ -107,8 +108,9 @@ class _file_cached_property(_cached_property):
             conf_str = getattr(obj, 'conf_str', 'no_conf')
             fname = (
                 obj.__class__.__name__.lower() + '.' +
+                self.func_name + '.' +
                 (self.fname_tpl or
-                    '{conf_str}').format(conf_str=conf_str))
+                    '{conf_str}.pkl').format(conf_str=conf_str))
             cache_file = self.cache_dir / fname
             loaded = False
             if cache_file.exists():
