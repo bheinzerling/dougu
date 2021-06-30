@@ -198,3 +198,10 @@ if __name__ == "__main__":
     print(split_idxs_for_ratios(100, 0.6, 0.2))
     for split in split_by_ratios(list(range(100)), 0.6, 0.2):
         print(split)
+
+
+def insert(_list, indexes_and_items):
+    """Insert multiple items into _list.
+    """
+    for idx, item in sorted(indexes_and_items, reverse=True):
+        _list.insert(idx, item)
