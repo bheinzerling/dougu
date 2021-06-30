@@ -450,5 +450,9 @@ def conf_hash(conf, fields=None):
             d = conf.__dict__
         else:
             d = {k: getattr(conf, k) for k in fields}
+    return repr_hash(d)
+
+def repr_hash(obj):
+    """Return a hash value of obj based on its repr()"""
     import hashlib
-    return hashlib.md5(bytes(repr(d), encoding='utf8')).hexdigest()
+    return hashlib.md5(bytes(repr(obj), encoding='utf8')).hexdigest()
