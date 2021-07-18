@@ -60,6 +60,8 @@ class TrainerBase(Configurable, WithLog):
         ('--early-stopping-burnin', dict(type=int, default=20)),
         ('--max-epochs', dict(type=int, default=1000)),
         ('--no-checkpoints', dict(action='store_true')),
+        ('--checkpoint-metric-name', dict(type=str, default='dev_acc')),
+        ('--checkpoint-metric-optimum', dict(type=str, default='max')),
         ('--no-fp16', dict(action='store_true')),
         ('--exp-name', dict(type=str, default='dev')),
         ('--outdir', dict(type=Path, default='out')),
@@ -207,11 +209,11 @@ class TrainerBase(Configurable, WithLog):
 
     @property
     def checkpoint_metric_name(self):
-        return 'acc'
+        return self.conf.checkpoint_metric_name
 
     @property
     def checkpoint_metric_optimum(self):
-        return 'max'
+        return self.conf.checkpoint_metric_optimum
 
     def make_model(self):
         raise NotImplementedError()
