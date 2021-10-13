@@ -55,9 +55,9 @@ class TrainerBase(Configurable, WithLog):
         ('--adam-betas', dict(type=float, nargs='+', default=[0.9, 0.999])),
         ('--adam-eps', dict(type=float, default=1e-8)),
         ('--warmup-steps', dict(type=int, default=1000)),
-        ('--n-train-steps', dict(type=int, default=100000)),
+        ('--n-train-steps', dict(type=int)),
         ('--early-stopping', dict(type=int, default=10)),
-        ('--early-stopping-burnin', dict(type=int, default=20)),
+        ('--early-stopping-burnin', dict(type=int, default=5)),
         ('--max-epochs', dict(type=int, default=1000)),
         ('--no-checkpoints', dict(action='store_true')),
         ('--checkpoint-metric-name', dict(type=str, default='dev_acc')),
@@ -70,7 +70,7 @@ class TrainerBase(Configurable, WithLog):
         ('--dist-backend', dict(type=str, default='nccl')),
         ('--dist-master-addr', dict(type=str, default='127.0.0.1')),
         ('--dist-master-port', dict(type=str, default='29505')),
-        ("--dist-init-method", dict(type=str, default="env://")),
+        ("--dist-init-method", dict(type=str, default="tcp://127.0.0.1:29505")),
         ('--local-rank', dict(type=int, default=0)),
         ('--no-autoscale-lr', dict(action='store_true')),
         ]
@@ -89,13 +89,13 @@ class TrainerBase(Configurable, WithLog):
         self.setup_rundir()
 
         if not self.is_dist_main():
-            dist.barrier()
+            dist.barrier(device_ids=[self.conf.local_rank])
         else:
             self.log('loading data')
             self.data = self.load_data()
             self.data.log_size()
             if self.conf.distributed:
-                dist.barrier()
+                dist.barrier(device_ids=[self.conf.local_rank])
         if not self.is_dist_main():
             self.log('loading data')
             self.data = self.load_data()
@@ -113,6 +113,11 @@ class TrainerBase(Configurable, WithLog):
                 self.setup_early_stopping()
                 for event, handler in self.event_handlers_train:
                     self.train_engine.add_event_handler(event, handler)
+        if hasattr(self.model, 'get_train_handlers'):
+            handlers = self.model.get_train_handlers(
+                self.train_engine, self.log)
+            for event, handler in handlers:
+                self.train_engine.add_event_handler(event, handler)
 
     @property
     def requires_exp_log(self):
@@ -154,7 +159,8 @@ class TrainerBase(Configurable, WithLog):
                 self.conf.dist_backend,
                 init_method=self.conf.dist_init_method,
                 rank=self.conf.local_rank,
-                world_size=world_size)
+                world_size=world_size,
+                )
             os.environ['RANK'] = str(dist.get_rank())
             self.device = self.conf.local_rank
             self.log(
@@ -271,6 +277,8 @@ class TrainerBase(Configurable, WithLog):
 
     @property
     def n_train_steps(self):
+        if self.conf.n_train_steps is not None:
+            return self.conf.n_train_steps
         return len(self.data.train_loader) * self.conf.max_epochs
 
     @cached_property
