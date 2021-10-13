@@ -17,7 +17,7 @@ class WithTokenizer():
             self.max_seq_len = self.conf.max_seq_len
         return tok
 
-    def encode_texts(self, texts):
+    def encode_texts(self, texts, add_special_tokens=True, char_to_token=False):
         from collections import defaultdict
         import torch
         from boltons.iterutils import chunked
@@ -27,12 +27,16 @@ class WithTokenizer():
             texts = [texts]
 
         is_split_into_words = not isinstance(texts[0], str)
+        assert not (char_to_token and is_split_into_words), 'TODO'
+        if char_to_token:
+            max_char_len = max(map(len, texts))
 
         tensors = defaultdict(list)
         disable_tqdm = len(texts) < 100
         for chunk in tqdm(chunked(texts, 5000), disable=disable_tqdm):
             tokenizer_out = self.tokenizer(
                 chunk,
+                add_special_tokens=add_special_tokens,
                 max_length=self.max_seq_len,
                 truncation=True,
                 padding='max_length',
@@ -70,6 +74,15 @@ class WithTokenizer():
                     'word_start_idxs': word_start_idxs,
                     'word_end_idxs': word_end_idxs,
                     })
+            elif char_to_token:
+                n_chunks = len(chunk)
+                inst2char2token = torch.full((n_chunks, max_char_len), -1)
+                for text_idx, text in enumerate(chunk):
+                    for char_idx, _ in enumerate(text):
+                        token_idx = tokenizer_out.char_to_token(text_idx, char_idx)
+                        if token_idx is not None:
+                            inst2char2token[text_idx, char_idx] = token_idx
+                chunk_tensors['char2token'] = inst2char2token
             for k, v in chunk_tensors.items():
                 tensors[k].append(v)
 
