@@ -15,10 +15,10 @@ def json_load(json_file):
         return json.load(f)
 
 
-def json_dump(obj, json_file):
+def json_dump(obj, json_file, **kwargs):
     """Dump obj to json file."""
     with to_path(json_file).open("w", encoding="utf8") as out:
-        json.dump(obj, out)
+        json.dump(obj, out, **kwargs)
         out.write("\n")
 
 
@@ -61,12 +61,12 @@ def lines(file, max=None, skip=0, apply_func=str.strip, encoding="utf8"):
                 yield line
 
 
-def tsv_load(*args, **kwargs):
+def tsv_load(*args, delimiter='\t', **kwargs):
     """Returns an iterator over parsed lines of a TSV file.
     Arguments same as for lines().
     """
     import csv
-    return csv.reader(lines(*args, **kwargs), delimiter='\t')
+    return csv.reader(lines(*args, **kwargs), delimiter=delimiter)
 
 
 def csv_load(*args, **kwargs):
