@@ -417,22 +417,24 @@ def get_optim(
         conf, model, optimum='max', n_train_instances=None,
         additional_params_dict=None):
     """Create an optimizer according to command line args."""
-    params = [p for p in model.parameters() if p.requires_grad]
+    additional_params = (
+        set(additional_params_dict['params'])
+        if additional_params_dict
+        else {})
+    params = [
+        p for p in model.parameters()
+        if p.requires_grad and p not in additional_params]
     optim_name = conf.optim.lower()
     lr = getattr(conf, 'learning_rate', None) or conf.lr
     betas = getattr(conf, 'adam_betas', [0.9, 0.999])
     eps = getattr(conf, 'adam_eps', 1e-8)
     weight_decay = getattr(conf, 'weight_decay', 0.0)
     if optim_name == "adam":
-        return optim.Adam(
+        optimizer = optim.Adam(
             params, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
     elif optim_name == "adamw":
         from transformers import AdamW
         no_decay = ['bias', 'LayerNorm.weight']
-        additional_params = (
-            set(additional_params_dict['params'])
-            if additional_params_dict
-            else {})
         grouped_params = [
             {
                 'params': [
@@ -446,26 +448,31 @@ def get_optim(
                     if any(nd in n for nd in no_decay)
                     and p not in additional_params],
                 'weight_decay': 0.0}]
-        if additional_params_dict:
-            grouped_params.append(additional_params_dict)
-        return AdamW(
+        optimizer = AdamW(
             grouped_params,
             betas=betas,
             weight_decay=weight_decay,
             lr=lr,
             eps=eps)
     elif optim_name == "sgd":
-        return optim.SGD(
+        optimizer = optim.SGD(
             params,
             lr=conf.lr,
             momentum=conf.momentum,
             weight_decay=conf.weight_decay)
     elif optim_name == 'bertadam':
-        return get_bert_optim(conf, model, n_train_instances)
+        optimizer = get_bert_optim(conf, model, n_train_instances)
     elif optim_name == 'radam':
         from .radam import RAdam
-        return RAdam(params, lr=lr)
-    raise ValueError("Unknown optimizer: " + conf.optim)
+        optimizer = RAdam(params, lr=lr)
+    elif optim_name == 'adafactor':
+        from transformers.optimization import Adafactor
+        optimizer = Adafactor(params, lr=conf.lr, relative_step=False)
+    else:
+        raise ValueError("Unknown optimizer: " + conf.optim)
+    if additional_params_dict:
+        optimizer.add_param_group(additional_params_dict)
+    return optimizer
 
 
 def get_lr_scheduler(conf, optimizer, optimum='max', n_train_steps=None):
@@ -905,3 +912,15 @@ class MarginRankingLoss(nn.Module):
         if self.reduce:
             loss = loss.mean()
         return loss
+
+
+def freeze(model):
+    """freeze model, i.e., set requires_grad = False for all model parameters"""
+    for p in model.parameters():
+        p.requires_grad = False
+
+
+def unfreeze(model):
+    """unfreeze model, i.e., set requires_grad = True for all model parameters"""
+    for p in model.parameters():
+        p.requires_grad = True
