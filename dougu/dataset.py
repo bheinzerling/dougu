@@ -116,15 +116,23 @@ class Dataset(SubclassRegistry, Configurable, WithLog):
         raise NotImplementedError()
 
     def log_size(self):
-        for split_name in self.split_names:
-            split = getattr(self, split_name)
-            if split is not None:
-                msg = f'{len(split)} {split_name} instances'
-                loader_name = split_name + '_loader'
-                loader = getattr(self, loader_name)
-                if loader is not None:
-                    msg += f' | {len(loader)} batches'
-                self.log(msg)
+        split_names = getattr(self, 'loader_names', self.split_names)
+        for split_name in split_names:
+            self.log_split_size(split_name)
+
+    def log_split_size(self, split_name):
+        split = getattr(self, split_name, None)
+        if split is not None:
+            msg = f'{len(split)} {split_name} instances'
+        else:
+            msg = ''
+        loader_name = split_name + '_loader'
+        if loader_name is not None:
+            loader = getattr(self, loader_name)
+            if loader is not None:
+                msg += f' | {len(loader)} batches'
+        if msg:
+            self.log(msg)
 
     def metrics(self, prefix):
         return {}
@@ -182,6 +190,10 @@ class EvalOnTrain():
     @property
     def split_names(self):
         return ['train']
+
+    @property
+    def loader_names(self):
+        return ['train', 'dev']
 
     @cached_property
     def train(self):
