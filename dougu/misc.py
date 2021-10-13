@@ -452,6 +452,7 @@ def conf_hash(conf, fields=None):
             d = {k: getattr(conf, k) for k in fields}
     return repr_hash(d)
 
+
 def repr_hash(obj):
     """Return a hash value of obj based on its repr()"""
     import hashlib
