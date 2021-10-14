@@ -59,6 +59,7 @@ class TrainerBase(Configurable, WithLog):
         ('--early-stopping', dict(type=int, default=10)),
         ('--early-stopping-burnin', dict(type=int, default=5)),
         ('--max-epochs', dict(type=int, default=1000)),
+        ('--n-checkpoints', dict(type=int, default=1)),
         ('--no-checkpoints', dict(action='store_true')),
         ('--checkpoint-metric-name', dict(type=str, default='dev_acc')),
         ('--checkpoint-metric-optimum', dict(type=str, default='max')),
@@ -390,7 +391,7 @@ class TrainerBase(Configurable, WithLog):
             filename_prefix=self.checkpoint_prefix,
             score_name=self.checkpoint_metric_name,
             score_function=self.checkpoint_score_function,
-            n_saved=3,
+            n_saved=self.conf.n_checkpoints,
             )
 
     @property
