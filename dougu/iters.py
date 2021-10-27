@@ -205,3 +205,13 @@ def insert(_list, indexes_and_items):
     """
     for idx, item in sorted(indexes_and_items, reverse=True):
         _list.insert(idx, item)
+
+
+def transpose_dict(dict_of_lists):
+    """'Transposes' a dictionary containing lists into a list of dictionaries.
+    """
+    keys = list(dict_of_lists.keys())
+    values = list(dict_of_lists.values())
+    for v in values:
+        assert len(v) == len(values[0])
+    return [dict(zip(keys, items)) for items in zip(*values)]
