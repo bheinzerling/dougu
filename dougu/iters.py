@@ -215,3 +215,9 @@ def transpose_dict(dict_of_lists):
     for v in values:
         assert len(v) == len(values[0])
     return [dict(zip(keys, items)) for items in zip(*values)]
+
+
+def map_values(map_fn, dictionary):
+    """Returns a dictionary whose values have been transformed by map_fn.
+    """
+    return {k: map_fn(v) for k, v in dictionary.items()}
