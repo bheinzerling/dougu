@@ -114,6 +114,8 @@ class TrainerBase(Configurable, WithLog):
                 self.setup_early_stopping()
                 for event, handler in self.event_handlers_train:
                     self.train_engine.add_event_handler(event, handler)
+            for event, handler in self.event_handlers_eval:
+                self.eval_engine.add_event_handler(event, handler)
         if hasattr(self.model, 'get_train_handlers'):
             handlers = self.model.get_train_handlers(
                 self.train_engine, self.log)
@@ -471,6 +473,10 @@ class TrainerBase(Configurable, WithLog):
             (Events.STARTED, self.load_state),
             (Events.EPOCH_COMPLETED, self.save_state),
             (Events.COMPLETED, self.save_results)]
+
+    @property
+    def event_handlers_eval(self):
+        return []
 
     def load_state(self):
         objs_and_state_files = [
