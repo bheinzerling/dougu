@@ -924,3 +924,12 @@ def unfreeze(model):
     """unfreeze model, i.e., set requires_grad = True for all model parameters"""
     for p in model.parameters():
         p.requires_grad = True
+
+
+def maybe_to_list(maybe_tensor):
+    """Tries to convert an object that may be a tensor to a list.
+    """
+    try:
+        return maybe_tensor.tolist()
+    except AttributeError:
+        return maybe_tensor
