@@ -194,18 +194,11 @@ def masked_select(items, mask):
     return [item for item, entry in zip(items, mask) if entry]
 
 
-if __name__ == "__main__":
-    print(split_idxs_for_ratios(100, 0.6, 0.2))
-    for split in split_by_ratios(list(range(100)), 0.6, 0.2):
-        print(split)
-
-
 def insert(_list, indexes_and_items):
     """Insert multiple items into _list.
     """
     for idx, item in sorted(indexes_and_items, reverse=True):
         _list.insert(idx, item)
-
 
 def dict_argmax(d):
     """Returns the key with maximum associated value.
@@ -216,3 +209,18 @@ def dict_argmax(d):
         if v > max_value:
             max_key = k
     return max_key
+
+def transpose_dict(dict_of_lists):
+    """'Transposes' a dictionary containing lists into a list of dictionaries.
+    """
+    keys = list(dict_of_lists.keys())
+    values = list(dict_of_lists.values())
+    for v in values:
+        assert len(v) == len(values[0])
+    return [dict(zip(keys, items)) for items in zip(*values)]
+
+
+def map_values(map_fn, dictionary):
+    """Returns a dictionary whose values have been transformed by map_fn.
+    """
+    return {k: map_fn(v) for k, v in dictionary.items()}

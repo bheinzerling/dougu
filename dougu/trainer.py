@@ -367,6 +367,8 @@ class TrainerBase(Configurable, WithLog):
         engine = Engine(self.make_eval_step())
         for metric_name, metric in self.dev_metrics.items():
             metric.attach(engine, metric_name)
+        engine.inputs = []
+        engine.outputs = []
         return engine
 
     @cached_property
