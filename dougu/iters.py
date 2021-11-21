@@ -205,3 +205,14 @@ def insert(_list, indexes_and_items):
     """
     for idx, item in sorted(indexes_and_items, reverse=True):
         _list.insert(idx, item)
+
+
+def dict_argmax(d):
+    """Returns the key with maximum associated value.
+    """
+    max_key = None
+    max_value = float('-inf')
+    for k, v in d.items():
+        if v > max_value:
+            max_key = k
+    return max_key
