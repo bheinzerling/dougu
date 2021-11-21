@@ -9,7 +9,7 @@ class Configurable():
         Configurable.classes.add(cls)
 
     def __init__(self, conf, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__()
         self.conf = conf
 
     def arg_keys(self):
