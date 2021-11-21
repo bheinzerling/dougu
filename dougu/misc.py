@@ -192,7 +192,7 @@ def args_to_str(
             k = f"--{k.replace('_', '-')}"
         if v is True:
             return k
-        if v is False:
+        if v is False and to_flag:
             return ""
         else:
             v = val_to_str(v)
@@ -376,7 +376,32 @@ def df_to_latex(
 
 class SubclassRegistry:
     '''Mixin that automatically registers all subclasses of the
-    given class.
+    given class. Registered subclasses of superclass Class can be
+    looked up via their names:
+    >>> Class.get('subclass_name')
+
+    The purpose of a SubclassRegistry is to make code like this
+    uncessesary:
+    >>> class Dataset_A():
+            pass
+    >>> class Dataset_B():
+            pass
+    >>> name2cls = {'A': Dataset_A, 'B': Dataset_B}
+    >>> dataset = name2cls[dataset_name]()
+
+    or code like
+
+    >>> dataset = globals()[dataset_name]()
+
+    With a SubclassRegistry, one can write something like this:
+
+    >>> class Dataset(SubclassRegistry):
+        pass
+    >>> class A(Dataset):
+        pass
+    >>> class B(Dataset):
+        pass
+    >>> dataset = Dataset.get(dataset_name)()
     '''
     registered_classes = dict()
     registered_subclasses = defaultdict(set)
