@@ -133,7 +133,7 @@ def deserialize_protobuf_instances(cls, protobuf_file, max_bytes=None):
         yield c
 
 
-def _maybe_to_str(v):
+def maybe_to_str(v):
     try:
         json.dumps(v)
     except TypeError:
@@ -144,14 +144,14 @@ def _maybe_to_str(v):
 def args_to_json(args):
     """Same as json.dumps, but more lenient by converting non-serializable
     objects like PosixPaths to strings."""
-    return json.dumps({k: _maybe_to_str(v) for k, v in args.__dict__.items()})
+    return json.dumps({k: maybe_to_str(v) for k, v in args.__dict__.items()})
 
 
 def dump_args(args, file):
     """Write argparse args to file."""
     with to_path(file).open("w", encoding="utf8") as out:
         json.dump({
-            k: _maybe_to_str(v)
+            k: maybe_to_str(v)
             for k, v in args.__dict__.items()}, out, indent=4)
 
 
