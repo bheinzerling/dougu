@@ -168,6 +168,9 @@ class LabelEncoder(object):
     def __len__(self):
         return self.nlabels
 
+    def __call__(self, labels):
+        return self.transform(labels)
+
     def transform(self, labels):
         if isinstance(labels, str):
             labels = [labels]
@@ -204,8 +207,7 @@ class LabelEncoder(object):
         try:
             if isinstance(idx[0], list):
                 return [
-                    self.label_enc.inverse_transform(
-                        filter_idxs(_idx)).tolist()
+                    self.label_enc.inverse_transform(filter_idxs(_idx))
                     for _idx in idx]
         except TypeError:
             return self.label_enc.inverse_transform([idx])[0]
