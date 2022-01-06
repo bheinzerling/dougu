@@ -5,7 +5,9 @@ from dougu import cached_property
 
 class WithTokenizer():
 
-    max_seq_len = 512
+    @cached_property
+    def max_seq_len(self):
+        return getattr(self.conf, 'max_seq_len', 512)
 
     @cached_property
     def tokenizer(self):
@@ -13,8 +15,6 @@ class WithTokenizer():
             self.conf.transformer,
             add_prefix_space=True,
             )
-        if hasattr(self.conf, 'max_seq_len'):
-            self.max_seq_len = self.conf.max_seq_len
         return tok
 
     def encode_texts(self, texts, add_special_tokens=True, char_to_token=False):
@@ -44,7 +44,7 @@ class WithTokenizer():
                 is_split_into_words=is_split_into_words,
                 )
             chunk_tensors = dict(tokenizer_out)
-            if is_split_into_words:
+            if is_split_into_words and self.tokenizer.is_fast:
                 subw_lens = tokenizer_out['attention_mask'].sum(dim=1)
                 word_start_mask = torch.zeros_like(tokenizer_out['input_ids'])
                 word_start_mask[:, 1] = 1
