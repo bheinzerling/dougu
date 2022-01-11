@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-import dougu.torchutil
 
 
 class NgramCodec(object):
@@ -136,7 +135,7 @@ class LabelEncoder(object):
     Optionally return pytorch tensors instead of numpy arrays.
     Use backend 'sklearn' (default) for speed or backend 'dict' if the
     order of labels should be preserved (i.e. first label will be idx 0...)."""
-    def __init__(self, to_torch=False, device="cuda", backend='sklearn'):
+    def __init__(self, to_torch=False, device="cpu", backend='sklearn'):
         self.to_torch = to_torch
         self.device = device
         if backend == 'sklearn':
@@ -219,7 +218,7 @@ class LabelEncoder(object):
             additional_labels=None,
             to_torch=False,
             save_to=None,
-            device="cuda",
+            device="cpu",
             backend='sklearn',
             ):
         """Create LabelEncoder instance from file, which contains
@@ -253,7 +252,6 @@ class LabelOneHotEncoder(object):
         return self
 
     def fit_transform(self, labels):
-        enc = self.fit(labels)
         return self.transform_one_hot(labels)
 
     def transform_idx(self, labels):
@@ -262,7 +260,6 @@ class LabelOneHotEncoder(object):
         labels_enc = self.label_enc.transform(labels)
         if self.to_torch:
             return torch.LongTensor(labels_enc)
-            # return torch.from_numpy(labels_enc).long().cuda()
         return labels_enc
 
     def transform_one_hot(self, labels):
@@ -271,7 +268,6 @@ class LabelOneHotEncoder(object):
         labels_enc = self.label_enc.transform(labels)
         if self.to_torch:
             t = self.one_hot_enc.transform(labels_enc)
-            # return Tensor(t.astype(float)).long()
             one_hot = torch.LongTensor(t)
             if self.reduce == 'sum':
                 return one_hot.sum(dim=0)
