@@ -594,3 +594,6 @@ class TrainerBase(Configurable, WithLog):
             self.save_stdout()
             self.exp_logger.end_run()
         self.cleanup()
+
+    def interactive(self):
+        breakpoint()
