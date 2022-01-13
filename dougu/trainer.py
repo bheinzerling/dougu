@@ -116,6 +116,8 @@ class TrainerBase(Configurable, WithLog):
                     self.train_engine.add_event_handler(event, handler)
             for event, handler in self.event_handlers_eval:
                 self.eval_engine.add_event_handler(event, handler)
+            for event, handler in self.event_handlers_test:
+                self.test_engine.add_event_handler(event, handler)
         if hasattr(self.model, 'get_train_handlers'):
             handlers = self.model.get_train_handlers(
                 self.train_engine, self.log)
@@ -478,6 +480,10 @@ class TrainerBase(Configurable, WithLog):
 
     @property
     def event_handlers_eval(self):
+        return []
+
+    @property
+    def event_handlers_test(self):
         return []
 
     def load_state(self):
