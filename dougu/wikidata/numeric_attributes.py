@@ -8,7 +8,6 @@ import torch
 from dougu import (
     lines,
     dict_load,
-    jsonlines_load,
     cached_property,
     file_cached_property,
     Configurable,
