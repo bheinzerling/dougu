@@ -1,5 +1,9 @@
 from argparse import ArgumentParser
 
+from . import (
+    conf_hash,
+    )
+
 
 class Configurable():
     classes = set()
@@ -16,6 +20,15 @@ class Configurable():
         return [
             arg[0][2:].replace('-', '_') for arg in getattr(self, 'args', [])
             ]
+
+    @property
+    def conf_str(self):
+        return conf_hash(self.conf, self.conf_fields)
+
+    def conf_str_for_fields(self, fields):
+        return '.'.join([
+            field + str(getattr(self.conf, field))
+            for field in fields])
 
 
 class AutoArgParser(ArgumentParser):

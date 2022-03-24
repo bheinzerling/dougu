@@ -1,9 +1,6 @@
 from pathlib import Path
 
-import torch
-from torch.utils.data import DataLoader, Subset
-from torch.utils.data.dataloader import default_collate
-import torch.utils.data.distributed as dist
+from torch.utils.data import DataLoader
 
 from . import (
     Configurable,
@@ -11,12 +8,12 @@ from . import (
     torch_cached_property,
     cached_property,
     SubclassRegistry,
-    conf_hash,
     )
 
 
 def get_sampler(split, distributed=False, rank=0):
     if distributed:
+        import torch.utils.data.distributed as dist
         return dist.DistributedSampler(split, rank=rank)
     else:
         return None
@@ -33,6 +30,7 @@ class TensorDictDataset():
         return len(next(iter(self.tensors.values())))
 
     def split(self, split_size):
+        import torch
         split_idxs = torch.arange(len(self)).split(split_size)
         return tuple(self[idxs] for idxs in split_idxs)
 
@@ -58,17 +56,8 @@ class Dataset(SubclassRegistry, Configurable, WithLog):
         return fields
 
     @property
-    def conf_str(self):
-        return conf_hash(self.conf, self.conf_fields)
-
-    @property
     def dir_name(self):
         return self.__class__.__name__.lower()
-
-    def conf_str_for_fields(self, fields):
-        return '.'.join([
-            field + str(getattr(self.conf, field))
-            for field in fields])
 
     def split_fname(self, split_name):
         raise NotImplementedError()
@@ -105,6 +94,7 @@ class Dataset(SubclassRegistry, Configurable, WithLog):
 
     @property
     def collate_fn(self):
+        from torch.utils.data.dataloader import default_collate
         return default_collate
 
     def tensorize(self):
@@ -137,6 +127,14 @@ class Dataset(SubclassRegistry, Configurable, WithLog):
     def metrics(self, prefix):
         return {}
 
+    @property
+    def batch_size(self):
+        return getattr(self.conf, 'batch_size', 32)
+
+    @property
+    def eval_batch_size(self):
+        return getattr(self.conf, 'eval_batch_size', 64)
+
 
 class TrainDevTest():
     @property
@@ -162,11 +160,12 @@ class TrainDevTest():
     def train_loader(self):
         sampler = get_sampler(
             self.train,
-            distributed=self.conf.distributed,
-            rank=self.conf.local_rank)
+            distributed=getattr(self.conf, 'distributed', False),
+            rank=getattr(self.conf, 'local_rank', 0),
+            )
         return DataLoader(
             self.train,
-            self.conf.batch_size,
+            self.batch_size,
             sampler=sampler,
             collate_fn=self.collate_fn)
 
@@ -181,7 +180,7 @@ class TrainDevTest():
     def eval_loader(self, tensorized_data):
         return DataLoader(
             tensorized_data,
-            self.conf.eval_batch_size,
+            self.eval_batch_size,
             shuffle=False,
             collate_fn=self.collate_fn)
 
@@ -203,11 +202,12 @@ class EvalOnTrain():
     def train_loader(self):
         sampler = get_sampler(
             self.train,
-            distributed=self.conf.distributed,
-            rank=self.conf.local_rank)
+            distributed=getattr(self.conf, 'distributed', False),
+            rank=getattr(self.conf, 'local_rank', 0),
+            )
         return DataLoader(
             self.train,
-            self.conf.batch_size,
+            self.batch_size,
             sampler=sampler,
             shuffle=True if sampler is None else None,
             collate_fn=self.collate_fn)
@@ -216,12 +216,14 @@ class EvalOnTrain():
     def train_loader_no_shuffle(self):
         return DataLoader(
             self.train,
-            self.conf.batch_size,
+            self.batch_size,
             shuffle=False,
             collate_fn=self.collate_fn)
 
     @cached_property
     def train_eval(self):
+        import torch
+        from torch.utils.data import Subset
         idxs = torch.randperm(len(self.train))[:self.conf.max_test_inst]
         return Subset(self.train, idxs)
 
@@ -229,6 +231,9 @@ class EvalOnTrain():
     def dev_loader(self):
         return DataLoader(
             self.train_eval,
-            self.conf.eval_batch_size,
+            self.eval_batch_size,
             shuffle=False,
             collate_fn=self.collate_fn)
+
+
+TrainOnly = EvalOnTrain
