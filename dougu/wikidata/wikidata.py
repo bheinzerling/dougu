@@ -49,6 +49,11 @@ class Wikidata(Dataset, TrainOnly):
         split_file = self.split_file(split_name)
         return list(jsonlines_load(split_file))
 
+    @property
+    def raw_iter(self):
+        split_file = self.split_file('train')
+        yield from jsonlines_load(split_file)
+
     @file_cached_property
     def entity_ids(self):
         return [inst['id'] for inst in self.raw['train']]

@@ -1,5 +1,7 @@
 import torch
 
+from tqdm import tqdm
+
 from dougu import (
     flatten,
     cached_property,
@@ -41,6 +43,8 @@ class WikidataRelations(WikidataAttribute):
 
     @cached_property
     def raw(self):
+        entity_ids = set(self.wikidata.entity_ids)
+
         def get_relations(inst):
             head = inst['id']
             dummy_rel = {self.no_rel: [head]}
@@ -48,11 +52,11 @@ class WikidataRelations(WikidataAttribute):
                 [head, pred, tail]
                 for pred, tails in inst.get(self.key, dummy_rel).items()
                 for tail in tails
-                if tail in self.wikidata.entity_ids]
+                if tail in entity_ids]
 
         id2relations = {
             inst['id']: get_relations(inst)
-            for inst in self.wikidata.raw['train']}
+            for inst in tqdm(self.wikidata.raw_iter)}
         assert set(id2relations.keys()) == set(self.entity_ids)
         return [id2relations[entity_id] for entity_id in self.entity_ids]
 
