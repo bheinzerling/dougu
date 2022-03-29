@@ -3,9 +3,7 @@ from pathlib import Path
 import torch
 
 from dougu import (
-    lines,
     flatten,
-    jsonlines_load,
     cached_property,
     file_cached_property,
     )

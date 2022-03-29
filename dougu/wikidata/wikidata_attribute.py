@@ -31,3 +31,12 @@ class WikidataAttribute(Configurable, WithLog):
     @property
     def tensor(self):
         raise NotImplementedError()
+
+    def __getitem__(self, wikidata_id):
+        if isinstance(wikidata_id, str):
+            idx = self.wikidata.entity_id_enc.transform(wikidata_id).item()
+            return self.raw[idx]
+        return [
+            self.raw[idx]
+            for idx in self.wikidata.entity_id_enc.transform(wikidata_id)
+            ]

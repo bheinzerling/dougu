@@ -2,10 +2,18 @@ from pathlib import Path
 
 from dougu import (
     jsonlines_load,
+    cached_property,
     file_cached_property,
     dict_load,
     )
 from dougu.dataset import Dataset, TrainOnly
+
+from .numeric_attributes import WikidataNumericAttributes
+from .types import WikidataTypes
+from .label import WikidataLabel, WikidataAliases
+from .relations import WikidataRelations
+from .description import WikidataDescription
+from .popularity import WikidataPopularity
 
 
 class Wikidata(Dataset, TrainOnly):
@@ -28,6 +36,10 @@ class Wikidata(Dataset, TrainOnly):
             ]
         return fields
 
+    @property
+    def data_dir(self):
+        return self.conf.data_dir / self.conf.wikidata_dir_name
+
     def split_file(self, split_name):
         fname = self.conf.wikidata_fname_tpl.format(
             top=self.conf.wikidata_top_n)
@@ -40,6 +52,10 @@ class Wikidata(Dataset, TrainOnly):
     @file_cached_property
     def entity_ids(self):
         return [inst['id'] for inst in self.raw['train']]
+
+    @cached_property
+    def n_entities(self):
+        return len(self.entity_ids)
 
     @file_cached_property
     def entity_id_enc(self):
@@ -67,3 +83,31 @@ class Wikidata(Dataset, TrainOnly):
     @file_cached_property
     def property_id2label(self):
         return dict_load(self.conf.wikidata_property_label_file, splitter='\t')
+
+    @cached_property
+    def numeric_attributes(self):
+        return WikidataNumericAttributes(self.conf, self)
+
+    @cached_property
+    def types(self):
+        return WikidataTypes(self.conf, self)
+
+    @cached_property
+    def label(self):
+        return WikidataLabel(self.conf, self)
+
+    @cached_property
+    def aliases(self):
+        return WikidataAliases(self.conf, self)
+
+    @cached_property
+    def relations(self):
+        return WikidataRelations(self.conf, self)
+
+    @cached_property
+    def description(self):
+        return WikidataDescription(self.conf, self)
+
+    @cached_property
+    def popularity(self):
+        return WikidataPopularity(self.conf, self)

@@ -10,12 +10,13 @@ from dougu import (
     dict_load,
     cached_property,
     file_cached_property,
-    Configurable,
     )
 from dougu.codecs import LabelEncoder
 
+from .wikidata_attribute import WikidataAttribute
 
-class WikidataNumericAttributes(Configurable):
+
+class WikidataNumericAttributes(WikidataAttribute):
     year_unit = 'Q1092296'
     degree_unit = 'Q28390'
     none_label = ''
@@ -29,10 +30,6 @@ class WikidataNumericAttributes(Configurable):
             dict(type=Path, default='loc_quant_time.unit.label_en')),
         ]
 
-    def __init__(self, conf, wikidata, *args, **kwargs):
-        super().__init__(conf, *args, **kwargs)
-        self.wikidata = wikidata
-
     @cached_property
     def attr_names(self):
         return list(map(
@@ -45,7 +42,7 @@ class WikidataNumericAttributes(Configurable):
 
     @property
     def allowed_units_file(self):
-        return self.wikdiata.data_dir / self.conf.wikidata_units_fname
+        return self.wikidata.data_dir / self.conf.wikidata_units_fname
 
     @cached_property
     def allowed_attrs(self):
@@ -159,7 +156,7 @@ class WikidataNumericAttributes(Configurable):
         u_enc = self.unit_enc.transform(u_raw)
 
         idxs = (row_idxs, col_idxs)
-        shape = (self.wikidata.n_entities, self.n_attrs)
+        shape = (self.n_entities, self.n_attrs)
         v_raw_csc = scipy.sparse.csc_matrix((v_raw, idxs), shape=shape)
         u_csc = scipy.sparse.csc_matrix((u_enc, idxs), shape=shape)
         return {'v_raw_csc': v_raw_csc, 'u_csc': u_csc}
@@ -201,7 +198,7 @@ class WikidataNumericAttributes(Configurable):
         return {'v': v, 'u': u, 'entity_idx': entity_idx}
 
     @cached_property
-    def tensors(self):
+    def tensor(self):
         return self.sparse_tensors_to_dense(self.sparse_tensors)
 
     def decode(self, v, u, existing_mask=None, only_existing_values=True):

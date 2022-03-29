@@ -8,12 +8,19 @@ from .wikidata_attribute import WikidataAttribute
 
 class WikidataLabel(WikidataAttribute, WithTransformerEncoder):
     key = 'label'
+    args = [
+        ('--wikidata-label-max-seq-len', dict(type=int, default=32)),
+        ]
+
+    def __init__(self, conf, *args, **kwargs):
+        super().__init__(conf, *args, **kwargs)
+        self._max_seq_len = self.conf.wikidata_label_max_seq_len
 
     @property
     def conf_fields(self):
         fields = super().conf_fields
         fields.extend([
-            'max_seq_len',
+            'wikidata_label_max_seq_len',
             'transformer',
             ])
         return fields
