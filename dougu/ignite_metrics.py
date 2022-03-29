@@ -740,7 +740,7 @@ class Precision(_BasePrecisionRecall):
 
 
 def Fbeta(
-    beta: float,
+    beta: float = 1,
     average: bool = True,
     precision: Optional[Precision] = None,
     recall: Optional[Recall] = None,
