@@ -2,6 +2,7 @@ import torch
 
 from dougu import (
     cached_property,
+    file_cached_property,
     )
 
 from .wikidata_attribute import WikidataAttribute
@@ -12,7 +13,7 @@ class WikidataPopularity(WikidataAttribute):
     def raw(self):
         raise NotImplementedError('todo')
 
-    @cached_property
+    @file_cached_property
     def tensor(self):
 
         def counts(node_ids):
