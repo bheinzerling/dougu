@@ -396,11 +396,11 @@ class SubclassRegistry:
     With a SubclassRegistry, one can write something like this:
 
     >>> class Dataset(SubclassRegistry):
-        pass
+            pass
     >>> class A(Dataset):
-        pass
+            pass
     >>> class B(Dataset):
-        pass
+            pass
     >>> dataset = Dataset.get(dataset_name)()
     '''
     registered_classes = dict()
