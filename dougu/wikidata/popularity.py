@@ -11,7 +11,11 @@ from .wikidata_attribute import WikidataAttribute
 class WikidataPopularity(WikidataAttribute):
     @cached_property
     def raw(self):
-        raise NotImplementedError('todo')
+        return [self.of(inst) for inst in self.wikidata.raw['train']]
+
+    def of(self, inst, *args, **kwargs):
+        idx = self.wikidata.entity_id_enc.transform(inst['id']).item()
+        return {key: tensor[idx].item() for key, tensor in self.tensor.items()}
 
     @file_cached_property
     def tensor(self):

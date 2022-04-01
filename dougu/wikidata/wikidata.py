@@ -8,12 +8,14 @@ from dougu import (
     )
 from dougu.dataset import Dataset, TrainOnly
 
+from .wikidata_attribute import WikidataAttribute
 from .numeric_attributes import WikidataNumericAttributes
 from .types import WikidataTypes
 from .label import WikidataLabel, WikidataAliases
 from .relations import WikidataRelations
 from .description import WikidataDescription
 from .popularity import WikidataPopularity
+from .db import DB
 
 
 class Wikidata(Dataset, TrainOnly):
@@ -59,6 +61,13 @@ class Wikidata(Dataset, TrainOnly):
         return [inst['id'] for inst in self.raw['train']]
 
     @cached_property
+    def enttiy_id2entity(self):
+        return {inst['id']: inst for inst in self.raw['train']}
+
+    def __getitem__(self, entity_id):
+        return self.enttiy_id2entity[entity_id]
+
+    @cached_property
     def n_entities(self):
         return len(self.entity_ids)
 
@@ -90,7 +99,7 @@ class Wikidata(Dataset, TrainOnly):
         return dict_load(self.conf.wikidata_property_label_file, splitter='\t')
 
     @cached_property
-    def numeric_attributes(self):
+    def numericattributes(self):
         return WikidataNumericAttributes(self.conf, self)
 
     @cached_property
@@ -116,3 +125,32 @@ class Wikidata(Dataset, TrainOnly):
     @cached_property
     def popularity(self):
         return WikidataPopularity(self.conf, self)
+
+    @cached_property
+    def attribute_classes(self):
+        return WikidataAttribute.get_subclasses()
+
+    def attributes(self, inst):
+        label_lang = self.conf.wikidata_label_lang
+
+        def to_dict(attr, key):
+            if isinstance(attr, dict):
+                return attr
+            return {key: attr}
+
+        def get_attr(inst, attr_cls):
+            key = attr_cls.__name__.lstrip('Wikidata').lower()
+            attr = getattr(self, key).of(inst, label_lang)
+            return to_dict(attr, key)
+
+        attrs = dict(
+            item
+            for attr_cls in self.attribute_classes
+            for item in get_attr(inst, attr_cls).items()
+            )
+        attrs['id'] = inst['id']
+        return attrs
+
+    @cached_property
+    def db(self):
+        return DB(self.conf, self)

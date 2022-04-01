@@ -4,6 +4,8 @@ import torch
 
 from dougu import (
     flatten,
+    dict_load,
+    groupby,
     cached_property,
     file_cached_property,
     )
@@ -15,8 +17,18 @@ class WikidataTypes(WikidataAttribute):
     key = 'P31'
     args = [
         ('--wikidata-types-fname',
-            dict(type=Path, default='P31.object.most_freq_1000')),
+            dict(type=Path, default='P31.object.mincount_100')),
+        ('--wikidata-types-counts-fname',
+            dict(type=Path, default='P31.object.counts')),
+        ('--wikidata-types-label-fname',
+            dict(type=Path, default='P31.object.labels_en')),
         ]
+
+    @property
+    def conf_fields(self):
+        return super().conf_fields + [
+            'wikidata_types_fname',
+            ]
 
     def log_size(self):
         tensor = self.tensor.float()
@@ -41,14 +53,20 @@ class WikidataTypes(WikidataAttribute):
         from dougu.codecs import LabelEncoder
         return LabelEncoder.from_file(self.allowed_types_file, to_torch=True)
 
+    def of(self, inst, *args, **kwargs):
+        types = set(inst.get(self.key, []))
+        return list(filter(self.allowed_types.__contains__, types))
+
+    @cached_property
+    def counts(self):
+        f = self.wikidata.data_dir / self.conf.wikidata_types_counts_fname
+        d = dict_load(f)
+        return {k: v for k, v in d.items() if k in self.allowed_types}
+
     @cached_property
     def raw(self):
-        def get_types(inst):
-            types = set(inst.get(self.key, []))
-            return list(filter(self.allowed_types.__contains__, types))
-
         id2types = {
-            inst['id']: get_types(inst) for inst in self.wikidata.raw['train']}
+            inst['id']: self.of(inst) for inst in self.wikidata.raw['train']}
         assert set(id2types.keys()) == set(self.entity_ids)
         return [id2types[entity_id] for entity_id in self.entity_ids]
 
@@ -83,3 +101,33 @@ class WikidataTypes(WikidataAttribute):
         c = (c - c.min()) / c.ptp()
         color = (c * 255).astype(int)
         return color
+
+    @cached_property
+    def label2type_ids(self):
+        keys, values = zip(*self.type_id2label.items())
+        return groupby(values, keys)
+
+    @cached_property
+    def type_id2label(self):
+        f = self.wikidata.data_dir / self.conf.wikidata_types_label_fname
+        d = dict_load(f, splitter='\t')
+        return {k: v for k, v in d.items() if k in self.allowed_types}
+
+    def search(self, query, counts=False):
+        import re
+        pattern = re.compile(query)
+
+        def maybe_add_counts(type_ids):
+            if counts:
+                return [
+                    (type_id, self.counts[type_id])
+                    for type_id in type_ids
+                    ]
+            return type_ids
+
+        matches = [
+            (label, maybe_add_counts(type_ids))
+            for label, type_ids in self.label2type_ids.items()
+            if re.search(pattern, label)
+            ]
+        return matches

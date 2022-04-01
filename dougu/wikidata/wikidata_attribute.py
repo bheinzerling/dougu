@@ -1,10 +1,11 @@
 from dougu import (
     Configurable,
     WithLog,
+    SubclassRegistry,
     )
 
 
-class WikidataAttribute(Configurable, WithLog):
+class WikidataAttribute(Configurable, SubclassRegistry, WithLog):
     def __init__(self, conf, wikidata, *args, **kwargs):
         super().__init__(conf, *args, **kwargs)
         self.wikidata = wikidata

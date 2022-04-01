@@ -42,20 +42,23 @@ class WikidataRelations(WikidataAttribute):
         return LabelEncoder(to_torch=True, device='cpu').fit(self.preds)
 
     @cached_property
+    def entity_ids(self):
+        return set(self.wikidata.entity_ids)
+
+    def of(self, inst, *args, **kwargs):
+        entity_ids = self.entity_ids
+        head = inst['id']
+        dummy_rel = {self.no_rel: [head]}
+        return [
+            [head, pred, tail]
+            for pred, tails in inst.get(self.key, dummy_rel).items()
+            for tail in tails
+            if tail in entity_ids]
+
+    @cached_property
     def raw(self):
-        entity_ids = set(self.wikidata.entity_ids)
-
-        def get_relations(inst):
-            head = inst['id']
-            dummy_rel = {self.no_rel: [head]}
-            return [
-                [head, pred, tail]
-                for pred, tails in inst.get(self.key, dummy_rel).items()
-                for tail in tails
-                if tail in entity_ids]
-
         id2relations = {
-            inst['id']: get_relations(inst)
+            inst['id']: self.of(inst)
             for inst in tqdm(self.wikidata.raw_iter)}
         assert set(id2relations.keys()) == set(self.entity_ids)
         return [id2relations[entity_id] for entity_id in self.entity_ids]

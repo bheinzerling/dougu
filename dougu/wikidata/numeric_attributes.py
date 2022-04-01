@@ -31,10 +31,23 @@ class WikidataNumericAttributes(WikidataAttribute):
         ]
 
     @cached_property
-    def attr_names(self):
+    def attr_labels(self):
         return list(map(
-            self.property_id2property_name.get,
+            self.wikidata.property_id2label.get,
             self.pred_enc.labels.tolist()))
+
+    @cached_property
+    def attr_id2attr_label(self):
+        return {
+            k: v for k, v in self.wikidata.property_id2label.items()
+            if k in self.allowed_attrs
+            }
+
+    @cached_property
+    def attr_label2attr_id(self):
+        d = {v: k for k, v in self.attr_id2attr_label.items()}
+        assert len(d) == len(self.attr_id2attr_label)
+        return d
 
     @property
     def allowed_attrs_file(self):
@@ -74,68 +87,81 @@ class WikidataNumericAttributes(WikidataAttribute):
     def n_units(self):
         return len(self.units)
 
+    @staticmethod
+    def transform_time(wikidata_time):
+        t = wikidata_time
+        t = int(t[0] + t[1:].split("-")[0])
+        return min(2100, max(-1000, t))
+
+    def filter_quantities(self, numvals, units):
+        try:
+            numvals, units = zip(*[
+                (v, u) for v, u in zip(numvals, units) if u in self.units])
+        except ValueError:
+            return [None], [None]
+        most_freq_unit = Counter(units).most_common(1)[0][0]
+        numvals, units = zip(*[
+            (v, u) for v, u in zip(numvals, units) if u == most_freq_unit])
+        return numvals, units
+
+    def aggregate_quantities(self, quantities, aggregate_fn=np.median):
+        numvals, units = zip(*quantities)
+        unique_units = set(units)
+        if len(unique_units) != 1:
+            numvals, units = self.filter_quantities(numvals, units)
+            unique_units = set(units)
+            assert len(set(units)) == 1
+        unit = next(iter(unique_units))
+        if unit is None:
+            numval = None
+        else:
+            numval = aggregate_fn(list(map(float, numvals)))
+        return numval, unit
+
+    def get_numattrs(self, inst):
+        # in variable names:
+        # p = predicate, q = quantity, v = numeric value, u = unit
+        # a quantity is a pair of a numeric value and a unit
+        qdict = inst.get('quantity', {})
+        if 'time' in inst:
+            tdict = inst['time']
+            titems = [
+                [p, [[self.transform_time(v), self.year_unit]]]
+                for p, v in tdict.items()]
+            qdict.update(titems)
+        if 'geocoordinate' in inst:
+            if 'P625' in inst['geocoordinate']:
+                p625 = inst['geocoordinate']['P625']
+                gitems = [
+                    ['P625.long', [[p625['longitude'], self.degree_unit]]],
+                    ['P625.lat', [[p625['latitude'], self.degree_unit]]]]
+                qdict.update(gitems)
+
+        attrs = list(qdict.keys() & self.allowed_attrs)
+        if not attrs:
+            return [], []
+        quantitiess = list(map(qdict.__getitem__, attrs))
+        numvals_units = list(map(self.aggregate_quantities, quantitiess))
+        attrs, numvals_units = zip(*[
+            [p, vu] for p, vu in zip(attrs, numvals_units)
+            if vu[1] is not None])
+        return attrs, numvals_units
+
     @cached_property
     def raw(self):
-        def transform_time(wikidata_time):
-            t = wikidata_time
-            t = int(t[0] + t[1:].split("-")[0])
-            return min(2100, max(-1000, t))
+        return [self.get_numattrs(inst) for inst in self.wikidata.raw['train']]
 
-        def filter_quantities(numvals, units):
-            try:
-                numvals, units = zip(*[
-                    (v, u) for v, u in zip(numvals, units) if u in self.units])
-            except ValueError:
-                return [None], [None]
-            most_freq_unit = Counter(units).most_common(1)[0][0]
-            numvals, units = zip(*[
-                (v, u) for v, u in zip(numvals, units) if u == most_freq_unit])
-            return numvals, units
-
-        def aggregate_quantities(quantities, aggregate_fn=np.median):
-            numvals, units = zip(*quantities)
-            unique_units = set(units)
-            if len(unique_units) != 1:
-                numvals, units = filter_quantities(numvals, units)
-                unique_units = set(units)
-                assert len(set(units)) == 1
-            unit = next(iter(unique_units))
-            if unit is None:
-                numval = None
-            else:
-                numval = aggregate_fn(list(map(float, numvals)))
-            return numval, unit
-
-        def get_numattrs(inst):
-            # in variable names:
-            # p = predicate, q = quantity, v = numeric value, u = unit
-            # a quantity is a pair of a numeric value and a unit
-            qdict = inst.get('quantity', {})
-            if 'time' in inst:
-                tdict = inst['time']
-                titems = [
-                    [p, [[transform_time(v), self.year_unit]]]
-                    for p, v in tdict.items()]
-                qdict.update(titems)
-            if 'geocoordinate' in inst:
-                if 'P625' in inst['geocoordinate']:
-                    p625 = inst['geocoordinate']['P625']
-                    gitems = [
-                        ['P625.long', [[p625['longitude'], self.degree_unit]]],
-                        ['P625.lat', [[p625['latitude'], self.degree_unit]]]]
-                    qdict.update(gitems)
-
-            attrs = list(qdict.keys() & self.allowed_attrs)
-            if not attrs:
-                return [], []
-            quantitiess = list(map(qdict.__getitem__, attrs))
-            numvals_units = list(map(aggregate_quantities, quantitiess))
-            attrs, numvals_units = zip(*[
-                [p, vu] for p, vu in zip(attrs, numvals_units)
-                if vu[1] is not None])
-            return attrs, numvals_units
-
-        return [get_numattrs(inst) for inst in self.wikidata.raw['train']]
+    def of(self, inst, *args, **kwargs):
+        props, values_units = self.get_numattrs(inst)
+        return dict(
+            item
+            for p, vu in zip(props, values_units)
+            for item in {
+                p: True,
+                p + '_value': vu[0],
+                p + '_unit': vu[1],
+                }.items()
+            )
 
     @cached_property
     def sparse_tensors(self):
@@ -216,9 +242,21 @@ class WikidataNumericAttributes(WikidataAttribute):
             if not existing_mask.any():
                 return [], existing_mask
             attr_name, numvals, unit_ids = zip(*[
-                (attr_name, numval, unit_id) for e, attr_name, numval, unit_id in zip(
+                (attr_name, numval, unit_id)
+                for e, attr_name, numval, unit_id in zip(
                     existing_mask, self.attr_names, numvals, unit_ids)
                 if e])
 
         unit_names = list(map(self.unit_id2name.get, unit_ids))
         return list(zip(attr_name, numvals, unit_names)), existing_mask
+
+    def search(self, query, counts=False):
+        import re
+        pattern = re.compile(query)
+
+        matches = [
+            (label, attr_id)
+            for label, attr_id in self.attr_label2attr_id.items()
+            if re.search(pattern, label)
+            ]
+        return matches

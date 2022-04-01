@@ -29,14 +29,14 @@ class WikidataDescription(WikidataAttribute, WithTransformerEncoder):
             ])
         return fields
 
+    def of(self, inst, lang):
+        default_desc = 'something'
+        return inst.get('description', {}).get(lang, default_desc)
+
     @cached_property
     def raw(self):
         lang = self.conf.wikidata_desc_lang
-        default_desc = 'something'
-        return [
-            inst.get('description', {}).get(lang, default_desc)
-            for inst in self.wikidata.raw['train']
-            ]
+        return [self.of(inst, lang) for inst in self.wikidata.raw['train']]
 
     @file_cached_property
     def tensor(self):
