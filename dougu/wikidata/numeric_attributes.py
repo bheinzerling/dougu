@@ -71,8 +71,8 @@ class WikidataNumericAttributes(WikidataAttribute):
 
     @cached_property
     def unit_id2label(self):
-        fname = self.conf.wikidata_unit_labels_fname
-        unit_id2label = dict_load(self.data_dir / fname, splitter='\t')
+        f = self.wikidata.data_dir / self.conf.wikidata_unit_labels_fname
+        unit_id2label = dict_load(f, splitter='\t')
         unit_id2label['1'] = '1'
         for unit in self.units:
             if unit not in unit_id2label:
@@ -91,7 +91,7 @@ class WikidataNumericAttributes(WikidataAttribute):
     def transform_time(wikidata_time):
         t = wikidata_time
         t = int(t[0] + t[1:].split("-")[0])
-        return min(2100, max(-1000, t))
+        return min(2100, max(-10000, t))
 
     def filter_quantities(self, numvals, units):
         try:

@@ -3,6 +3,7 @@ from dougu import (
     cached_property,
     file_cached_property,
     WithLog,
+    flatten,
     )
 
 
@@ -10,7 +11,7 @@ class DB(Configurable, WithLog):
     def __init__(self, conf, wikidata, *args, **kwargs):
         super().__init__(conf, *args, **kwargs)
         self.wikidata = wikidata
-        self.create()
+        self.make_tables()
 
     @property
     def name(self):
@@ -25,12 +26,13 @@ class DB(Configurable, WithLog):
         from sqlalchemy import create_engine
         return create_engine(f'sqlite:///cache/{self.conf_str}.sqlite')
 
-    def create(self):
+    def make_tables(self):
         try:
             if self.name in self.engine.table_names():
                 raise ValueError()
             with self.engine.connect() as con:
                 self.df.to_sql(self.name, con)
+                self.df_relations.to_sql(self.name + '_relations', con)
             mode = 'created'
         except ValueError:
             mode = 'found existing'
@@ -58,6 +60,12 @@ class DB(Configurable, WithLog):
         df = pd.DataFrame(data)
 
         return df
+
+    @file_cached_property
+    def df_relations(self):
+        import pandas as pd
+        rels = flatten(self.wikidata.relations.raw)
+        return pd.DataFrame(rels, columns=['subj', 'pred', 'obj'])
 
     def query(self, sql):
         with self.engine.connect() as con:

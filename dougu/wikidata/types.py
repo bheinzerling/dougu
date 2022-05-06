@@ -1,6 +1,15 @@
 from pathlib import Path
+from dataclasses import dataclass
+import random
+from functools import (
+    cache,
+    total_ordering,
+    )
+from itertools import islice
 
 import torch
+
+import networkx as nx
 
 from dougu import (
     flatten,
@@ -9,25 +18,57 @@ from dougu import (
     cached_property,
     file_cached_property,
     )
+from dougu.graph import graph_from_edges
 
 from .wikidata_attribute import WikidataAttribute
+
+max_depth = 999999
+
+
+@dataclass
+@total_ordering
+class Node:
+    id: str
+    label: str = None
+    n_descendants: int = 0
+    depth: int = max_depth
+
+    def __hash__(self):
+        return hash(self.id)
+
+    def __eq__(self, other):
+        return self.id == other.id
+
+    def __lt__(self, other):
+        if self.depth == other.depth:
+            return self.n_descendants > other.n_descendants
+        return self.depth < other.depth
 
 
 class WikidataTypes(WikidataAttribute):
     key = 'P31'
     args = [
         ('--wikidata-types-fname',
-            dict(type=Path, default='P31.object.mincount_100')),
+            dict(type=Path, default='P31.obj.mincount_100')),
         ('--wikidata-types-counts-fname',
-            dict(type=Path, default='P31.object.counts')),
+            dict(type=Path, default='P31.obj.counts')),
         ('--wikidata-types-label-fname',
-            dict(type=Path, default='P31.object.labels_en')),
+            dict(type=Path, default='P31.obj.labels_en')),
+        ('--wikidata-types-max-graph-nodes', dict(type=int)),
+        ('--wikidata-types-min-descendants', dict(type=int, default=0)),
+        ('--wikidata-types-random-seed', dict(type=int, default=0)),
         ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        random.seed(self.conf.wikidata_types_random_seed)
 
     @property
     def conf_fields(self):
         return super().conf_fields + [
             'wikidata_types_fname',
+            'wikidata_types_max_graph_nodes',
+            'wikidata_types_min_descendants',
             ]
 
     def log_size(self):
@@ -131,3 +172,127 @@ class WikidataTypes(WikidataAttribute):
             if re.search(pattern, label)
             ]
         return matches
+
+    @file_cached_property
+    def graph(self):
+        def edges(instances):
+            preds = {
+                'P31': 1000,  # instance of
+                'P279': 1,  # subclass of
+                }
+            k = self.conf.wikidata_types_max_graph_nodes
+            for inst in islice(instances, k):
+                for pred, weight in preds.items():
+                    target = inst['id']
+                    rels = inst.get('relation', {})
+                    sources = set(rels.get(pred, []))
+                    for source in sources:
+                        if source == target:
+                            continue
+                        yield (
+                            source, target, {'weight': weight, 'label': pred})
+
+        edge_list = list(edges(self.wikidata.raw_iter))
+        g = graph_from_edges(edge_list)
+        for node_id, node_data in g.nodes(data=True):
+            label = self.wikidata.entity_id2label.get(node_id, node_id)
+            node_data['label'] = label
+            node_data['title'] = node_id + ' ' + label
+        return g
+
+    @property
+    def graph_undirected(self):
+        return self.graph.to_undirected()
+
+    @property
+    def root_type(self):
+        return 'Q35120'  # entity
+
+    def prune_graph(self, min_descendants):
+        g = self.graph
+        if min_descendants > 0:
+            print('before pruning', '#nodes', len(g.nodes), '#edges', len(g.edges))
+            for node_id, node_data in list(g.nodes(data=True)):
+                if node_data['n_descendants'] < min_descendants:
+                    g.remove_node(node_id)
+            print('after pruning', '#nodes', len(g.nodes), '#edges', len(g.edges))
+
+    @cache
+    def depth(self, entity_id):
+        root_depth = 1
+        try:
+            return nx.shortest_path_length(
+                self.graph,
+                source=self.root_type,
+                target=entity_id
+                ) + root_depth
+        except nx.NetworkXNoPath:
+            return max_depth
+
+    @cache
+    def path_to_root(self, entity_id):
+        return list(reversed(nx.shortest_path(
+            self.graph,
+            target=entity_id,
+            source=self.root_type,
+            weight='weight',
+            )))
+
+    @cache
+    def paths_to_root(self, entity_id, cutoff=5, pretty=True):
+        path_iters = nx.all_simple_paths(
+            self.graph, self.root_type, entity_id, cutoff=cutoff)
+        paths = [list(reversed(p)) for p in path_iters]
+        if not pretty:
+            return paths
+        to_labels = self.wikidata.entity_ids2labels
+        return list(map(' -> '.join, map(to_labels, paths)))
+
+    def shortest_path(self, source_id, target_id, directed=False):
+        g = self.graph if directed else self.graph_undirected
+        return nx.shortest_path(g, source=source_id, target=target_id)
+
+    def descendants(self, node_id):
+        return nx.descendants(self.graph, node_id)
+
+    def n_descendants(self, node_id):
+        node = self.graph.nodes[node_id]
+        try:
+            return node['n_descendants']
+        except KeyError:
+            node['n_descendants'] = len(self.descendants(node_id))
+            return node['n_descendants']
+
+    def sorted_nodes(self, nodes):
+        return sorted(map(self.to_pretty_node, nodes))
+
+    def children(self, node_id, return_n_descendants=True):
+        nodes = self.graph.successors(node_id)
+        return self.sorted_nodes(nodes)
+
+    def parents(self, node_id, return_n_descendants=True):
+        nodes = self.graph.predecessors(node_id)
+        return self.sorted_nodes(nodes)
+
+    def to_pretty_node(self, node_id):
+        node = self.graph.nodes[node_id]
+        return Node(
+            node_id,
+            label=node['label'],
+            n_descendants=self.n_descendants(node_id),
+            depth=self.depth(node_id),
+            )
+
+    def sample_descendants_of(
+            self,
+            node_id,
+            sample_size=100,
+            exclude_descendants_of=None,
+            instances_only=False,
+            ):
+        descendants = self.descendants(node_id)
+        if instances_only:
+            raise NotImplementedError()
+        if exclude_descendants_of:
+            descendants -= self.descendants(exclude_descendants_of)
+        return random.sample(descendants, sample_size)

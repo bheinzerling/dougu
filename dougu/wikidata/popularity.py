@@ -35,6 +35,6 @@ class WikidataPopularity(WikidataAttribute):
         return {
             'indegree': indegree,
             'outdegree': outdegree,
-            'sum_in_out': indegree + outdegree,
+            'degree': indegree + outdegree,
             }
 

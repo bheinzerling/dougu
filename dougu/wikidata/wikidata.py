@@ -15,6 +15,7 @@ from .label import WikidataLabel, WikidataAliases
 from .relations import WikidataRelations
 from .description import WikidataDescription
 from .popularity import WikidataPopularity
+from .subclass_of import SubclassOf
 from .db import DB
 
 
@@ -34,6 +35,7 @@ class Wikidata(Dataset, TrainOnly):
     def conf_fields(self):
         fields = [
             'wikidata_top_n',
+            'wikidata_fname_tpl',
             'wikidata_label_lang',
             ]
         return fields
@@ -81,9 +83,12 @@ class Wikidata(Dataset, TrainOnly):
     def entity_id2label(self):
         label_lang = self.conf.wikidata_label_lang
         return {
-            inst['id']: inst['label'].get(label_lang, inst['id'])
+            inst['id']: inst.get('label', {}).get(label_lang, inst['id'])
             for inst in self.raw['train']
             }
+
+    def entity_ids2labels(self, entity_ids):
+        return [self.entity_id2label.get(id, id) for id in entity_ids]
 
     def entity_idxs2labels(self, entity_idxs):
         entity_ids = self.entity_id_enc.inverse_transform(entity_idxs)
@@ -150,6 +155,10 @@ class Wikidata(Dataset, TrainOnly):
             )
         attrs['id'] = inst['id']
         return attrs
+
+    @cached_property
+    def subclass_of(self):
+        return SubclassOf(self.conf)
 
     @cached_property
     def db(self):
