@@ -82,9 +82,13 @@ class Wikidata(Dataset, TrainOnly):
     @file_cached_property
     def entity_id2label(self):
         label_lang = self.conf.wikidata_label_lang
+        if self.raw_data_loaded:
+            instances = self.raw['train']
+        else:
+            instances = self.raw_iter
         return {
             inst['id']: inst.get('label', {}).get(label_lang, inst['id'])
-            for inst in self.raw['train']
+            for inst in instances
             }
 
     def entity_ids2labels(self, entity_ids):
