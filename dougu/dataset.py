@@ -66,9 +66,15 @@ class Dataset(SubclassRegistry, Configurable, WithLog):
         fname = self.split_fname(split_name)
         return self.conf.data_dir / self.dir_name / fname
 
+    @property
+    def raw_data_loaded(self):
+        return getattr(self, '_raw_data_loaded', False)
+
     @cached_property
     def raw(self):
-        return self.load_raw_data()
+        raw_data = self.load_raw_data()
+        self._raw_data_loaded = True
+        return raw_data
 
     def load_raw_data(self):
         return {
