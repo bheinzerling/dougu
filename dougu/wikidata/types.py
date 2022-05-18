@@ -4,8 +4,10 @@ import random
 from functools import (
     cache,
     total_ordering,
+    wraps,
     )
 from itertools import islice
+from collections import deque
 
 import torch
 
@@ -245,8 +247,11 @@ class WikidataTypes(WikidataAttribute):
         paths = [list(reversed(p)) for p in path_iters]
         if not pretty:
             return paths
+        return list(map(self.to_pretty_path, paths))
+
+    def to_pretty_path(self, path):
         to_labels = self.wikidata.entity_ids2labels
-        return list(map(' -> '.join, map(to_labels, paths)))
+        return ' -> '.join(to_labels(path))
 
     def shortest_path(self, source_id, target_id, directed=False):
         g = self.graph if directed else self.graph_undirected
@@ -264,17 +269,32 @@ class WikidataTypes(WikidataAttribute):
             return node['n_descendants']
 
     def sorted_nodes(self, nodes):
-        return sorted(map(self.to_pretty_node, nodes))
+        nodes = map(self.to_pretty_node, nodes)
+        return sorted(nodes)
 
-    def children(self, node_id, return_n_descendants=True):
-        nodes = self.graph.successors(node_id)
-        return self.sorted_nodes(nodes)
+    def node_shim(method):
+        @wraps(method)
+        def wrapper(self, node, sort=True):
+            if isinstance(node, Node):
+                node = node.id
+            nodes = method(self, node)
+            if sort:
+                nodes = self.sorted_nodes(nodes)
+            return nodes
+        return wrapper
 
-    def parents(self, node_id, return_n_descendants=True):
-        nodes = self.graph.predecessors(node_id)
-        return self.sorted_nodes(nodes)
+    @node_shim
+    def children(self, node):
+        return self.graph.successors(node)
 
-    def to_pretty_node(self, node_id):
+    @node_shim
+    def parents(self, node):
+        return self.graph.predecessors(node)
+
+    def to_pretty_node(self, node):
+        if isinstance(node, Node):
+            return node
+        node_id = node
         node = self.graph.nodes[node_id]
         return Node(
             node_id,
@@ -289,10 +309,57 @@ class WikidataTypes(WikidataAttribute):
             sample_size=100,
             exclude_descendants_of=None,
             instances_only=False,
+            random_state=None,
             ):
         descendants = self.descendants(node_id)
         if instances_only:
             raise NotImplementedError()
         if exclude_descendants_of:
             descendants -= self.descendants(exclude_descendants_of)
-        return random.sample(descendants, sample_size)
+            descendants -= {exclude_descendants_of}
+        if random_state is not None:
+            rng = random_state
+        else:
+            rng = random
+        return rng.sample(descendants, sample_size)
+
+    def sample_contrastive_groups(
+            self,
+            group0_ancestor,
+            group1_ancestor=None,
+            sample_size=100,
+            random_state=None
+            ):
+        if group1_ancestor is None:
+            group1_ancestor = self.root_type
+        group0 = self.sample_descendants_of(
+            group0_ancestor,
+            sample_size=sample_size,
+            random_state=random_state,
+            )
+        group1 = self.sample_descendants_of(
+            group1_ancestor,
+            sample_size=sample_size,
+            exclude_descendants_of=group0_ancestor,
+            random_state=random_state,
+            )
+        # groups should be disjoint
+        assert not (set(group0) & set(group1))
+        return group0, group1
+
+    def traverse(self, start_node=None):
+        if start_node is None:
+            start_node = self.root_type
+        visited_nodes = set()
+        node = start_node
+        queue = deque([node])
+        while queue:
+            node = queue.popleft()
+            yield node
+            visited_nodes.add(node)
+            queue.extend(self.children(node))
+
+    @node_shim
+    def cohyponyms(self, node):
+        return set(c for p in self.parents(node) for c in self.children(p)) \
+            - {self.to_pretty_node(node)}
