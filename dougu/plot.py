@@ -757,6 +757,29 @@ markers = [
     ]
 
 
+def plot_graph(graph=None, edges=None, *, outfile=None, name=''):
+    """Create a plot of `graph` or the graph specified by `edges` and save it.
+
+    graph: a networkx graph
+    edges:
+        list of (source, target) tuples or list of
+        (source, edge_label, target) triples
+    outfile: file to which the plot will be saved in HTML format
+    """
+    assert graph is not None or edges is not None
+    if graph is None:
+        from .graph import graph_from_edges
+        graph = graph_from_edges(edges)
+    from pyvis import network as net
+    n = net.Network(height='100%', width='70%', directed=True)
+    n.from_nx(graph)
+    n.show_buttons(filter_=['physics'])
+    if outfile:
+        n.write_html(str(outfile))
+    else:
+        n.show(name)
+
+
 if __name__ == "__main__":
     plot_attention(
         "1 2 3 4".split(),
