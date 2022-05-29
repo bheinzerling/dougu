@@ -347,17 +347,36 @@ class WikidataTypes(WikidataAttribute):
         assert not (set(group0) & set(group1))
         return group0, group1
 
-    def traverse(self, start_node=None):
+    def traverse(self, start_node=None, sort=False):
         if start_node is None:
             start_node = self.root_type
-        visited_nodes = set()
-        node = start_node
+        if sort:
+            node = self.to_pretty_node(start_node)
+        else:
+            node = start_node
         queue = deque([node])
+        added_nodes = set([node])
         while queue:
             node = queue.popleft()
             yield node
-            visited_nodes.add(node)
-            queue.extend(self.children(node))
+            to_add = [c for c in self.children(node, sort=sort) if c not in added_nodes]
+            queue.extend(to_add)
+            added_nodes.update(to_add)
+
+    def sample_all_countrastive_groups(
+            self, sample_size=100, random_state=None):
+        breakpoint()
+        contrast_node = self.root_type
+        from itertools import islice
+        for node in islice(self.traverse(), 20):
+            if node.id == contrast_node:
+                continue
+            groups = self.sample_contrastive_groups(
+                group0_ancestor=node.id,
+                group1_ancestor=contrast_node,
+                sample_size=sample_size,
+                random_state=random_state,
+                )
 
     @node_shim
     def cohyponyms(self, node):
