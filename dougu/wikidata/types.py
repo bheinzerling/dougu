@@ -321,6 +321,8 @@ class WikidataTypes(WikidataAttribute):
             rng = random_state
         else:
             rng = random
+        # descendants or unordered, need to sort so that sample is reproducible
+        descendants = sorted(descendants)
         return rng.sample(descendants, sample_size)
 
     def sample_contrastive_groups(
