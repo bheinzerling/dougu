@@ -5,6 +5,7 @@ if os.environ.get('DISPLAY') is None:  # NOQA
     mpl.use('Agg')  # NOQA
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
 import itertools
 import numpy as np
@@ -97,14 +98,17 @@ def plot_attention(
     # Set up figure with colorbar
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    cax = ax.matshow(attentions, cmap='bone')
-    fig.colorbar(cax)
+    im = ax.matshow(attentions, cmap='viridis')
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(im, cax=cax)
 
     # Set up axes
     ax.tick_params(axis='both', which='major', labelsize=10)
     ax.tick_params(axis='both', which='minor', labelsize=8)
     ax.set_xticklabels([''] + output_labels, rotation=90)
-    ax.set_yticklabels([''] + input_labels)
+    ax.set_yticklabels([''] + input_labels, rotation=45)
+    ax.xaxis.set_ticks_position('bottom')
 
     # Show label at every tick
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
@@ -116,6 +120,8 @@ def plot_attention(
             f"got {len(out_colors)} colors for {len(output_labels)} labels"
         for xtick, color in zip(ax.get_xticklabels(), out_colors):
             xtick.set_color(color)
+
+    plt.tight_layout()
 
     if filepath:
         plt.savefig(filepath)
