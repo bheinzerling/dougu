@@ -17,6 +17,10 @@ class WithTransformerEncoder(Configurable):
         ]
     _max_seq_len = None
 
+    def __init__(self, *args, transformer=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._transformer = None
+
     @property
     def conf_fields(self):
         return super().conf_fields + [
@@ -34,6 +38,8 @@ class WithTransformerEncoder(Configurable):
 
     @cached_property
     def trf(self):
+        if self._transformer is not None:
+            return self._transformer
         from transformers import AutoModel
         return AutoModel.from_pretrained(
             self.conf.transformer,
@@ -123,7 +129,16 @@ class WithTransformerEncoder(Configurable):
                         pass
             chunk_tensors.update(dict(trf_out))
             if output_fp16:
-                chunk_tensors = {k: v.half() for k, v in chunk_tensors.items()}
+                def to_half(obj):
+                    try:
+                        if torch.is_floating_point(obj):
+                            return obj.half()
+                    except TypeError:
+                        pass
+                    return obj
+
+                chunk_tensors = {
+                    k: to_half(v) for k, v in chunk_tensors.items()}
 
             for k, v in chunk_tensors.items():
                 if isinstance(v, torch.Tensor):
@@ -139,6 +154,8 @@ class WithTransformerEncoder(Configurable):
 class WithTransformerLM(WithTransformerEncoder):
     @cached_property
     def trf(self):
+        if self._transformer is not None:
+            return self._transformer
         from transformers import (
             AutoModelWithLMHead,
             AutoModelForMaskedLM,
