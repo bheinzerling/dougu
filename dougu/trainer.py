@@ -64,7 +64,6 @@ class TrainerBase(Configurable, WithLog):
         ('--checkpoint-metric-name', dict(type=str, default='dev_acc')),
         ('--checkpoint-metric-optimum', dict(type=str, default='max')),
         ('--no-fp16', dict(action='store_true')),
-        ('--exp-name', dict(type=str, default='dev')),
         ('--outdir', dict(type=Path, default='out')),
         ('--gradient-accumulation-steps', dict(type=int, default=1)),
         ('--max-grad-norm', dict(type=float, default=1.0)),

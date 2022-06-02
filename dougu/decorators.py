@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from .misc import conf_hash, get_logger
@@ -98,9 +99,12 @@ class _file_cached_property(_cached_property):
         self.func_name = func.__name__
         self.fname_tpl = fname_tpl
         self.reload_on_exception = reload_on_exception
+        self.enabled = bool(int(os.environ.get('FILE_CACHE', '1')))
         self.log = get_logger().info
 
     def __get__(self, obj, type=None):
+        if not self.enabled:
+            return self.func(obj)
         if obj is None:
             return self
         value = obj.__dict__.get(self.__name__, _missing)

@@ -12,12 +12,17 @@ class WithTokenizer():
     @cached_property
     def tokenizer(self):
         tok = AutoTokenizer.from_pretrained(
-            self.conf.transformer,
+            self.tokenizer_model_name,
             add_prefix_space=True,
             )
         return tok
 
-    def encode_texts(self, texts, add_special_tokens=True, char_to_token=False):
+    @cached_property
+    def tokenizer_model_name(self):
+        return self.conf.transformer
+
+    def encode_texts(
+            self, texts, add_special_tokens=True, char_to_token=False):
         from collections import defaultdict
         import torch
         from boltons.iterutils import chunked
@@ -87,3 +92,10 @@ class WithTokenizer():
                 tensors[k].append(v)
 
         return {k: torch.cat(v) for k, v in tensors.items()}
+
+    def decode_ids(self, ids):
+        return self.tokenizer.decode(ids)
+
+    @property
+    def vocab_size(self):
+        return self.tokenizer.vocab_size

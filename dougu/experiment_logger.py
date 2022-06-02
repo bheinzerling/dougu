@@ -15,6 +15,7 @@ class ExperimentLogger(Configurable, WithLog):
     args = [
         ('--backend-store-uri', dict(type=str, default='sqlite:///mlflow.db')),
         ('--mlflow-runid', dict(type=str)),
+        ('--exp-name', dict(type=str, default='dev')),
         ]
 
     def __init__(self, conf, exp_params):
@@ -82,11 +83,15 @@ class ExperimentLogger(Configurable, WithLog):
         mlflow.end_run()
         self.log(f'Ended run: {self.conf.mlflow_runid}')
 
-    def query_results(self):
+    @property
+    def results(self):
         if not self.exp:
             return None
         params = dict(self.exp_params)
-        params.pop('jobid')
+        try:
+            params.pop('jobid')
+        except KeyError:
+            pass
         query = ' and '.join(f'param.{k} = "{v}"' for k, v in params.items())
         self.log(query)
         return mlflow.search_runs(self.exp.experiment_id, query)

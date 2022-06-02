@@ -133,26 +133,26 @@ def deserialize_protobuf_instances(cls, protobuf_file, max_bytes=None):
         yield c
 
 
-def maybe_to_str(v):
-    try:
-        json.dumps(v)
-    except TypeError:
-        return str(v)
-    return v
+def args_to_serializable(args):
+    def maybe_to_str(v):
+        try:
+            json.dumps(v)
+        except TypeError:
+            return str(v)
+        return v
+    return {k: maybe_to_str(v) for k, v in args.__dict__.items()}
 
 
 def args_to_json(args):
     """Same as json.dumps, but more lenient by converting non-serializable
     objects like PosixPaths to strings."""
-    return json.dumps({k: maybe_to_str(v) for k, v in args.__dict__.items()})
+    return json.dumps(args_to_serializable(args))
 
 
 def dump_args(args, file):
     """Write argparse args to file."""
     with to_path(file).open("w", encoding="utf8") as out:
-        json.dump({
-            k: maybe_to_str(v)
-            for k, v in args.__dict__.items()}, out, indent=4)
+        json.dump(args_to_serializable(args), out, indent=4)
 
 
 def mkdir(dir, parents=True, exist_ok=True):

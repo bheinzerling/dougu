@@ -645,10 +645,16 @@ class Figure():
     late_calls = ["xscale", "xlim", "yscale", "ylim"]  # order is important
 
     def __init__(
-            self, name,
-            figwidth=6, figheight=None, fontsize=12,
-            invert_xaxis=False, invert_yaxis=False,
-            **kwargs):
+            self,
+            name,
+            figwidth=6,
+            figheight=None,
+            fontsize=12,
+            invert_xaxis=False,
+            invert_yaxis=False,
+            out_dir=None,
+            **kwargs,
+            ):
         self.fig = plt.figure()
         self.fig.set_figwidth(figwidth)
         phi = 1.6180
@@ -666,6 +672,7 @@ class Figure():
         self.plt_calls = {**kwargs}
         self.invert_xaxis = invert_xaxis
         self.invert_yaxis = invert_yaxis
+        self._out_dir = out_dir
         for attr, val in self.default_plt_calls.items():
             if attr not in self.plt_calls:
                 self.plt_calls[attr] = val
@@ -692,7 +699,7 @@ class Figure():
             plt.gca().invert_yaxis()
         plt.tight_layout()
         for file_type in self.file_types:
-            outfile = self.fig_dir / f"{self.name}.{file_type}"
+            outfile = self.out_dir / f"{self.name}.{file_type}"
             plt.savefig(outfile)
         plt.clf()
 
@@ -705,6 +712,10 @@ class Figure():
     @classmethod
     def reset_defaults(cls):
         cls.default_plt_calls = {}
+
+    @property
+    def out_dir(self):
+        return self._out_dir or self.fig_dir
 
 
 linestyles = [
@@ -761,6 +772,29 @@ markers = [
     "|",   # vline
     "_",   # hline
     ]
+
+
+def plot_graph(graph=None, edges=None, *, outfile=None, name=''):
+    """Create a plot of `graph` or the graph specified by `edges` and save it.
+
+    graph: a networkx graph
+    edges:
+        list of (source, target) tuples or list of
+        (source, edge_label, target) triples
+    outfile: file to which the plot will be saved in HTML format
+    """
+    assert graph is not None or edges is not None
+    if graph is None:
+        from .graph import graph_from_edges
+        graph = graph_from_edges(edges)
+    from pyvis import network as net
+    n = net.Network(height='100%', width='70%', directed=True)
+    n.from_nx(graph)
+    n.show_buttons(filter_=['physics'])
+    if outfile:
+        n.write_html(str(outfile))
+    else:
+        n.show(name)
 
 
 if __name__ == "__main__":

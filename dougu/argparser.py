@@ -1,21 +1,53 @@
+import random
 from argparse import ArgumentParser
+
+from . import (
+    conf_hash,
+    add_jobid,
+    )
 
 
 class Configurable():
     classes = set()
+    args = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         Configurable.classes.add(cls)
 
-    def __init__(self, conf, *args, **kwargs):
+    def __init__(self, conf=None, *args, **kwargs):
         super().__init__()
+        if conf is None:
+            conf = self.get_conf()
+            for k, v in kwargs.items():
+                if k in conf.__dict__:
+                    conf.__dict__[k] = v
         self.conf = conf
 
     def arg_keys(self):
         return [
             arg[0][2:].replace('-', '_') for arg in getattr(self, 'args', [])
             ]
+
+    @property
+    def conf_fields(self):
+        return []
+
+    @property
+    def conf_str(self):
+        return conf_hash(self.conf, self.conf_fields)
+
+    def conf_str_for_fields(self, fields):
+        return '.'.join([
+            field + str(getattr(self.conf, field))
+            for field in fields])
+
+    @staticmethod
+    def get_conf(desc='TODO'):
+        a = AutoArgParser(description=desc)
+        args = a.parse_args()
+        add_jobid(args)
+        return args
 
 
 class AutoArgParser(ArgumentParser):
@@ -36,3 +68,48 @@ class AutoArgParser(ArgumentParser):
                         continue
                 self.add_argument(name, **kwargs)
                 added_names[name] = (cls, kwargs)
+
+
+class EntryPoint(Configurable):
+    def __init__(self):
+        super().__init__()
+        getattr(self, self.conf.command)()
+
+
+class WithRandomSeed(Configurable):
+    args = Configurable.args + [
+        ('--random-seed', dict(type=int, default=2)),
+        ]
+
+    def __init__(self, conf, *args, random_seed=None, **kwargs):
+        super().__init__(conf, *args, **kwargs)
+        if random_seed is None:
+            random_seed = self.conf.random_seed
+        self.random_seed = random_seed
+        self.set_random_seed(random_seed)
+
+    def set_random_seed(self, seed):
+        import numpy as np
+        import torch
+
+        self.random_seed = seed
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+
+class WithRandomState(Configurable):
+    args = Configurable.args + [
+        ('--random-seed', dict(type=int, default=2)),
+        ]
+
+    def __init__(self, conf, *args, random_seed=None, **kwargs):
+        super().__init__(conf, *args, **kwargs)
+        if random_seed is None:
+            random_seed = self.conf.random_seed
+        self.random_seed = random_seed
+
+    @property
+    def random_state(self):
+        return random.Random(self.random_seed)
