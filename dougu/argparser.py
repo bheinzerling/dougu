@@ -71,6 +71,10 @@ class AutoArgParser(ArgumentParser):
 
 
 class EntryPoint(Configurable):
+    args = Configurable.args + [
+        ('command', dict(type=str)),
+        ]
+
     def __init__(self):
         super().__init__()
         getattr(self, self.conf.command)()
@@ -80,6 +84,12 @@ class WithRandomSeed(Configurable):
     args = Configurable.args + [
         ('--random-seed', dict(type=int, default=2)),
         ]
+
+    @property
+    def conf_fields(self):
+        return super().conf_fields + [
+            'random_seed',
+            ]
 
     def __init__(self, conf, *args, random_seed=None, **kwargs):
         super().__init__(conf, *args, **kwargs)
@@ -99,16 +109,11 @@ class WithRandomSeed(Configurable):
         torch.cuda.manual_seed_all(seed)
 
 
-class WithRandomState(Configurable):
-    args = Configurable.args + [
-        ('--random-seed', dict(type=int, default=2)),
-        ]
+class WithRandomState(WithRandomSeed):
 
-    def __init__(self, conf, *args, random_seed=None, **kwargs):
-        super().__init__(conf, *args, **kwargs)
-        if random_seed is None:
-            random_seed = self.conf.random_seed
-        self.random_seed = random_seed
+    def set_random_seed(self, seed):
+        # do not set any global random seed
+        pass
 
     @property
     def random_state(self):
