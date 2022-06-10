@@ -52,9 +52,9 @@ class WithTransformerEncoder(Configurable):
     @property
     def bos_offset(self):
         # use ._bos_token instead of .bos_token to avoid warning
-        uses_bos = self.tokenizer._bos_token is None
-        uses_cls = self.tokenizer._cls_token is None
-        return int(uses_bos) + int(uses_cls)
+        uses_bos = self.tokenizer._bos_token is not None
+        uses_cls = self.tokenizer._cls_token is not None
+        return int(uses_bos or uses_cls)
 
     def encode_texts(
             self,
