@@ -52,7 +52,9 @@ class WithTransformerEncoder(Configurable):
     @property
     def bos_offset(self):
         # use ._bos_token instead of .bos_token to avoid warning
-        return 0 if self.tokenizer._bos_token is None else 1
+        uses_bos = self.tokenizer._bos_token is None
+        uses_cls = self.tokenizer._cls_token is None
+        return int(uses_bos) + int(uses_cls)
 
     def encode_texts(
             self,
@@ -181,7 +183,9 @@ class WithTransformerLM(WithTransformerEncoder):
     def prepare_model_inputs(self, tok_out):
         gen_inputs = self.trf.prepare_inputs_for_generation(**tok_out)
         if 'attention_mask' in gen_inputs:
-            assert (gen_inputs['attention_mask'] == tok_out.attention_mask).all()
+            seq_len = tok_out.attention_mask.size(1)
+            gen_attn_mask = gen_inputs['attention_mask'][:, :seq_len]
+            assert (gen_attn_mask == tok_out.attention_mask).all()
         for k, v in gen_inputs.items():
-            if v is not None:
+            if v is not None and k not in tok_out.data:
                 tok_out.data[k] = v
