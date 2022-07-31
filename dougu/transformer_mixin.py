@@ -166,7 +166,6 @@ class WithTransformerLM(WithTransformerEncoder):
             )
         exception = None
         for automodel_cls in [
-                AutoModelWithLMHead,
                 AutoModelForMaskedLM,
                 AutoModelForSeq2SeqLM,
                 AutoModelForCausalLM,
@@ -177,8 +176,7 @@ class WithTransformerLM(WithTransformerEncoder):
                     ).to(device=self.conf.trf_enc_device)
             except ValueError as e:
                 exception = e
-        else:
-            raise exception
+        raise exception
 
     def prepare_model_inputs(self, tok_out):
         gen_inputs = self.trf.prepare_inputs_for_generation(**tok_out)
