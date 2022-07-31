@@ -12,6 +12,7 @@ class WithTransformerEncoder(Configurable):
     args = [
         ('--max-seq-len', dict(type=int, default=64)),
         ('--trf-enc-batch-size', dict(type=int, default=32)),
+        ('--trf-enc-device', dict(type=str, default='cuda:0')),
         ('--transformer', dict(type=str, default='roberta-base')),
         ('--trf-include-dec-states', dict(action='store_true')),
         ('--trf-no-generate', dict(action='store_true')),
