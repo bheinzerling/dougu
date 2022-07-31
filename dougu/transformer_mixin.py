@@ -12,8 +12,9 @@ class WithTransformerEncoder(Configurable):
     args = [
         ('--max-seq-len', dict(type=int, default=64)),
         ('--trf-enc-batch-size', dict(type=int, default=32)),
-        ('--trf-enc-device', dict(type=str, default='cuda:0')),
         ('--transformer', dict(type=str, default='roberta-base')),
+        ('--trf-include-dec-states', dict(action='store_true')),
+        ('--trf-no-generate', dict(action='store_true')),
         ]
     _max_seq_len = None
 
@@ -33,7 +34,6 @@ class WithTransformerEncoder(Configurable):
         from transformers import AutoTokenizer
         return AutoTokenizer.from_pretrained(
             self.conf.transformer,
-            # add_prefix_space=True,
             )
 
     @cached_property
@@ -43,7 +43,9 @@ class WithTransformerEncoder(Configurable):
         from transformers import AutoModel
         return AutoModel.from_pretrained(
             self.conf.transformer,
-            ).to(device=self.conf.trf_enc_device)
+            device_map="auto",
+            torch_dtype="auto",
+            )
 
     @property
     def max_seq_len(self):
@@ -114,9 +116,25 @@ class WithTransformerEncoder(Configurable):
             with torch.no_grad():
                 self.trf.eval()
                 self.prepare_model_inputs(tok_out)
-                trf_out = self.trf(
+                if (
+                        not self.conf.trf_no_generate and
+                        hasattr(self.trf, 'generate')
+                    ):
+                    enc_fn = self.trf.generate
+                    add_kwargs = dict(
+                        return_dict_in_generate=True,
+                        max_length=self.conf.max_seq_len + 1,
+                        )
+                else:
+                    enc_fn = self.trf
+                    add_kwargs = dict()
+
+                # trf_out = trf.generate(**tok('Sendai is a', return_tensors='pt'), output_hidden_states=True, output_attentions=True, return_dict_in_generate=True)
+                # else:
+                trf_out = enc_fn(
                     **tok_out.to(self.conf.trf_enc_device),
                     output_hidden_states=output_hidden_states,
+                    **add_kwargs,
                     )
             if output_hidden_states:
                 keys = [
@@ -126,7 +144,15 @@ class WithTransformerEncoder(Configurable):
                     ]
                 for key in keys:
                     try:
-                        trf_out[key] = torch.stack(trf_out[key], dim=1)
+                        states = trf_out[key]
+                        # decoder_hidden_states is a length 1 tuple
+                        # containing a tuple of layer states
+                        if isinstance(states[0], tuple):
+                            assert len(states) == 1
+                            states = states[0]
+                        trf_out[key] = torch.stack(states, dim=1)
+                        if not self.conf.trf_include_dec_states:
+                            break
                     except KeyError:
                         pass
             chunk_tensors.update(dict(trf_out))
