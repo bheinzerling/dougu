@@ -42,11 +42,10 @@ class WithTransformerEncoder(Configurable):
         if self._transformer is not None:
             return self._transformer
         from transformers import AutoModel
-        return AutoModel.from_pretrained(
+        return self.to_gpu(AutoModel.from_pretrained(
             self.conf.transformer,
-            device_map="auto",
             torch_dtype="auto",
-            )
+            ))
 
     @property
     def max_seq_len(self):
@@ -120,7 +119,7 @@ class WithTransformerEncoder(Configurable):
                 if (
                         not self.conf.trf_no_generate and
                         hasattr(self.trf, 'generate')
-                    ):
+                        ):
                     enc_fn = self.trf.generate
                     add_kwargs = dict(
                         return_dict_in_generate=True,
@@ -151,6 +150,8 @@ class WithTransformerEncoder(Configurable):
                         if isinstance(states[0], tuple):
                             assert len(states) == 1
                             states = states[0]
+                        device = states[0].device
+                        states = [state.to(device=device) for state in states]
                         trf_out[key] = torch.stack(states, dim=1)
                         if not self.conf.trf_include_dec_states:
                             break
@@ -172,12 +173,31 @@ class WithTransformerEncoder(Configurable):
             for k, v in chunk_tensors.items():
                 if isinstance(v, torch.Tensor):
                     v = v.to(device=output_device)
+                    if output_device == 'cpu':
+                        if torch.is_floating_point(v):
+                            v = v.float()
                     tensors[k].append(v)
 
         return {k: torch.cat(v) for k, v in tensors.items()}
 
     def prepare_model_inputs(self, tok_out):
         pass
+
+    def to_gpu(self, model, device_map=None):
+        n_devices = torch.cuda.device_count()
+        if n_devices == 1:
+            model.to(device=self.conf.trf_enc_device)
+        else:
+            # model.to(device=self.conf.trf_enc_device)
+            if device_map is None:
+                import math
+                from boltons.iterutils import chunked
+                n_modules = len(model.encoder.block)
+                n_chunks = math.ceil(n_modules / (n_devices - 1))
+                device_map = dict(enumerate(
+                    chunked(range(n_modules), n_chunks), start=0))
+            model.parallelize(device_map)
+        return model
 
 
 class WithTransformerLM(WithTransformerEncoder):
@@ -186,7 +206,6 @@ class WithTransformerLM(WithTransformerEncoder):
         if self._transformer is not None:
             return self._transformer
         from transformers import (
-            AutoModelWithLMHead,
             AutoModelForMaskedLM,
             AutoModelForSeq2SeqLM,
             AutoModelForCausalLM,
@@ -198,9 +217,10 @@ class WithTransformerLM(WithTransformerEncoder):
                 AutoModelForCausalLM,
                 ]:
             try:
-                return automodel_cls.from_pretrained(
+                return self.to_gpu(automodel_cls.from_pretrained(
                     self.conf.transformer,
-                    ).to(device=self.conf.trf_enc_device)
+                    torch_dtype="auto",
+                    ))
             except ValueError as e:
                 exception = e
         raise exception
