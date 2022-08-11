@@ -22,7 +22,8 @@ from .db import DB
 class Wikidata(Dataset, TrainOnly):
     args = [
         ('--wikidata-dir-name', dict(type=Path, default='wikidata')),
-        ('--wikidata-top-n', dict(type=int, default=10000)),
+        ('--wikidata-top-n', dict(type=int)),
+        ('--wikidata-fname', dict(type=str)),
         ('--wikidata-fname-tpl',
             dict(type=str, default='instances.kilt_top{top}.jsonl')),
         ('--wikidata-label-lang', dict(type=str, default='en')),
@@ -37,6 +38,7 @@ class Wikidata(Dataset, TrainOnly):
             'wikidata_top_n',
             'wikidata_fname_tpl',
             'wikidata_label_lang',
+            'wikidata_fname',
             ]
         return fields
 
@@ -45,8 +47,11 @@ class Wikidata(Dataset, TrainOnly):
         return self.conf.data_dir / self.conf.wikidata_dir_name
 
     def split_file(self, split_name):
-        fname = self.conf.wikidata_fname_tpl.format(
-            top=self.conf.wikidata_top_n)
+        if self.conf.wikidata_fname:
+            fname = self.conf.wikidata_fname
+        else:
+            fname = self.conf.wikidata_fname_tpl.format(
+                top=self.conf.wikidata_top_n)
         return self.conf.data_dir / self.conf.wikidata_dir_name / fname
 
     def load_raw_split(self, split_name):
