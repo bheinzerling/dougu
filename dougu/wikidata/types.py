@@ -310,6 +310,7 @@ class WikidataTypes(WikidataAttribute):
             exclude_descendants_of=None,
             instances_only=False,
             random_state=None,
+            exclude_nodes=None,
             ):
         descendants = self.descendants(node_id)
         if instances_only:
@@ -317,6 +318,8 @@ class WikidataTypes(WikidataAttribute):
         if exclude_descendants_of:
             descendants -= self.descendants(exclude_descendants_of)
             descendants -= {exclude_descendants_of}
+        if exclude_nodes is not None:
+            descendants -= exclude_nodes
         if random_state is not None:
             rng = random_state
         else:
@@ -330,7 +333,8 @@ class WikidataTypes(WikidataAttribute):
             group0_ancestor,
             group1_ancestor=None,
             sample_size=100,
-            random_state=None
+            random_state=None,
+            exclude_nodes=None,
             ):
         if group1_ancestor is None:
             group1_ancestor = self.root_type
@@ -338,12 +342,14 @@ class WikidataTypes(WikidataAttribute):
             group0_ancestor,
             sample_size=sample_size,
             random_state=random_state,
+            exclude_nodes=exclude_nodes,
             )
         group1 = self.sample_descendants_of(
             group1_ancestor,
             sample_size=sample_size,
             exclude_descendants_of=group0_ancestor,
             random_state=random_state,
+            exclude_nodes=exclude_nodes,
             )
         # groups should be disjoint
         assert not (set(group0) & set(group1))
