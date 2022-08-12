@@ -12,10 +12,7 @@ class WikidataAttribute(Configurable, SubclassRegistry, WithLog):
 
     @property
     def conf_fields(self):
-        fields = [
-            'wikidata_top_n',
-            ]
-        return fields
+        return self.wikidata.conf_fields
 
     @property
     def entity_ids(self):
