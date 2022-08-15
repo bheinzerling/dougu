@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from . import (
     conf_hash,
     add_jobid,
-    )
+)
 
 
 class Configurable():
@@ -27,7 +27,7 @@ class Configurable():
     def arg_keys(self):
         return [
             arg[0][2:].replace('-', '_') for arg in getattr(self, 'args', [])
-            ]
+        ]
 
     @property
     def conf_fields(self):
@@ -72,8 +72,8 @@ class AutoArgParser(ArgumentParser):
 
 class EntryPoint(Configurable):
     args = Configurable.args + [
-        ('command', dict(type=str)),
-        ]
+        ('command', dict(type=str, nargs='?')),
+    ]
 
     def __init__(self):
         super().__init__()
@@ -83,13 +83,13 @@ class EntryPoint(Configurable):
 class WithRandomSeed(Configurable):
     args = Configurable.args + [
         ('--random-seed', dict(type=int, default=2)),
-        ]
+    ]
 
     @property
     def conf_fields(self):
         return super().conf_fields + [
             'random_seed',
-            ]
+        ]
 
     def __init__(self, conf, *args, random_seed=None, **kwargs):
         super().__init__(conf, *args, **kwargs)
