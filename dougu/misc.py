@@ -482,3 +482,13 @@ def repr_hash(obj):
     """Return a hash value of obj based on its repr()"""
     import hashlib
     return hashlib.md5(bytes(repr(obj), encoding='utf8')).hexdigest()
+
+
+def load_kge_model(model_file_path):
+    """Load a knowledge graph embedding checkpoint in LibKGE format
+    (https://github.com/uma-pi1/kge)
+    """
+    from kge.model import KgeModel
+    from kge.util.io import load_checkpoint
+    checkpoint = load_checkpoint(str(model_file_path))
+    return KgeModel.create_from(checkpoint)
