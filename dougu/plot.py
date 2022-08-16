@@ -797,6 +797,23 @@ def plot_graph(graph=None, edges=None, *, outfile=None, name=''):
         n.show(name)
 
 
+def get_cluster_colors(vectors, min_cluster_size=200):
+    """Clusters vectors and returns RGB colors for coloring each vector
+    according to its cluster.
+    Adapted from https://hdbscan.readthedocs.io/en/latest/how_hdbscan_works.html#extract-the-clusters
+    """
+    import hdbscan
+    import seaborn as sns
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size).fit(vectors)
+    palette = sns.color_palette(n_colors=max(clusterer.labels_) + 1)
+    cluster_colors = [
+        sns.desaturate(palette[col], sat) if col >= 0 else (0.5, 0.5, 0.5)
+        for col, sat in zip(clusterer.labels_, clusterer.probabilities_)
+        ]
+    # convert from [0, 1] floats to 8-bit RGB values
+    return (np.array(cluster_colors) * 256).astype(int)
+
+
 if __name__ == "__main__":
     plot_attention(
         "1 2 3 4".split(),
