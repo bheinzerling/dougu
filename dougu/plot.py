@@ -260,8 +260,13 @@ def simple_imshow(
 
 
 def embed_2d(
-        emb, emb_method="UMAP", umap_n_neighbors=15, umap_min_dist=0.1,
-        return_proj=False):
+        emb,
+        emb_method="UMAP",
+        umap_n_neighbors=15,
+        umap_min_dist=0.1,
+        return_proj=False,
+        random_state=None,
+        ):
     if hasattr(emb_method, 'fit_transform'):
         proj = emb_method
     elif emb_method.lower() == "umap":
@@ -275,7 +280,8 @@ def embed_2d(
         proj = UMAP(
             init="random",
             n_neighbors=umap_n_neighbors,
-            min_dist=umap_min_dist)
+            min_dist=umap_min_dist,
+            random_state=random_state)
     else:
         import sklearn.manifold
         proj = getattr(sklearn.manifold, emb_method)()
@@ -797,14 +803,14 @@ def plot_graph(graph=None, edges=None, *, outfile=None, name=''):
         n.show(name)
 
 
-def get_cluster_colors(vectors, min_cluster_size=200):
+def get_cluster_colors(vectors, **clusterer_kwargs):
     """Clusters vectors and returns RGB colors for coloring each vector
     according to its cluster.
     Adapted from https://hdbscan.readthedocs.io/en/latest/how_hdbscan_works.html#extract-the-clusters
     """
     import hdbscan
     import seaborn as sns
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size).fit(vectors)
+    clusterer = hdbscan.HDBSCAN(**clusterer_kwargs).fit(vectors)
     palette = sns.color_palette(n_colors=max(clusterer.labels_) + 1)
     cluster_colors = [
         sns.desaturate(palette[col], sat) if col >= 0 else (0.5, 0.5, 0.5)
