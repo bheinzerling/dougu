@@ -68,11 +68,11 @@ class Wikidata(Dataset, TrainOnly):
         return [inst['id'] for inst in self.raw['train']]
 
     @cached_property
-    def enttiy_id2entity(self):
+    def entity_id2entity(self):
         return {inst['id']: inst for inst in self.raw['train']}
 
     def __getitem__(self, entity_id):
-        return self.enttiy_id2entity[entity_id]
+        return self.entity_id2entity[entity_id]
 
     @cached_property
     def n_entities(self):
