@@ -156,6 +156,12 @@ class WikidataTypes(WikidataAttribute):
         d = dict_load(f, splitter='\t')
         return {k: v for k, v in d.items() if k in self.allowed_types}
 
+    def type_idxs2labels(self, type_idxs):
+        type_ids = self.type_enc.inverse_transform(type_idxs)
+        if isinstance(type_ids, str):
+            return self.type_id2label[type_ids]
+        return list(map(self.type_id2label.__getitem__, type_ids))
+
     def search(self, query, counts=False):
         import re
         pattern = re.compile(query)
