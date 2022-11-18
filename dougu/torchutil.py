@@ -9,8 +9,13 @@ import numpy as np
 import torch
 from torch import nn, optim, tensor, arange
 from torch.utils.data import (
-    Subset, Dataset, random_split, DataLoader, RandomSampler, BatchSampler,
-    TensorDataset)
+    Subset,
+    Dataset,
+    random_split,
+    DataLoader,
+    RandomSampler,
+    BatchSampler,
+    )
 
 from .iters import flatten, split_lengths_for_ratios, split_by_ratios
 
@@ -720,6 +725,7 @@ class TransposedTensorDataset(Dataset):
 
 class Loaders():
     split_names = ['train', 'dev', 'test']
+    use_batch_sampler = False
 
     def loaders(
             self,
@@ -797,6 +803,8 @@ class Splits(Loaders):
         self.split_max_lengths = split_max_lengths
         if splits is None:
             splits = self._split(dataset)
+            if isinstance(dataset, TensorDictDataset):
+                splits = [TensorDictDataset(**split) for split in splits]
         for name, split in zip(split_names, splits):
             setattr(self, name, split)
 
@@ -817,14 +825,17 @@ class Splits(Loaders):
 
 
 class RandomSplits(Splits):
+    def __init__(self, *args, generator=None, **kwargs):
+        self.generator = generator
+        super().__init__(*args, **kwargs)
+
     def _split(self, instances):
-        if sum(self.split_lengths) < len(instances):
-            rnd_idxs = iter(torch.randperm(len(instances)))
-            splits = [
-                [instances[next(rnd_idxs)] for _ in range(split_length)]
-                for split_length in self.split_lengths]
-        else:
-            splits = random_split(instances, self.split_lengths)
+        rnd_idxs = torch.randperm(len(instances), generator=self.generator)
+        total_length = sum(self.split_lengths)
+        if total_length < len(instances):
+            rnd_idxs = rnd_idxs[:total_length]
+        self.split_idxss = rnd_idxs.split(self.split_lengths)
+        splits = [instances[split_idxs] for split_idxs in self.split_idxss]
         return self._apply_max_lengths(splits)
 
 
@@ -877,7 +888,10 @@ class TensorDictDataset():
     """Like Pytorch's TensorDict, but instead of storing multiple tensors
     in a tuple, stores tensors in a dict."""
     def __init__(self, **tensors):
-        assert all(tensors[0].size(0) == t.size(0) for t in tensors.values())
+        assert all(
+            next(iter(tensors.values())).size(0) == t.size(0)
+            for t in tensors.values()
+            )
         self.tensors = tensors
 
     def __getitem__(self, index):
@@ -915,13 +929,17 @@ class MarginRankingLoss(nn.Module):
 
 
 def freeze(model):
-    """freeze model, i.e., set requires_grad = False for all model parameters"""
+    """freeze model, i.e., set requires_grad = False for all model
+    parameters
+    """
     for p in model.parameters():
         p.requires_grad = False
 
 
 def unfreeze(model):
-    """unfreeze model, i.e., set requires_grad = True for all model parameters"""
+    """unfreeze model, i.e., set requires_grad = True for all model
+    parameters
+    """
     for p in model.parameters():
         p.requires_grad = True
 
@@ -933,3 +951,22 @@ def maybe_to_list(maybe_tensor):
         return maybe_tensor.tolist()
     except AttributeError:
         return maybe_tensor
+
+
+def pca(X, k):
+    """Dimensionality reduction via Principal component analysis / truncated SVD.
+    Follows the sklearn implementation:
+    https://github.com/scikit-learn/scikit-learn/blob/baf0ea25d6dd034403370fea552b21a6776bef18/sklearn/decomposition/_pca.py#L591
+    """
+    # center data
+    X -= X.mean(dim=-2, keepdim=True)
+    # singular value decomposition
+    U, S, Vt = torch.linalg.svd(X)
+    # truncate
+    # one way to dim-reduce is to project original input X onto
+    # the principal components
+    # components = Vt[..., :k, :]
+    # i.e., X @ components.transpose(-1, -2)
+    # but sklearn's approach is probably more efficient
+    # https://github.com/scikit-learn/scikit-learn/blob/baf0ea25d6dd034403370fea552b21a6776bef18/sklearn/decomposition/_pca.py#L434
+    return U[..., :k] * S.unsqueeze(-2)[..., :k]

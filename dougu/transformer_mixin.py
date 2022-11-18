@@ -16,36 +16,53 @@ class WithTransformerEncoder(Configurable):
         ('--transformer', dict(type=str, default='roberta-base')),
         ('--trf-include-dec-states', dict(action='store_true')),
         ('--trf-no-generate', dict(action='store_true')),
+        ('--trf-rand-init', dict(action='store_true')),
         ]
     _max_seq_len = None
 
     def __init__(self, *args, transformer=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._transformer = None
+        self._transformer = transformer
 
     @property
     def conf_fields(self):
         return super().conf_fields + [
             'max_seq_len',
             'transformer',
+            'trf_rand_init',
             ]
 
     @cached_property
     def tokenizer(self):
+        import os
         from transformers import AutoTokenizer
+        os.environ["TOKENIZERS_PARALLELISM"] = "true"
         return AutoTokenizer.from_pretrained(
             self.conf.transformer,
             )
+
+    @cached_property
+    def trf_config(self):
+        from transformers import AutoConfig
+        return AutoConfig.from_pretrained(self.conf.transformer)
 
     @cached_property
     def trf(self):
         if self._transformer is not None:
             return self._transformer
         from transformers import AutoModel
-        return self.to_gpu(AutoModel.from_pretrained(
-            self.conf.transformer,
-            torch_dtype="auto",
-            ))
+        if self.conf.trf_rand_init:
+            model = AutoModel.from_config(self.trf_config, torch_dtype='auto')
+        else:
+            model = AutoModel.from_pretrained(
+                self.conf.transformer,
+                torch_dtype='auto',
+                )
+        return self.to_gpu(model)
+
+    @property
+    def transformer(self):
+        return self.trf
 
     @property
     def max_seq_len(self):
@@ -64,6 +81,7 @@ class WithTransformerEncoder(Configurable):
             output_hidden_states=True,
             output_fp16=False,
             output_device='cpu',
+            hidden_states_layer=None,
             ):
         from tqdm import tqdm
         from boltons.iterutils import chunked
@@ -118,19 +136,18 @@ class WithTransformerEncoder(Configurable):
                 self.prepare_model_inputs(tok_out)
                 if (
                         not self.conf.trf_no_generate and
+                        hasattr(self.trf, 'decoder') and
                         hasattr(self.trf, 'generate')
                         ):
                     enc_fn = self.trf.generate
                     add_kwargs = dict(
                         return_dict_in_generate=True,
-                        max_length=self.conf.max_seq_len + 1,
+                        max_length=self.conf.max_seq_len,
                         )
                 else:
                     enc_fn = self.trf
                     add_kwargs = dict()
 
-                # trf_out = trf.generate(**tok('Sendai is a', return_tensors='pt'), output_hidden_states=True, output_attentions=True, return_dict_in_generate=True)
-                # else:
                 trf_out = enc_fn(
                     **tok_out.to(self.conf.trf_enc_device),
                     output_hidden_states=output_hidden_states,
@@ -152,11 +169,16 @@ class WithTransformerEncoder(Configurable):
                             states = states[0]
                         device = states[0].device
                         states = [state.to(device=device) for state in states]
-                        trf_out[key] = torch.stack(states, dim=1)
+                        states = torch.stack(states, dim=1)
+                        if hidden_states_layer is not None:
+                            idx = hidden_states_layer
+                            states = states[:, idx:idx + 1]
+                        trf_out[key] = states
                         if not self.conf.trf_include_dec_states:
                             break
                     except KeyError:
                         pass
+
             chunk_tensors.update(dict(trf_out))
             if output_fp16:
                 def to_half(obj):
@@ -179,6 +201,9 @@ class WithTransformerEncoder(Configurable):
                     tensors[k].append(v)
 
         return {k: torch.cat(v) for k, v in tensors.items()}
+
+    def decode_input_ids(self, input_ids):
+        return self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
 
     def prepare_model_inputs(self, tok_out):
         pass
@@ -209,6 +234,7 @@ class WithTransformerLM(WithTransformerEncoder):
             AutoModelForMaskedLM,
             AutoModelForSeq2SeqLM,
             AutoModelForCausalLM,
+            AutoConfig,
             )
         exception = None
         for automodel_cls in [
@@ -217,10 +243,16 @@ class WithTransformerLM(WithTransformerEncoder):
                 AutoModelForCausalLM,
                 ]:
             try:
-                return self.to_gpu(automodel_cls.from_pretrained(
-                    self.conf.transformer,
-                    torch_dtype="auto",
-                    ))
+                if self.conf.trf_rand_init:
+                    config = AutoConfig.from_pretrained(self.conf.transformer)
+                    model = automodel_cls.from_config(
+                        config,
+                        )
+                else:
+                    model = automodel_cls.from_pretrained(
+                        self.conf.transformer,
+                        )
+                return self.to_gpu(model)
             except ValueError as e:
                 exception = e
         raise exception

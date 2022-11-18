@@ -29,7 +29,7 @@ class _cached_property(property):
     """A decorator that converts a function into a lazy property.  The
     function wrapped is called the first time to retrieve the result
     and then that calculated result is used the next time you access
-    the value::
+    the value:
         class Foo(object):
             @cached_property
             def foo(self):
@@ -63,6 +63,9 @@ class _cached_property(property):
             value = self.func(obj)
             obj.__dict__[self.__name__] = value
         return value
+
+    def __delete__(self, obj):
+        del obj.__dict__[self.__name__]
 
 
 def cached_property(func=None, **kwargs):

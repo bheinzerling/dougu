@@ -5,6 +5,7 @@ from . import (
     conf_hash,
     add_jobid,
 )
+from .decorators import cached_property
 
 
 class Configurable():
@@ -75,8 +76,7 @@ class EntryPoint(Configurable):
         ('command', dict(type=str, nargs='?')),
     ]
 
-    def __init__(self):
-        super().__init__()
+    def run(self):
         getattr(self, self.conf.command)()
 
 
@@ -115,6 +115,18 @@ class WithRandomState(WithRandomSeed):
         # do not set any global random seed
         pass
 
-    @property
+    @cached_property
     def random_state(self):
         return random.Random(self.random_seed)
+
+    @cached_property
+    def numpy_random_state(self):
+        from numpy.random import RandomState
+        return RandomState(self.random_seed)
+
+    @cached_property
+    def pytorch_random_state(self):
+        import torch
+        rng = torch.Generator()
+        rng.manual_seed(self.random_seed)
+        return rng

@@ -1,27 +1,167 @@
 from pathlib import Path
 import time
+import json
 
 import mlflow
 
 from .log import WithLog
 from .argparser import Configurable
+from .misc import SubclassRegistry
+from .decorators import cached_property
+from .io import (
+    mkdir,
+    json_load,
+    jsonlines_load,
+    json_dump,
+    ensure_serializable,
+    )
+from .iters import flatten
 
 import logging
 logger = logging.getLogger('alembic.runtime.migration')
 logger.disabled = True
 
 
-class ExperimentLogger(Configurable, WithLog):
+class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
+    args = [
+        ('--exp-logger', dict(type=str, default='mlflowlogger')),
+        ('--exp-name', dict(type=str, default='dev')),
+        ('--exp-results-file', dict(type=Path, nargs='+')),
+        ('--exp-results-ignore-param', dict(type=str, nargs='+')),
+        ]
+
+    def __init__(self, conf, exp_params, outdir=Path('out')):
+        super().__init__(conf)
+        self.exp_params = exp_params
+        self.outdir = outdir
+        self.setup()
+
+    def setup(self):
+        raise NotImplementedError
+
+    def start_run(self):
+        self.log_params(self.exp_params)
+
+    def end_run(self):
+        pass
+
+    def log_params(self, params):
+        raise NotImplementedError
+
+    def log_artifacts(self, params):
+        raise NotImplementedError
+
+    def log_metrics(self, metrics, step=None):
+        raise NotImplementedError
+
+    @property
+    def results_dir(self):
+        return mkdir(self.outdir / 'results' / self.conf.exp_name)
+
+
+class FileLogger(ExperimentLogger):
+    def setup(self):
+        mkdir(self.log_dir)
+        self.log(f'log dir: {self.log_dir}')
+
+    @property
+    def log_dir_prefix(self):
+        return f'exp_{self.conf.exp_name}.log.'
+
+    @property
+    def log_dir_parent(self):
+        return self.conf.rundir.parent
+
+    @property
+    def log_dir(self):
+        dirname = f'{self.log_dir_prefix}runid_' + self.conf.runid
+        return self.log_dir_parent / dirname
+
+    def log_params(self, params):
+        params_file = self.log_dir / 'params.json'
+        if params_file.exists():
+            params = json_load(params_file) | params
+        json_dump(ensure_serializable(params), params_file)
+
+    def log_artifacts(self):
+        pass
+
+    def log_metrics(self, metrics, step=None):
+        for metric, score in metrics.items():
+            metric_file = self.log_dir / f'metric.{metric}.jsonl'
+            with metric_file.open('a') as out:
+                metric_dict = {'step': step, metric: score}
+                out.write(json.dumps(metric_dict) + '\n')
+
+        metrics_file = self.log_dir / 'metrics.jsonl'
+        metrics = metrics | {'step': step}
+        with metrics_file.open('a') as out:
+            out.write(json.dumps(metrics) + '\n')
+
+    @cached_property
+    def results(self):
+        import pandas as pd
+        from tqdm import tqdm
+        if self.conf.exp_results_file:
+            results = list(flatten(map(
+                jsonlines_load, self.conf.exp_results_file)))
+        else:
+            results = []
+            for f in (tqdm(self.results_dir.iterdir())):
+                try:
+                    result = json_load(f)
+                    results.append(result)
+                except:
+                    self.log(f'Exception while loading result from file\n{f}')
+
+        # convert lists to tuples since tuples behave nicer in pandas
+        results = [{
+            k: tuple(v) if isinstance(v, list) else v
+            for k, v in result.items()
+            }
+            for result in results
+            ]
+        return pd.DataFrame(results)
+
+    def remove_ignored_params(self, params):
+        ignored = set(self.conf.exp_results_ignore_param or [])
+        return {k: v for k, v in params.items() if k not in ignored}
+
+    def results_with_params(self, params):
+        import numpy as np
+        params = ensure_serializable(params)
+        params = self.remove_ignored_params(params)
+
+        def equal(column, value):
+            # https://github.com/pandas-dev/pandas/issues/20442
+            # pandas treats None values in object columns as np.nan,
+            # which is not equal to None
+            if value is None:
+                return column.isna()
+            return column == value
+
+        df = self.results
+        if df.empty:
+            return df
+        column_masks = [equal(df[k], v) for k, v in params.items()]
+        mask = np.logical_and.reduce(column_masks)
+        return df[mask]
+
+    def is_done(self, params, metrics=None):
+        import numpy as np
+        results = self.results_with_params(params)
+        if metrics is not None:
+            column_masks = [~results[metric].isna() for metric in metrics]
+            metrics_mask = np.logical_and.reduce(column_masks)
+            results = results[metrics_mask]
+        return not results.empty
+
+
+class MlflowLogger(ExperimentLogger):
     args = [
         ('--backend-store-uri', dict(type=str, default='sqlite:///mlflow.db')),
         ('--mlflow-runid', dict(type=str)),
-        ('--exp-name', dict(type=str, default='dev')),
         ]
-
-    def __init__(self, conf, exp_params):
-        super().__init__(conf)
-        self.exp_params = exp_params
-        self.setup()
 
     def setup(self):
         self.exp_name = self.conf.exp_name

@@ -1,4 +1,7 @@
-import json
+try:
+    import ujson as json
+except ImportError:
+    import json
 from pathlib import Path
 from typing import IO
 
@@ -133,14 +136,21 @@ def deserialize_protobuf_instances(cls, protobuf_file, max_bytes=None):
         yield c
 
 
-def args_to_serializable(args):
+def ensure_serializable(_dict):
+    """Converts non-serializable values in _dict to string.
+    Main use case is to handle Path objects, which are not JSON-serializable.
+    """
     def maybe_to_str(v):
         try:
             json.dumps(v)
         except TypeError:
             return str(v)
         return v
-    return {k: maybe_to_str(v) for k, v in args.__dict__.items()}
+    return {k: maybe_to_str(v) for k, v in _dict.items()}
+
+
+def args_to_serializable(args):
+    return ensure_serializable(args.__dict__)
 
 
 def args_to_json(args):

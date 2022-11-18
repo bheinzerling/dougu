@@ -215,3 +215,10 @@ def conditional_color(string, condition, true_color=green, false_color=red):
     """
     color = true_color if condition else false_color
     return f"{color}{string}{reset}"
+
+def conditional_colors(strings, conditions, true_color=green, false_color=red):
+    return [
+        conditional_color(
+            string, condition, true_color=true_color, false_color=false_color)
+        for string, condition in zip(strings, conditions)
+        ]

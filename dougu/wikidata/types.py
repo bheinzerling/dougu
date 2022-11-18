@@ -297,6 +297,20 @@ class WikidataTypes(WikidataAttribute):
     def parents(self, node):
         return self.graph.predecessors(node)
 
+    @node_shim
+    def ancestors(self, node):
+        from collections import deque
+        seen = set()
+        queue = deque([node])
+        while queue:
+            node = queue.pop()
+            parents = self.graph.predecessors(node)
+            for parent in parents:
+                if parent not in seen:
+                    seen.add(parent)
+                    queue.append(parent)
+        return seen
+
     def to_pretty_node(self, node):
         if isinstance(node, Node):
             return node

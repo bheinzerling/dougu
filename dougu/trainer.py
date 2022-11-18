@@ -14,13 +14,14 @@ from ignite.handlers import Checkpoint, DiskSaver
 
 
 from dougu import (
-    Configurable,
+    EntryPoint,
     WithLog,
     mkdir,
     next_rundir,
     dump_args,
     json_load,
     json_dump,
+    ensure_serializable,
     )
 from dougu.decorators import cached_property
 from dougu.torchutil import (
@@ -34,9 +35,8 @@ from dougu.torchutil import (
 from dougu.experiment_logger import ExperimentLogger
 
 
-class TrainerBase(Configurable, WithLog):
+class TrainerBase(EntryPoint, WithLog):
     args = [
-        ('command', dict(type=str)),
         ('--device', dict(type=str, default='cuda:0')),
         ('--random-seed', dict(type=int, default=2)),
         ('--runid', dict(type=str)),
@@ -73,13 +73,17 @@ class TrainerBase(Configurable, WithLog):
         ("--dist-init-method", dict(type=str, default="tcp://127.0.0.1:29505")),
         ('--local-rank', dict(type=int, default=0)),
         ('--no-autoscale-lr', dict(action='store_true')),
+        ('--no-setup', dict(action='store_true')),
+        ('--inference-only', dict(action='store_true')),
         ]
 
-    def __init__(self, conf):
-        super().__init__(conf)
-        self.setup()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setup_done = False
+        if not self.conf.no_setup:
+            self.setup()
 
-    def setup(self):
+    def setup(self, setup_data=True, add_event_handlers=True):
         self.device = self.conf.device
         set_random_seed(self.conf.random_seed)
         self.misc_init()
@@ -88,29 +92,49 @@ class TrainerBase(Configurable, WithLog):
             self.log(" ".join(sys.argv))
         self.setup_rundir()
 
+        if setup_data:
+            self.setup_data()
+        self.setup_model()
+        self.setup_optim()
+        if not self.inference_only:
+            self.setup_lr_scheduler()
+        self.distribute_model()
+        if self.is_dist_main():
+            self.setup_bookkeeping()
+            self.setup_exp_logger()
+            self.log_jobid()
+            if not self.inference_only:
+                self.setup_early_stopping()
+        if add_event_handlers:
+            self.add_event_handlers()
+        self.setup_done = True
+
+    def setup_exp_logger(self):
+        if self.requires_exp_log:
+            exp_logger_cls = ExperimentLogger.get(self.conf.exp_logger)
+            self.exp_logger = exp_logger_cls(
+                self.conf,
+                self.exp_params,
+                outdir=self.conf.outdir,
+                )
+
+    def setup_data(self):
         if not self.is_dist_main():
             dist.barrier(device_ids=[self.conf.local_rank])
         else:
             self.log('loading data')
             self.data = self.load_data()
-            self.data.log_size()
+            if hasattr(self.data, 'log_size'):
+                self.data.log_size()
             if self.conf.distributed:
                 dist.barrier(device_ids=[self.conf.local_rank])
         if not self.is_dist_main():
             self.log('loading data')
             self.data = self.load_data()
-        self.setup_model()
-        self.setup_optim()
-        if self.data.has_train_data():
-            self.setup_lr_scheduler()
-        self.distribute_model()
+
+    def add_event_handlers(self):
         if self.is_dist_main():
-            self.log_jobid()
-            if self.requires_exp_log:
-                self.exp_logger = ExperimentLogger(self.conf, self.exp_params)
-            self.setup_bookkeeping()
-            if self.data.has_train_data():
-                self.setup_early_stopping()
+            if not self.inference_only:
                 for event, handler in self.event_handlers_train:
                     self.train_engine.add_event_handler(event, handler)
             for event, handler in self.event_handlers_eval:
@@ -122,6 +146,13 @@ class TrainerBase(Configurable, WithLog):
                 self.train_engine, self.log)
             for event, handler in handlers:
                 self.train_engine.add_event_handler(event, handler)
+
+    @property
+    def inference_only(self):
+        return (
+            getattr(self.conf, 'inference_only', False) or
+            not getattr(self.data, 'has_train_data', True)
+            )
 
     @property
     def requires_exp_log(self):
@@ -360,6 +391,8 @@ class TrainerBase(Configurable, WithLog):
                 def run_test(_):
                     self.test_engine.run(self.data.test_loader)
                     self.log_results('test', self.test_engine.state.metrics)
+                    self.log_metrics(self.test_engine.state.metrics)
+                    self.save_results(engine=self.test_engine)
 
         return engine
 
@@ -368,8 +401,6 @@ class TrainerBase(Configurable, WithLog):
         engine = Engine(self.make_eval_step())
         for metric_name, metric in self.dev_metrics.items():
             metric.attach(engine, metric_name)
-        engine.inputs = []
-        engine.outputs = []
         return engine
 
     @cached_property
@@ -377,7 +408,15 @@ class TrainerBase(Configurable, WithLog):
         engine = Engine(self.make_eval_step())
         for metric_name, metric in self.test_metrics.items():
             metric.attach(engine, metric_name)
+        engine.inputs = []
+        engine.outputs = []
         return engine
+
+    def delete_engines(self):
+        return
+        del self.train_engine
+        del self.eval_engine
+        del self.test_engine
 
     def log_results(self, eval_name, metrics):
         metrics_str = ' | '.join(
@@ -475,7 +514,7 @@ class TrainerBase(Configurable, WithLog):
         return [
             (Events.STARTED, self.load_state),
             (Events.EPOCH_COMPLETED, self.save_state),
-            (Events.COMPLETED, self.save_results)]
+            ]
 
     @property
     def event_handlers_eval(self):
@@ -522,17 +561,24 @@ class TrainerBase(Configurable, WithLog):
         checkpoint_file = self.best_checkpoint or 'no_checkpoint'
         params = self.exp_logger.exp_params
         run_info = dict(
+            runid=self.conf.runid,
             checkpoint_file=str(checkpoint_file),
-            final_epoch=self.train_engine.state.epoch)
+            final_epoch=self.train_engine.state.epoch,
+            )
         self.exp_logger.log_params(run_info)
         self.exp_logger.log_artifacts()
         metrics = self.eval_engine.state.metrics
+        metrics |= self.test_engine.state.metrics
         self.results = dict(**params, **run_info, **metrics)
         print(self.results)
-        fname = (self.conf.runid or 'results') + '.json'
-        results_file = mkdir(self.conf.outdir / 'results') / fname
-        json_dump(self.results, results_file)
+        results_file = self.exp_logger.results_dir / self.results_fname
+        results = ensure_serializable(self.results)
+        json_dump(results, results_file)
         self.log(results_file)
+
+    @property
+    def results_fname(self):
+        return (self.conf.runid or 'results') + '.json'
 
     def save_stdout(self):
         jobid = getattr(self.conf, 'jobid', None)
@@ -573,7 +619,7 @@ class TrainerBase(Configurable, WithLog):
         self.eval_engine.run(self.data.test_loader)
         self.log_metrics(self.eval_engine.state.metrics)
         self.log_results('test', self.eval_engine.state.metrics)
-        self.save_results()
+        self.save_results(engine=self.eval_engine)
         self.end_run()
         if self.is_dist_main():
             return self.results

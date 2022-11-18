@@ -820,6 +820,40 @@ def get_cluster_colors(vectors, **clusterer_kwargs):
     return (np.array(cluster_colors) * 256).astype(int)
 
 
+def simple_plot(
+        *,
+        data,
+        x,
+        y,
+        group_col=None,
+        title=None,
+        xaxis_title=None,
+        yaxis_title=None,
+        group_title=None,
+        colorbar_col=None,
+        palette="viridis",
+        ):
+    with Figure(title):
+        import seaborn as sns
+        ax = sns.lineplot(
+            data=data,
+            x=x,
+            y=y,
+            hue=group_col,
+            style=group_col,
+            palette=palette,
+            )
+        if colorbar_col:
+            if colorbar_col == group_col:
+                ax.get_legend().remove()
+            norm = plt.Normalize(
+                data[colorbar_col].min(), data[colorbar_col].max())
+            cmap = sns.color_palette(palette, as_cmap=True)
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+            cbar = ax.figure.colorbar(sm)
+            cbar.set_label(colorbar_col)
+
+
 if __name__ == "__main__":
     plot_attention(
         "1 2 3 4".split(),
