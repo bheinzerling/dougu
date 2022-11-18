@@ -1,4 +1,5 @@
 from collections.abc import Sequence, Iterable
+from functools import reduce
 import six
 
 from .decorators import cached_property
@@ -200,6 +201,7 @@ def insert(_list, indexes_and_items):
     for idx, item in sorted(indexes_and_items, reverse=True):
         _list.insert(idx, item)
 
+
 def dict_argmax(d):
     """Returns the key with maximum associated value.
     """
@@ -207,8 +209,10 @@ def dict_argmax(d):
     max_value = float('-inf')
     for k, v in d.items():
         if v > max_value:
+            max_value = v
             max_key = k
     return max_key
+
 
 def transpose_dict(dict_of_lists):
     """'Transposes' a dictionary containing lists into a list of dictionaries.
@@ -224,3 +228,13 @@ def map_values(map_fn, dictionary):
     """Returns a dictionary whose values have been transformed by map_fn.
     """
     return {k: map_fn(v) for k, v in dictionary.items()}
+
+
+def all_equal(items):
+    """Returns True if all items are equal, else False.
+    Unlike the typical len(set(items)) == 1 check, this function
+    does not require that items are hashable.
+    """
+    sentinel = object()
+    reduced = reduce(lambda a, b: a if a == b else sentinel, items)
+    return reduced is not sentinel
