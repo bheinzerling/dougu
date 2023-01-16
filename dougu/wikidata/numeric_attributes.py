@@ -43,6 +43,14 @@ class WikidataNumericAttributes(WikidataAttribute):
             if k in self.allowed_attrs
             }
 
+    def attr_idx2attr_label(self, idx):
+        if not hasattr(idx, '__iter__'):
+            idx = [idx]
+        return list(map(
+            self.attr_id2attr_label.__getitem__,
+            self.pred_enc.inverse_transform(idx)
+            ))
+
     @cached_property
     def attr_label2attr_id(self):
         d = {v: k for k, v in self.attr_id2attr_label.items()}
@@ -226,6 +234,44 @@ class WikidataNumericAttributes(WikidataAttribute):
     @cached_property
     def tensor(self):
         return self.sparse_tensors_to_dense(self.sparse_tensors)
+
+    @cached_property
+    def counts(self):
+        return self.counts_with_most_freq_unit
+
+    @cached_property
+    def _counts_with_any_unit(self):
+        return (self.tensor['v'] != -1).sum(dim=0)
+
+    @cached_property
+    def counts_with_most_freq_unit(self):
+        import scipy.stats
+        # scipy.stats.mode can ignore nan
+        u = self.tensor['u'].float()
+        u[u == 0] = torch.nan
+        mode_out = scipy.stats.mode(u.numpy(), nan_policy='omit')
+        most_freq_units = mode_out.mode.data.astype(np.int)
+        most_freq_units = torch.tensor(most_freq_units)
+        most_freq_unit_mask = self.tensor['u'] == most_freq_units
+        assert most_freq_unit_mask.shape == self.tensor['u'].shape
+        value_mask = self.tensor['v'] != -1
+        counts = (value_mask & most_freq_unit_mask).sum(dim=0)
+        assert (counts <= self._counts_with_any_unit).all()
+        return counts
+
+    def min_count_idx(self, count):
+        return (self.counts >= count).int().nonzero()[:, 0]
+
+    def min_count(self, count):
+        idx = self.min_count_idx(count)
+        return self.attr_idx2attr_label(idx)
+
+    def encode_value(self, value, pred_id):
+        pred_idx = self.pred_enc.transform(pred_id)[0]
+        value = torch.tensor([value]).reshape(-1, 1)
+        value_enc = self.numval_encs[pred_idx].transform(value)[0]
+        assert 0 <= value_enc <= 1
+        return value_enc
 
     def decode(self, v, u, existing_mask=None, only_existing_values=True):
         assert len(v) == len(self.numval_encs)
