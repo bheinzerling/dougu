@@ -24,8 +24,10 @@ class Wikidata(Dataset, TrainOnly):
         ('--wikidata-dir-name', dict(type=Path, default='wikidata')),
         ('--wikidata-top-n', dict(type=int)),
         ('--wikidata-fname', dict(type=str)),
-        ('--wikidata-fname-tpl',
-            dict(type=str, default='instances.kilt_top{top}.jsonl')),
+        ('--wikidata-fname-tpl', dict(
+            type=str,
+            default='min_degree_{top}.en.en_labels_only.jsonl',
+            )),
         ('--wikidata-label-lang', dict(type=str, default='en')),
         ('--wikidata-property-label-file', dict(
             type=Path,
@@ -58,6 +60,10 @@ class Wikidata(Dataset, TrainOnly):
         split_file = self.split_file(split_name)
         return list(jsonlines_load(split_file))
 
+    @cached_property
+    def instances(self):
+        return self.raw['train']
+
     @property
     def raw_iter(self):
         split_file = self.split_file('train')
@@ -66,6 +72,11 @@ class Wikidata(Dataset, TrainOnly):
     @file_cached_property
     def entity_ids(self):
         return [inst['id'] for inst in self.raw['train']]
+
+    @cached_property
+    def entity_idxs(self):
+        import torch
+        return torch.arange(self.entity_id_enc.nlabels)
 
     @cached_property
     def entity_id2entity(self):

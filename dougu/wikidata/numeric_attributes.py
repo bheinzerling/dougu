@@ -87,6 +87,9 @@ class WikidataNumericAttributes(WikidataAttribute):
                 unit_id2label[unit] = unit
         return unit_id2label
 
+    def unit_ids2labels(self, unit_ids):
+        return list(map(self.unit_id2label.__getitem__, unit_ids))
+
     @cached_property
     def units(self):
         return set(self.unit_enc.labels)
@@ -99,6 +102,8 @@ class WikidataNumericAttributes(WikidataAttribute):
     def transform_time(wikidata_time):
         t = wikidata_time
         t = int(t[0] + t[1:].split("-")[0])
+        # a small number of  astronomical and geological events have
+        # very large absolute values. Clip these for numerical reasons
         return min(2100, max(-10000, t))
 
     def filter_quantities(self, numvals, units):
@@ -216,6 +221,7 @@ class WikidataNumericAttributes(WikidataAttribute):
     def sparse_tensors_to_dense(self, sparse_tensors):
         import scipy
         v_raw_csc = sparse_tensors['v_raw_csc']
+        v_raw = torch.tensor(v_raw_csc.toarray()).to(dtype=torch.float)
         u_csc = sparse_tensors['u_csc']
         v_cols = [
             self.numval_encs[col_idx].transform(v_raw_csc[:, col_idx])
@@ -229,7 +235,7 @@ class WikidataNumericAttributes(WikidataAttribute):
         v = torch.tensor(v_csc.toarray() - 1).to(dtype=torch.float)
         u = torch.tensor(u_csc.toarray()).long()
         entity_idx = torch.arange(len(v))
-        return {'v': v, 'u': u, 'entity_idx': entity_idx}
+        return {'v': v, 'u': u, 'entity_idx': entity_idx, 'v_raw': v_raw}
 
     @cached_property
     def tensor(self):
@@ -241,20 +247,28 @@ class WikidataNumericAttributes(WikidataAttribute):
 
     @cached_property
     def _counts_with_any_unit(self):
-        return (self.tensor['v'] != -1).sum(dim=0)
+        return (self.tensor['v'] != self.no_value_sentinel).sum(dim=0)
+
+    @property
+    def no_value_sentinel(self):
+        return -1
+
+    @property
+    def no_unit_sentinel(self):
+        return 0
 
     @cached_property
     def counts_with_most_freq_unit(self):
         import scipy.stats
         # scipy.stats.mode can ignore nan
         u = self.tensor['u'].float()
-        u[u == 0] = torch.nan
+        u[u == self.no_unit_sentinel] = torch.nan
         mode_out = scipy.stats.mode(u.numpy(), nan_policy='omit')
         most_freq_units = mode_out.mode.data.astype(np.int)
         most_freq_units = torch.tensor(most_freq_units)
         most_freq_unit_mask = self.tensor['u'] == most_freq_units
         assert most_freq_unit_mask.shape == self.tensor['u'].shape
-        value_mask = self.tensor['v'] != -1
+        value_mask = self.tensor['v'] != self.no_value_sentinel
         counts = (value_mask & most_freq_unit_mask).sum(dim=0)
         assert (counts <= self._counts_with_any_unit).all()
         return counts
@@ -284,7 +298,7 @@ class WikidataNumericAttributes(WikidataAttribute):
 
         if only_existing_values:
             if existing_mask is None:
-                existing_mask = v != -1
+                existing_mask = v != self.no_value_sentinel
             if not existing_mask.any():
                 return [], existing_mask
             attr_name, numvals, unit_ids = zip(*[
@@ -306,3 +320,79 @@ class WikidataNumericAttributes(WikidataAttribute):
             if re.search(pattern, label)
             ]
         return matches
+
+    def values(self, pred_id, raw=True):
+        pred_idx = self.pred_enc(pred_id)[0]
+        tensor_key = 'v' + '_raw' if raw else ''
+        return self.tensor[tensor_key][:, pred_idx]
+
+    def units_for_pred(self, pred_id):
+        pred_idx = self.pred_enc(pred_id)[0]
+        return self.tensor['u'][:, pred_idx]
+
+    def value_mask(self, pred_id, most_freq_unit_only=True):
+        pred_idx = self.pred_enc(pred_id)[0]
+        unit_mask = self.tensor['u'][:, pred_idx] != self.no_unit_sentinel
+        value_mask = self.tensor['v'][:, pred_idx] != self.no_value_sentinel
+        assert (unit_mask == value_mask).all()
+        if most_freq_unit_only:
+            unit_idxs = self.tensor['u'][unit_mask, pred_idx].tolist()
+            unit_idx = Counter(unit_idxs).most_common(1)[0][0]
+            value_mask = self.tensor['u'][:, pred_idx] == unit_idx
+        return value_mask
+
+    def for_pred(
+            self,
+            pred_id,
+            entity_id=None,
+            raw=True,
+            stats=None,
+            most_freq_unit_only=True,
+            ):
+        if entity_id is None:
+            mask = self.value_mask(
+                pred_id, most_freq_unit_only=most_freq_unit_only)
+            entity_idx = self.wikidata.entity_idxs[mask]
+            entity_id = self.wikidata.entity_id_enc.inverse_transform(entity_idx)
+        else:
+            entity_idx = self.wikidata.entity_id_enc.transform(entity_id)
+            mask = torch.zeros_like(self.wikidata.entity_idxs)
+            mask.scatter_(0, entity_idx, 1)
+        entity_label = self.wikidata.entity_ids2labels(entity_id)
+        value = self.values(pred_id, raw=raw)[mask]
+        unit_idx = self.units_for_pred(pred_id)[mask]
+        unit_id = self.unit_enc.inverse_transform(unit_idx)
+        unit_label = self.unit_ids2labels(unit_id)
+        data = dict(
+            entity_idx=entity_idx,
+            entity_id=entity_id,
+            entity_label=entity_label,
+            value=value,
+            unit_idx=unit_idx,
+            unit_id=unit_id,
+            unit_label=unit_label,
+            )
+        import pandas as pd
+        df = pd.DataFrame(data)
+        if stats is None:
+            stats = {
+                'value_mean': df.value.mean(),
+                'value_mode': df.value.mode().mean(),  # mode can return multiple values
+                'value_std': df.value.std(),
+                }
+        for k, v in stats.items():
+            df[k] = v
+        df['value_z_score'] = (df.value - df.value_mean) / df.value_std
+        df['value_sort_idx'] = np.argsort(df.value)
+        df['value_z_score_sort_idx'] = np.argsort(df.value_z_score)
+        return df
+
+    def plot_values(self, pred_id, title=None):
+        df = self.for_pred(pred_id)
+        from dougu.plot import plot_distribution
+        if title is None:
+            title = f'value_distribution.{pred_id}'
+        for col in ('value', 'value_z_score'):
+            _title = title + f'.{col}'
+            plot_distribution(
+                data=df, x=col, title=_title)
