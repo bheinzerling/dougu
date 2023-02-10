@@ -1,4 +1,3 @@
-from pathlib import Path
 import os
 import matplotlib as mpl
 if os.environ.get('DISPLAY') is None:  # NOQA
@@ -9,6 +8,10 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
 import itertools
 import numpy as np
+
+from .embeddingutil import embed_2d
+from .plot_bokeh import plot_embeddings_bokeh  # NOQA
+from .plot_util import *
 
 # from pylab import rcParams
 # rcParams['figure.figsize'] = (12, 12)
@@ -77,18 +80,6 @@ def scatter(
         name=name,
         filetype=filetype,
         **plt_kwargs)
-
-
-def mpl_plot(
-        plt_fn,
-        *,
-        name,
-        filetype="png",
-        **plt_kwargs):
-    Figure.file_types = [filetype]
-    Figure.set_defaults(**plt_kwargs)
-    with Figure(name):
-        return plt_fn()
 
 
 # http://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#the-seq2seq-model  # NOQA
@@ -165,19 +156,6 @@ def plot_confusion_matrix(
     else:
         plt.show()
     plt.close()
-
-
-# https://stackoverflow.com/questions/18195758/set-matplotlib-colorbar-size-to-match-graph  # NOQA
-def add_colorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
-    """Add a vertical color bar to an image plot."""
-    from mpl_toolkits import axes_grid1
-    divider = axes_grid1.make_axes_locatable(im.axes)
-    width = axes_grid1.axes_size.AxesY(im.axes, aspect=1./aspect)
-    pad = axes_grid1.axes_size.Fraction(pad_fraction, width)
-    current_ax = plt.gca()
-    cax = divider.append_axes("right", size=width, pad=pad)
-    plt.sca(current_ax)
-    return im.axes.figure.colorbar(im, cax=cax, **kwargs)
 
 
 def simple_imshow(
@@ -257,38 +235,6 @@ def simple_imshow(
     else:
         plt.show()
     plt.clf()
-
-
-def embed_2d(
-        emb,
-        emb_method="UMAP",
-        umap_n_neighbors=15,
-        umap_min_dist=0.1,
-        return_proj=False,
-        random_state=None,
-        ):
-    if hasattr(emb_method, 'fit_transform'):
-        proj = emb_method
-    elif emb_method.lower() == "umap":
-        try:
-            from umap import UMAP
-        except ImportError:
-            print("Please install umap to use emb_method='UMAP'")
-            print("pip install umap-learn (NOT pip install umap)")
-            print("https://github.com/lmcinnes/umap")
-            raise
-        proj = UMAP(
-            init="random",
-            n_neighbors=umap_n_neighbors,
-            min_dist=umap_min_dist,
-            random_state=random_state)
-    else:
-        import sklearn.manifold
-        proj = getattr(sklearn.manifold, emb_method)()
-    emb_2d = proj.fit_transform(emb)
-    if return_proj:
-        return emb_2d, proj
-    return emb_2d
 
 
 def plot_embeddings(
@@ -407,379 +353,6 @@ def plot_dendrogram(
     plt.close(fig)
 
 
-def get_palette(categories, cmap=None):
-    from bokeh.palettes import (
-        Category20,
-        Category20b,
-        Category20c,
-        viridis,
-        )
-    n_cat = len(set(categories))
-    if cmap is not None:
-        return cmap[n_cat]
-    if n_cat <= 20:
-        if n_cat <= 2:
-            palette = Category20[3]
-            return [palette[0], palette[-1]]
-        else:
-            return Category20[n_cat]
-    if n_cat <= 40:
-        return Category20[20] + Category20b[20]
-    if n_cat <= 60:
-        return Category20[20] + Category20b[20] + Category20c[20]
-    return viridis(n_cat)
-
-
-def plot_embeddings_bokeh(
-        emb,
-        emb_method='UMAP',
-        classes=None,
-        class_category=None,
-        labels=None,
-        color=None,
-        raw_colors=None,
-        color_category=None,
-        color_categorical=False,
-        cmap=None,
-        cmap_reverse=False,
-        colorbar=False,
-        colorbar_ticks=None,
-        outfile=None,
-        title=None,
-        scatter_labels=False,
-        tooltip_fields=None,
-        figure_kwargs=None,
-        write_png=False,
-        return_plot=False,
-        plot_width=None,
-        plot_height=None,
-        reuse_figure=None,
-        **circle_kwargs,
-        ):
-    """
-    Creates an interactive scatterplot of the embeddings contained in emb,
-    using the bokeh library.
-
-    emb: an array with dim (n_embeddings x 2) or (n_embeddings x emb_dim).
-    In the latter case an embedding method emb_method should be supplied
-    to project from emb_dim to dim=2.
-
-    emb_method: "UMAP", "TSNE", or any other algorithm in sklearn.manifold
-    labels: Optional text labels for each embedding
-    color: Optional color for each embedding, according to which it will be
-    colored in the plot.
-    classes:  Optional class for each embedding, according to which it will
-    be colored in the plot.
-    outfile: If provided, save plot to this file instead of showing it
-    cmap: colormap
-    title: optional title of the plot
-    """
-    from bokeh.plotting import figure, output_file, show, save
-    from bokeh.models import (
-        ColumnDataSource, CategoricalColorMapper, LinearColorMapper,
-        ColorBar, FixedTicker, Text)
-    from bokeh.palettes import Viridis256
-
-    if emb_method:
-        emb = embed_2d(emb, emb_method)
-    else:
-        assert emb.shape[1] == 2
-
-    if outfile:
-        output_file(outfile)
-
-    if cmap is not None:
-        if isinstance(cmap, str):
-            import bokeh.palettes
-            # matplotib suffix for reverse color maps
-            if cmap.endswith("_r"):
-                cmap_reverse = True
-                cmap = cmap[:-2]
-            cmap = getattr(bokeh.palettes, cmap)
-        elif isinstance(cmap, dict):
-            cmap = cmap[max(cmap.keys())]
-        if cmap_reverse:
-            if isinstance(cmap, dict):
-                new_cmap = {}
-                for k, v in cmap.items():
-                    v = list(v)
-                    v.reverse()
-                    new_cmap[k] = v
-                cmap = new_cmap
-            else:
-                cmap = list(cmap)
-                cmap.reverse()
-
-    source_dict = dict(x=emb[:, 0], y=emb[:, 1])
-    if labels is not None:
-        source_dict["label"] = labels
-
-    if raw_colors is not None:
-        assert color is None
-        if any(isinstance(c, str) for c in raw_colors):
-            assert all(isinstance(c, str) for c in raw_colors)
-        else:
-            assert all(len(c) == 3 for c in raw_colors)
-            assert cmap is None
-            from bokeh.colors import RGB
-            raw_colors = [RGB(*c) for c in raw_colors]
-        source_dict["color"] = raw_colors
-        color_conf = {"field": "color"}
-    elif color is not None:
-        if any(isinstance(c, str) for c in color):
-            assert all(isinstance(c, str) for c in color)
-            palette = get_palette(color, cmap=cmap)
-            color_mapper = CategoricalColorMapper(
-                    factors=sorted(set(color)),
-                    palette=palette)
-        else:
-            if cmap is None:
-                cmap = Viridis256
-            elif isinstance(cmap, dict):
-                cmap = cmap[max(cmap.keys())]
-            color_mapper = LinearColorMapper(cmap)
-        color_conf = {
-            "field": "color",
-            "transform": color_mapper}
-        source_dict["color"] = color
-    else:
-        color_conf = "red"
-
-    if classes is not None:
-        source_dict["class"] = classes
-    if tooltip_fields:
-        for k, v in tooltip_fields.items():
-            source_dict[k] = v
-    source = ColumnDataSource(source_dict)
-
-    tools = "crosshair,pan,wheel_zoom,box_zoom,reset,hover"
-    figure_kwargs = figure_kwargs or {}
-    if plot_width is not None:
-        figure_kwargs['plot_width'] = plot_width
-    if plot_height is not None:
-        figure_kwargs['plot_height'] = plot_height
-    if reuse_figure is None:
-        p = figure(tools=tools, sizing_mode='stretch_both', **figure_kwargs)
-    else:
-        p = reuse_figure
-    if title:
-        p.title.text = title
-
-    if colorbar:
-        if colorbar_ticks:
-            ticker = FixedTicker(ticks=colorbar_ticks)
-        else:
-            ticker = None
-        colorbar = ColorBar(
-            color_mapper=color_mapper, ticker=ticker)
-
-    if labels is not None and scatter_labels:
-        glyph = Text(
-            x="x", y="y", text="label", angle=0.0,
-            text_color=color_conf, text_alpha=0.95, text_font_size="8pt",
-            **circle_kwargs)
-        p.add_glyph(source, glyph)
-    else:
-        plot_kwargs = dict(
-                x='x', y='y',
-                source=source,
-                color=color_conf,
-                **circle_kwargs
-                )
-        if classes is not None:
-            legend_field = 'class'
-        elif color is not None and not raw_colors:
-            legend_field = 'color'
-        else:
-            legend_field = None
-        if legend_field:
-            plot_kwargs['legend_field'] = legend_field
-            # sort by color field to order the legend entries nicely
-            sorted_source = source.to_df().sort_values(legend_field)
-            plot_kwargs['source'] = source.from_df(sorted_source)
-
-        p.circle(**plot_kwargs)
-
-    if labels is not None:
-        from bokeh.models import HoverTool
-        from collections import OrderedDict
-        hover = p.select(dict(type=HoverTool))
-        hover_entries = [
-            ("label", "@label{safe}"),
-            ("(x, y)", "(@x, @y)"),
-            ]
-        if color is not None and color_category:
-            hover_entries.append((color_category, "@color"))
-        if classes is not None and class_category:
-            hover_entries.append((class_category, "@class"))
-        if tooltip_fields:
-            for field in tooltip_fields:
-                hover_entries.append((field, "@" + field))
-        hover.tooltips = OrderedDict(hover_entries)
-    if colorbar:
-        assert color is not None
-        p.add_layout(colorbar, 'right')
-    if return_plot:
-        return p
-    if outfile:
-        save(p)
-        if write_png:
-            from bokeh.io import export_png
-            png_file = outfile.with_suffix('.png')
-            export_png(p, filename=png_file)
-    else:
-        show(p)
-
-
-class Figure():
-    """Provides a context manager that automatically saves and closes
-    a matplotlib plot.
-
-    >>> with Figure("figure_name"):
-    >>>     plt.plot(x, y)
-    >>> # saves plot to {Figure.fig_dir}/{figure_name}.{Figure.file_type}
-
-    When creating many figures with the same settings, e.g. plt.xlim(0, 100)
-    and plt.ylim(0, 1.0), defaults can be set with:
-
-    >>> Figure.set_defaults(xlim=(0, 100), ylim=(0, 1.0))
-    >>> # context manager will call plt.xlim(0, 100) and plt.ylim(0, 1.0)
-    """
-    fig_dir = Path("out/fig")
-    file_types = ["png", "pdf"]
-    default_plt_calls = {}
-    late_calls = ["xscale", "xlim", "yscale", "ylim"]  # order is important
-
-    def __init__(
-            self,
-            name,
-            figwidth=6,
-            figheight=None,
-            fontsize=12,
-            invert_xaxis=False,
-            invert_yaxis=False,
-            out_dir=None,
-            **kwargs,
-            ):
-        self.fig = plt.figure()
-        self.fig.set_figwidth(figwidth)
-        phi = 1.6180
-        self.fig.set_figheight(figheight or figwidth / phi)
-        # params = {
-        #     'figure.figsize': (figwidth, figheight or figwidth / phi),
-        #     'axes.labelsize': fontsize,
-        #     'axes.titlesize': fontsize,
-        #     'legend.fontsize': fontsize,
-        #     'xtick.labelsize': fontsize - 1,
-        #     'ytick.labelsize': fontsize - 1,
-        # }
-        # mpl.rcParams.update(params)
-        self.name = name
-        self.plt_calls = {**kwargs}
-        self.invert_xaxis = invert_xaxis
-        self.invert_yaxis = invert_yaxis
-        self._out_dir = out_dir
-        for attr, val in self.default_plt_calls.items():
-            if attr not in self.plt_calls:
-                self.plt_calls[attr] = val
-
-    def __enter__(self):
-        for attr, val in self.plt_calls.items():
-            # if attr in self.late_calls:
-            #     continue
-            try:
-                getattr(plt, attr)(val)
-            except:
-                getattr(plt, attr)(*val)
-
-        return self.fig
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        # for attr in self.late_calls:
-        #     if attr in self.plt_calls:
-        #         print(attr, self.plt_calls[attr])
-        #         getattr(plt, attr)(self.plt_calls[attr])
-        if self.invert_xaxis:
-            plt.gca().invert_xaxis()
-        if self.invert_yaxis:
-            plt.gca().invert_yaxis()
-        plt.tight_layout()
-        for file_type in self.file_types:
-            outfile = self.out_dir / f"{self.name}.{file_type}"
-            plt.savefig(outfile)
-        plt.clf()
-
-    @classmethod
-    def set_defaults(cls, **kwargs):
-        cls.default_plt_calls = kwargs
-        for attr, val in kwargs.items():
-            setattr(cls, attr, val)
-
-    @classmethod
-    def reset_defaults(cls):
-        cls.default_plt_calls = {}
-
-    @property
-    def out_dir(self):
-        return self._out_dir or self.fig_dir
-
-
-linestyles = [
-    "-", "--", "-.", ":",
-    "-", "--", "-.", ":",
-    "-", "--", "-.", ":",
-    "-", "--", "-.", ":",
-    "-", "--", "-.", ":",
-    "-", "--", "-.", ":"]
-
-try:
-    from bokeh.palettes import Category20
-    colors = Category20[20]
-except ImportError:
-    try:
-        import seaborn as sns
-        colors = sns.color_palette("muted")
-    except ImportError:
-        # https://gist.github.com/huyng/816622
-        colors = [
-            "348ABD", "7A68A6", "A60628",
-            "467821", "CF4457", "188487", "E24A33",
-            "348ABD", "7A68A6", "A60628",
-            "467821", "CF4457", "188487", "E24A33",
-            "348ABD", "7A68A6", "A60628",
-            "467821", "CF4457", "188487", "E24A33",
-            ]
-
-# https://matplotlib.org/api/markers_api.html
-markers = [
-    ".",   # point
-    ",",   # pixel
-    "o",   # circle
-    "v",   # triangle_down
-    "^",   # triangle_up
-    "<",   # triangle_left
-    ">",   # triangle_right
-    "1",   # tri_down
-    "2",   # tri_up
-    "3",   # tri_left
-    "4",   # tri_right
-    "8",   # octagon
-    "s",   # square
-    "p",   # pentagon
-    "P",   # plus (filled)
-    "*",   # star
-    "h",   # hexagon1
-    "H",   # hexagon2
-    "+",   # plus
-    "x",   # x
-    "X",   # x (filled)
-    "D",   # diamond
-    "d",   # thin_diamond
-    "|",   # vline
-    "_",   # hline
-    ]
-
-
 def plot_graph(graph=None, edges=None, *, outfile=None, name=''):
     """Create a plot of `graph` or the graph specified by `edges` and save it.
 
@@ -803,60 +376,134 @@ def plot_graph(graph=None, edges=None, *, outfile=None, name=''):
         n.show(name)
 
 
-def get_cluster_colors(vectors, **clusterer_kwargs):
-    """Clusters vectors and returns RGB colors for coloring each vector
-    according to its cluster.
-    Adapted from https://hdbscan.readthedocs.io/en/latest/how_hdbscan_works.html#extract-the-clusters
-    """
-    import hdbscan
-    import seaborn as sns
-    clusterer = hdbscan.HDBSCAN(**clusterer_kwargs).fit(vectors)
-    palette = sns.color_palette(n_colors=max(clusterer.labels_) + 1)
-    cluster_colors = [
-        sns.desaturate(palette[col], sat) if col >= 0 else (0.5, 0.5, 0.5)
-        for col, sat in zip(clusterer.labels_, clusterer.probabilities_)
-        ]
-    # convert from [0, 1] floats to 8-bit RGB values
-    return (np.array(cluster_colors) * 256).astype(int)
-
-
-def simple_plot(
+def plot(
         *,
-        data,
-        x,
-        y,
+        data=None,
+        x=None,
+        y=None,
         group_col=None,
         title=None,
         xaxis_title=None,
         yaxis_title=None,
         group_title=None,
-        colorbar_col=None,
+        color_col=None,
+        color_discrete=False,
+        legend_loc='upper right',
         palette="viridis",
+        kind='line',
+        norm=None,
+        vmin=None,
+        vcenter=None,
+        vmax=None,
+        with_marginals=False,
+        fig_kwargs=None,
+        **plot_kwargs,
         ):
-    with Figure(title):
-        import seaborn as sns
-        ax = sns.lineplot(
-            data=data,
-            x=x,
-            y=y,
-            hue=group_col,
-            style=group_col,
-            palette=palette,
-            )
-        if colorbar_col:
-            if colorbar_col == group_col:
-                ax.get_legend().remove()
-            norm = plt.Normalize(
-                data[colorbar_col].min(), data[colorbar_col].max())
+    fig_kwargs = fig_kwargs or dict()
+    import seaborn as sns
+    plot_fn = getattr(sns, f'{kind}plot')
+    with Figure(title, **fig_kwargs):
+        long_xtick_labels = False
+        if data is None and x is None:
+            x = list(range(len(y)))
+        if x is not None:
+            if data is not None:
+                max_len = data[x].astype(str).str.len().max()
+            else:
+                max_len = max(map(len, map(str, x)))
+            long_xtick_labels = max_len > 5
+            if long_xtick_labels:
+                plt.figure(figsize=(12, 12))
+
+        hue_col = group_col or color_col
+        if hue_col is not None:
+            hue_order = data[hue_col].sort_values().unique().tolist()
+            hue_col_is_numeric = data[hue_col].dtype != 'O'
+        else:
+            hue_col_is_numeric = False
+
+        if norm is None and hue_col_is_numeric:
+            if vcenter is not None:
+                from matplotlib.colors import TwoSlopeNorm
+                norm = TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
+            else:
+                norm = plt.Normalize(vmin=vmin, vmax=vmax)
+                # data[colorbar_col].min(), data[colorbar_col].max())
+
+        if kind in {'scatter', 'joint'}:
+            style = None
+        else:
+            style = hue_col
+        if with_marginals:
+            g = sns.JointGrid(data=data, x=x, y=y)
+            g.plot_joint(
+                plot_fn,
+                data=data,
+                hue=hue_col,
+                hue_norm=norm,
+                style=style,
+                palette=palette,
+                **plot_kwargs,
+                )
+            g.plot_marginals(sns.histplot)
+            ax = g.ax_joint
+            cax = g.fig.add_axes([.74, .13, .015, .12])
+        else:
+            ax = plot_fn(
+                data=data,
+                x=x,
+                y=y,
+                hue=hue_col,
+                hue_norm=norm,
+                style=style,
+                palette=palette,
+                **plot_kwargs,
+                )
+            cax = ax
+
+        if color_discrete:
+            # sort labels in legend
+            handles, labels = plt.gca().get_legend_handles_labels()
+            label2handle = dict(zip(labels, handles))
+            new_labels = list(map(str, hue_order))
+            new_handles = [label2handle[label] for label in new_labels]
+            cmap = sns.color_palette(palette, as_cmap=True)
+            for val, new_handle in zip(hue_order, new_handles):
+                color = cmap(norm(val))
+                new_handle.set_color(color)
+            plt.legend(
+                new_handles,
+                new_labels,
+                loc=legend_loc,
+                title=hue_col,
+                )
+
+        if long_xtick_labels:
+            plt.xticks(rotation=90)
+        if color_col and not color_discrete:
+            if color_col == group_col or group_col is None:
+                legend = ax.get_legend()
+                if legend:
+                    legend.remove()
             cmap = sns.color_palette(palette, as_cmap=True)
             sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-            cbar = ax.figure.colorbar(sm)
-            cbar.set_label(colorbar_col)
+            cbar = cax.figure.colorbar(sm, cax=cax)
+            cbar.set_label(color_col, fontsize='small')
 
 
-if __name__ == "__main__":
-    plot_attention(
-        "1 2 3 4".split(),
-        "a b c d".split(),
-        np.random.rand(4, 4),
-        out_colors="r g b r".split())
+simple_plot = plot
+
+
+def plot_distribution(
+        data=None,
+        *,
+        x=None,
+        title=None,
+        ):
+    import seaborn as sns
+    with Figure(name=title):
+        sns.violinplot(
+            data=data,
+            x=x,
+            cut=0,
+            )
