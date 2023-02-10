@@ -139,6 +139,38 @@ def mu_postproc(V, D=1):
     return V_ - s
 
 
+def embed_2d(
+        emb,
+        emb_method="UMAP",
+        umap_n_neighbors=15,
+        umap_min_dist=0.1,
+        return_proj=False,
+        random_state=None,
+        ):
+    if hasattr(emb_method, 'fit_transform'):
+        proj = emb_method
+    elif emb_method.lower() == "umap":
+        try:
+            from umap import UMAP
+        except ImportError:
+            print("Please install umap to use emb_method='UMAP'")
+            print("pip install umap-learn (NOT pip install umap)")
+            print("https://github.com/lmcinnes/umap")
+            raise
+        proj = UMAP(
+            init="random",
+            n_neighbors=umap_n_neighbors,
+            min_dist=umap_min_dist,
+            random_state=random_state)
+    else:
+        import sklearn.manifold
+        proj = getattr(sklearn.manifold, emb_method)()
+    emb_2d = proj.fit_transform(emb)
+    if return_proj:
+        return emb_2d, proj
+    return emb_2d
+
+
 def plot_emb(emb, n=1000):
     import numpy as np
     from .plot import simple_imshow
