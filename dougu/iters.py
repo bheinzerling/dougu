@@ -224,6 +224,17 @@ def transpose_dict(dict_of_lists):
     return [dict(zip(keys, items)) for items in zip(*values)]
 
 
+def concat_dict_values(dicts):
+    """Aggrgates multiple dictionaries into a single dictionary by
+    concatenating the corresponding values of each dictionary
+    """
+    d = {}
+    for _dict in dicts:
+        for k, v in _dict.items():
+            d.setdefault(k, []).append(v)
+    return d
+
+
 def map_values(map_fn, dictionary):
     """Returns a dictionary whose values have been transformed by map_fn.
     """
@@ -238,3 +249,18 @@ def all_equal(items):
     sentinel = object()
     reduced = reduce(lambda a, b: a if a == b else sentinel, items)
     return reduced is not sentinel
+
+
+def take_singleton(items):
+    """Returns the first item in `items` if `items` contains exactly
+    one item, otherwise raises an exception.
+    """
+    exactly_one_taken = False
+    for item in items:
+        if exactly_one_taken:
+            exactly_one_taken = False
+            break
+        exactly_one_taken = True
+    if not exactly_one_taken:
+        raise ValueError('items does not contain exactly one item')
+    return item
