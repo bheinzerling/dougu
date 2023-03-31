@@ -9,8 +9,10 @@ __all__ = [
     'file_cached_property',
     'torch_cached_property',
     'numpy_cached_property',
+    'pandas_cached_property',
     'datasets_cached_property',
-    'with_file_cache']
+    'with_file_cache',
+    ]
 
 
 class _Missing(object):
@@ -159,12 +161,12 @@ def torch_cached_property(
 
     if func:
         return _file_cached_property(
-            func, loader=torch.load, saver=torch.save, fname_tpl=fname_tpl)
+            func, loader=loader, saver=torch.save, fname_tpl=fname_tpl)
     else:
         def wrapper(func):
             return _file_cached_property(
                 func,
-                loader=torch.load,
+                loader=loader,
                 saver=torch.save,
                 fname_tpl=fname_tpl,
                 **kwargs)
@@ -220,6 +222,23 @@ def datasets_cached_property(func=None, **kwargs):
         def wrapper(func):
             return _file_cached_property(
                 func, loader=load_from_disk, saver=saver, **kwargs)
+        return wrapper
+
+
+def pandas_cached_property(func=None, **kwargs):
+    def saver(obj, cache_file):
+        return obj.to_pickle(cache_file)
+
+    def loader(cache_file):
+        import pandas as pd
+        return pd.read_pickle(cache_file)
+
+    if func:
+        return _file_cached_property(func, loader=loader, saver=saver)
+    else:
+        def wrapper(func):
+            return _file_cached_property(
+                func, loader=loader, saver=saver, **kwargs)
         return wrapper
 
 
