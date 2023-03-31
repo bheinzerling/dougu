@@ -45,10 +45,38 @@ class Configurable():
 
     @staticmethod
     def get_conf(desc='TODO'):
-        a = AutoArgParser(description=desc)
+        a = Configurable.get_argparser(desc=desc)
         args = a.parse_args()
         add_jobid(args)
         return args
+
+    @staticmethod
+    def get_argparser(desc='TODO'):
+        return AutoArgParser(description=desc)
+
+    @staticmethod
+    def parse_conf_dict(_dict):
+        from types import SimpleNamespace
+        a = Configurable.get_argparser()
+        dest2action = {action.dest: action for action in a._get_optional_actions()}
+
+        def parse_value(dest, value):
+            if value is None:
+                return value
+            action = dest2action.get(dest, None)
+            if action is None:
+                return value
+            ty = action.type
+            if ty is None:
+                return value
+            if action.nargs in {'+', '*'}:
+                return list(map(ty, value))
+            return ty(value)
+
+        return SimpleNamespace(**{
+            dest: parse_value(dest, value)
+            for dest, value in _dict.items()
+            })
 
 
 class AutoArgParser(ArgumentParser):
@@ -130,3 +158,15 @@ class WithRandomState(WithRandomSeed):
         rng = torch.Generator()
         rng.manual_seed(self.random_seed)
         return rng
+        rng = self.pytorch_random_state
+
+    def sample(self, items, sample_size):
+        import torch
+        rng = self.pytorch_random_state
+        rnd_idxs = torch.randperm(len(items), generator=rng)[:sample_size]
+        if isinstance(items, torch.Tensor):
+            sample = items[rnd_idxs]
+        else:
+            sample = list(map(items.__getitem__, rnd_idxs))
+        assert len(sample) == sample_size
+        return sample
