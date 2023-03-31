@@ -31,7 +31,9 @@ class BokehFigure:
     plot_height: height of the bokeh plot
     reuse_figure: add plot to this figure instead of creating a new one
     sizing_mode: layout parameter
-        see: https://docs.bokeh.org/en/2.4.2/docs/reference/layouts.html
+        see: https://docs.bokeh.org/en/latest/docs/reference/layouts.html#layout
+    width: the width of the figure in pixels
+    height: the height of the figure in pixels
     figure_kwargs: additional arguments that will be passed to
     bokeh.plotting.figure
     title: optional title of the plot
@@ -64,6 +66,8 @@ class BokehFigure:
             plot_height=None,
             reuse_figure=None,
             sizing_mode='stretch_both',
+            width=800,
+            height=800,
             figure_kwargs=None,
             title=None,
             xaxis_label=None,
@@ -107,11 +111,13 @@ class BokehFigure:
 
         self.labels = maybe_data_column(labels)
         self.make_figure(
-            figure_kwargs=figure_kwargs,
             plot_width=plot_width,
             plot_height=plot_height,
             reuse_figure=reuse_figure,
             sizing_mode=sizing_mode,
+            width=width,
+            height=height,
+            **(figure_kwargs or {}),
             )
         self.add_title(title)
         self.add_axis_labels(xaxis_label=xaxis_label, yaxis_label=yaxis_label)
@@ -130,14 +136,15 @@ class BokehFigure:
 
     def make_figure(
             self,
-            figure_kwargs=None,
             plot_width=None,
             plot_height=None,
             reuse_figure=None,
             sizing_mode='stretch_both',
+            width=800,
+            height=800,
+            **figure_kwargs,
             ):
         from bokeh.plotting import figure
-        figure_kwargs = figure_kwargs or {}
         if plot_width is not None:
             figure_kwargs['plot_width'] = plot_width
         if plot_height is not None:
@@ -146,6 +153,8 @@ class BokehFigure:
             self.figure = figure(
                 tools=self.tools_str,
                 sizing_mode=sizing_mode,
+                width=width,
+                height=height,
                 **figure_kwargs,
                 )
         else:
@@ -158,6 +167,10 @@ class BokehFigure:
     def add_axis_labels(self, xaxis_label=None, yaxis_label=None):
         self.figure.xaxis.axis_label = xaxis_label
         self.figure.yaxis.axis_label = yaxis_label
+
+    @property
+    def hover_tool_names(self):
+        return None
 
     def add_tooltips(self):
         if self.labels is not None:
@@ -175,6 +188,8 @@ class BokehFigure:
                 for field in self.tooltip_fields:
                     hover_entries.append((field, "@" + field))
             hover.tooltips = dict(hover_entries)
+            if self.hover_tool_names:
+                hover.names = self.hover_tool_names
 
     def add_colorbar(
             self,
@@ -343,10 +358,12 @@ class BokehFigure:
 
 class ScatterBokeh(BokehFigure):
     """Creates an interactive bokeh scatter plot.
+
     x: sequence of values or a column name if `data` is given
     y: sequence of values or a column name if `data` is given
     scatter_labels: set to True to scatter labels, i.e.,
     draw text instead of points
+    data: Pandas dataframe or column dictionary
     """
 
     def __init__(self, *, x, y, scatter_labels=False, data=None, **kwargs):
@@ -354,6 +371,7 @@ class ScatterBokeh(BokehFigure):
         if data is not None:
             x = data[x]
             y = data[y]
+        assert len(x) == len(y)
         self.x = x
         self.y = y
         self.scatter_labels = scatter_labels
@@ -361,6 +379,14 @@ class ScatterBokeh(BokehFigure):
     @cached_property
     def source_dict(self):
         return dict(x=self.x, y=self.y)
+
+    @property
+    def glyph_name(self):
+        return 'scatter'
+
+    @property
+    def hover_tool_names(self):
+        return [self.glyph_name]
 
     def _plot(self):
         if self.scatter_labels:
@@ -374,6 +400,7 @@ class ScatterBokeh(BokehFigure):
                 text_color=self.color_conf,
                 text_alpha=0.95,
                 text_font_size="8pt",
+                name=self.glyph_name,
                 **self.plot_kwargs,
                 )
             self.figure.add_glyph(self.source, glyph)
@@ -383,6 +410,7 @@ class ScatterBokeh(BokehFigure):
                 y='y',
                 source=self.source,
                 color=self.color_conf,
+                name=self.glyph_name,
                 **self.plot_kwargs,
                 )
             if self.classes is not None:
@@ -396,6 +424,73 @@ class ScatterBokeh(BokehFigure):
                 plot_kwargs['source'] = self.source.from_df(sorted_source)
 
             self.figure.circle(**plot_kwargs)
+
+
+class CliqueScatterBokeh(ScatterBokeh):
+    """Creates an interactive bokeh scatter plot, where each point
+    is assumed to be part of a clique. All points in a clique will
+    be connected with lines.
+
+    clique_ids: column name (if `data` is supplied) or sequence of
+    values according to which each point will be assigned to a clique.
+    data: Pandas dataframe or column dictionary
+    """
+    def __init__(self, *, clique_ids, data=None, **kwargs):
+        super().__init__(data=data, **kwargs)
+        if data is not None:
+            clique_ids = data[clique_ids]
+        self.clique_ids = clique_ids
+
+    @cached_property
+    def source_dict(self):
+        return super().source_dict | dict(clique_ids=self.clique_ids)
+
+    @cached_property
+    def edges(self):
+        from .iters import groupby, unordered_pairs
+        clique_id2points = groupby(self.clique_ids, zip(self.x, self.y))
+        assert sum(map(len, clique_id2points.values())) == len(self.x)
+        return [
+            {
+                'clique_id': clique_id,
+                'x0': p0[0],
+                'y0': p0[1],
+                'x1': p1[0],
+                'y1': p1[1],
+            }
+            for clique_id, points in clique_id2points.items()
+            for p0, p1 in unordered_pairs(points)
+            ]
+
+    @cached_property
+    def edges_source(self):
+        from bokeh.models import ColumnDataSource
+        from .iters import concat_dict_values
+        return ColumnDataSource(concat_dict_values(self.edges))
+
+    @cached_property
+    def edge_color(self):
+        return '#f4a582'
+
+    @cached_property
+    def edge_width(self):
+        return 0.5
+
+    def _plot(self):
+        self._plot_edges()
+        super()._plot()
+
+    def _plot_edges(self):
+        from bokeh.models import Segment
+        glyph = Segment(
+            x0='x0',
+            y0='y0',
+            x1='x1',
+            y1='y1',
+            line_color=self.edge_color,
+            line_width=self.edge_width,
+            )
+        self.figure.add_glyph(self.edges_source, glyph)
 
 
 def plot_embeddings_bokeh(
