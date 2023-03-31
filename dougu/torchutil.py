@@ -785,6 +785,13 @@ class Loaders():
             self.test, *args, batch_size=batch_size, **kwargs, shuffle=False)
 
 
+class FixedSplits(Loaders):
+    def __init__(self, train=None, dev=None, test=None):
+        self.train = train
+        self.dev = dev
+        self.test = test
+
+
 class Splits(Loaders):
     def __init__(
             self,
@@ -970,3 +977,13 @@ def pca(X, k):
     # but sklearn's approach is probably more efficient
     # https://github.com/scikit-learn/scikit-learn/blob/baf0ea25d6dd034403370fea552b21a6776bef18/sklearn/decomposition/_pca.py#L434
     return U[..., :k] * S.unsqueeze(-2)[..., :k]
+
+
+# source: https://discuss.pytorch.org/t/how-to-implement-keras-layers-core-lambda-in-pytorch/5903
+class LambdaLayer(nn.Module):
+    def __init__(self, func):
+        super(LambdaLayer, self).__init__()
+        self.func = func
+
+    def forward(self, x):
+        return self.func(x)
