@@ -2,6 +2,13 @@ import re
 import random
 import string
 
+
+# source: https://github.com/juliaelman/anora/blob/master/anora/templatetags/anora.py
+CONSONANT_SOUND = re.compile(r'''one(![ir])''', re.IGNORECASE | re.VERBOSE)
+VOWEL_SOUND = re.compile(
+    r'''[aeio]|u([aeiou]|[^n][^aeiou]|ni[^dmnl]|nil[^l])|h(ier|onest|onou?r|ors\b|our(!i))|[fhlmnrsx]\b''', re.IGNORECASE | re.VERBOSE)
+
+
 try:
     from colorama import Fore, Back, Style
     red = Fore.RED
@@ -216,9 +223,18 @@ def conditional_color(string, condition, true_color=green, false_color=red):
     color = true_color if condition else false_color
     return f"{color}{string}{reset}"
 
+
 def conditional_colors(strings, conditions, true_color=green, false_color=red):
     return [
         conditional_color(
             string, condition, true_color=true_color, false_color=false_color)
         for string, condition in zip(strings, conditions)
         ]
+
+
+# source: https://github.com/juliaelman/anora/blob/master/anora/templatetags/anora.py
+def an_or_a(text):
+    return (
+        'an' if not CONSONANT_SOUND.match(text) and VOWEL_SOUND.match(text)
+        else 'a'
+        )
