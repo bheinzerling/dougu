@@ -83,7 +83,12 @@ class TrainerBase(EntryPoint, WithLog):
         if not self.conf.no_setup:
             self.setup()
 
-    def setup(self, setup_data=True, add_event_handlers=True):
+    def setup(
+            self,
+            setup_data=True,
+            data_kwargs=None,
+            add_event_handlers=True,
+            ):
         self.device = self.conf.device
         set_random_seed(self.conf.random_seed)
         self.misc_init()
@@ -93,10 +98,10 @@ class TrainerBase(EntryPoint, WithLog):
         self.setup_rundir()
 
         if setup_data:
-            self.setup_data()
+            self.setup_data(**(data_kwargs or {}))
         self.setup_model()
-        self.setup_optim()
         if not self.inference_only:
+            self.setup_optim()
             self.setup_lr_scheduler()
         self.distribute_model()
         if self.is_dist_main():
@@ -116,21 +121,26 @@ class TrainerBase(EntryPoint, WithLog):
                 self.conf,
                 self.exp_params,
                 outdir=self.conf.outdir,
+                results_patch_data=self.results_patch_data,
                 )
 
-    def setup_data(self):
+    @property
+    def results_patch_data(self):
+        return {}
+
+    def setup_data(self, **data_kwargs):
         if not self.is_dist_main():
             dist.barrier(device_ids=[self.conf.local_rank])
         else:
             self.log('loading data')
-            self.data = self.load_data()
+            self.data = self.load_data(**data_kwargs)
             if hasattr(self.data, 'log_size'):
                 self.data.log_size()
             if self.conf.distributed:
                 dist.barrier(device_ids=[self.conf.local_rank])
         if not self.is_dist_main():
             self.log('loading data')
-            self.data = self.load_data()
+            self.data = self.load_data(**data_kwargs)
 
     def add_event_handlers(self):
         if self.is_dist_main():
@@ -214,7 +224,6 @@ class TrainerBase(EntryPoint, WithLog):
         self.model = self.make_model()
         self.maybe_load_model()
         self.model = self.model.to(self.device)
-        self.log_model_params()
 
     def is_dist_main(self):
         return getattr(self.conf, 'local_rank', 0) == 0
@@ -312,6 +321,9 @@ class TrainerBase(EntryPoint, WithLog):
 
     @property
     def n_train_steps(self):
+        if self.conf.lr_scheduler == 'plateau':
+            # n_train_steps not needed
+            return None
         if self.conf.n_train_steps is not None:
             return self.conf.n_train_steps
         return len(self.data.train_loader) * self.conf.max_epochs
@@ -413,10 +425,18 @@ class TrainerBase(EntryPoint, WithLog):
         return engine
 
     def delete_engines(self):
-        return
-        del self.train_engine
-        del self.eval_engine
-        del self.test_engine
+        try:
+            del self.train_engine
+        except KeyError:
+            pass
+        try:
+            del self.eval_engine
+        except KeyError:
+            pass
+        try:
+            del self.test_engine
+        except KeyError:
+            pass
 
     def log_results(self, eval_name, metrics):
         metrics_str = ' | '.join(
@@ -557,18 +577,24 @@ class TrainerBase(EntryPoint, WithLog):
         torch.save(
             self.checkpointer.state_dict(), self.conf.checkpointer_state_file)
 
-    def save_results(self, engine=None):
-        checkpoint_file = self.best_checkpoint or 'no_checkpoint'
+    def save_results(self, engine=None, metrics=None):
         params = self.exp_logger.exp_params
+        if self.inference_only:
+            final_epoch = 0
+            checkpoint_file = 'no_checkpoint'
+        else:
+            final_epoch = self.train_engine.state.epoch
+            checkpoint_file = self.best_checkpoint or 'no_checkpoint'
         run_info = dict(
             runid=self.conf.runid,
             checkpoint_file=str(checkpoint_file),
-            final_epoch=self.train_engine.state.epoch,
+            final_epoch=final_epoch,
             )
         self.exp_logger.log_params(run_info)
         self.exp_logger.log_artifacts()
-        metrics = self.eval_engine.state.metrics
-        metrics |= self.test_engine.state.metrics
+        if metrics is None:
+            metrics = self.eval_engine.state.metrics
+            metrics |= self.test_engine.state.metrics
         self.results = dict(**params, **run_info, **metrics)
         print(self.results)
         results_file = self.exp_logger.results_dir / self.results_fname
