@@ -183,6 +183,8 @@ def args_to_str(
     """Convert an argparse.ArgumentParser object back into a string,
     e.g. for running an external command."""
     def val_to_str(v):
+        if isinstance(v, str) and ' ' in v:
+            return f'"{v}"'
         if isinstance(v, list) or isinstance(v, tuple):
             return list_joiner.join(map(str, v))
         return str(v)
