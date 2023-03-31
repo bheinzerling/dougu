@@ -32,6 +32,9 @@ class Wikidata(Dataset, TrainOnly):
         ('--wikidata-property-label-file', dict(
             type=Path,
             default='data/wikidata/property_label.en')),
+        ('--wikidata-article-length-file', dict(
+            type=Path,
+            default='data/wikidata/article_length.json')),
         ]
 
     @property

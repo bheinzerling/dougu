@@ -3,6 +3,7 @@ import torch
 from dougu import (
     cached_property,
     file_cached_property,
+    json_load,
     )
 
 from .wikidata_attribute import WikidataAttribute
@@ -17,6 +18,14 @@ class WikidataPopularity(WikidataAttribute):
         idx = self.wikidata.entity_id_enc.transform(inst['id']).item()
         return {key: tensor[idx].item() for key, tensor in self.tensor.items()}
 
+    @cached_property
+    def article_lengths(self):
+        qid2article_len = json_load(self.conf.wikidata_article_length_file)
+        return [
+            qid2article_len.get(qid, 0)
+            for qid in self.wikidata.entity_id_enc.labels
+            ]
+
     @file_cached_property
     def tensor(self):
 
@@ -29,6 +38,7 @@ class WikidataPopularity(WikidataAttribute):
             all_counts[node_ids] = counts
             return all_counts
 
+        article_length = torch.tensor(self.article_lengths)
         indegree = counts(self.wikidata.relations.tensor[:, 2])
         outdegree = counts(self.wikidata.relations.tensor[:, 0])
 
@@ -36,5 +46,6 @@ class WikidataPopularity(WikidataAttribute):
             'indegree': indegree,
             'outdegree': outdegree,
             'degree': indegree + outdegree,
+            'article_length': article_length,
             }
 

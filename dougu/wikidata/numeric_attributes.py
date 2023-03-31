@@ -276,6 +276,10 @@ class WikidataNumericAttributes(WikidataAttribute):
     def min_count_idx(self, count):
         return (self.counts >= count).int().nonzero()[:, 0]
 
+    def min_count_id(self, count):
+        idx = self.min_count_idx(count)
+        return self.pred_enc.inverse_transform(idx).tolist()
+
     def min_count(self, count):
         idx = self.min_count_idx(count)
         return self.attr_idx2attr_label(idx)
@@ -348,6 +352,9 @@ class WikidataNumericAttributes(WikidataAttribute):
             raw=True,
             stats=None,
             most_freq_unit_only=True,
+            with_entity_popularity=False,
+            popularity_quantiles=0,
+            **quantile_kwargs
             ):
         if entity_id is None:
             mask = self.value_mask(
@@ -356,11 +363,9 @@ class WikidataNumericAttributes(WikidataAttribute):
             entity_id = self.wikidata.entity_id_enc.inverse_transform(entity_idx)
         else:
             entity_idx = self.wikidata.entity_id_enc.transform(entity_id)
-            mask = torch.zeros_like(self.wikidata.entity_idxs)
-            mask.scatter_(0, entity_idx, 1)
         entity_label = self.wikidata.entity_ids2labels(entity_id)
-        value = self.values(pred_id, raw=raw)[mask]
-        unit_idx = self.units_for_pred(pred_id)[mask]
+        value = self.values(pred_id, raw=raw)[entity_idx]
+        unit_idx = self.units_for_pred(pred_id)[entity_idx]
         unit_id = self.unit_enc.inverse_transform(unit_idx)
         unit_label = self.unit_ids2labels(unit_id)
         data = dict(
@@ -374,25 +379,54 @@ class WikidataNumericAttributes(WikidataAttribute):
             )
         import pandas as pd
         df = pd.DataFrame(data)
-        if stats is None:
-            stats = {
-                'value_mean': df.value.mean(),
-                'value_mode': df.value.mode().mean(),  # mode can return multiple values
-                'value_std': df.value.std(),
+
+        def get_stats_from_df(_df):
+            return {
+                'value_mean': _df.value.mean(),
+                'value_mode': _df.value.mode().mean(),  # mode can return multiple values
+                'value_std': _df.value.std(),
                 }
+        if isinstance(stats, pd.DataFrame):
+            stats = get_stats_from_df(stats)
+        if stats is None:
+            stats = get_stats_from_df(df)
         for k, v in stats.items():
             df[k] = v
         df['value_z_score'] = (df.value - df.value_mean) / df.value_std
         df['value_sort_idx'] = np.argsort(df.value)
         df['value_z_score_sort_idx'] = np.argsort(df.value_z_score)
+
+        if with_entity_popularity:
+            popularities = self.wikidata.popularity[df.entity_id.tolist()]
+            popularity_df = pd.DataFrame(popularities).add_prefix('popularity_')
+            del popularity_df['popularity_outdegree']
+            del popularity_df['popularity_indegree']
+            if popularity_quantiles > 0:
+                for colname in popularity_df.columns:
+                    quantile_colname = colname + '_quantile'
+                    quantile_col = pd.qcut(
+                        popularity_df[colname],
+                        popularity_quantiles,
+                        labels=False,
+                        **quantile_kwargs,
+                        )
+                    popularity_df[quantile_colname] = quantile_col
+            df = pd.concat([df, popularity_df], axis=1)
         return df
 
-    def plot_values(self, pred_id, title=None):
+    def plot_values(self, pred_id, title=''):
         df = self.for_pred(pred_id)
-        from dougu.plot import plot_distribution
-        if title is None:
-            title = f'value_distribution.{pred_id}'
+        from dougu.plot import plot_distribution, simple_plot
+        pred_label = self.attr_id2attr_label[pred_id].replace(' ', '_')
+        pred_str = pred_id + '_' + pred_label
         for col in ('value', 'value_z_score'):
-            _title = title + f'.{col}'
-            plot_distribution(
-                data=df, x=col, title=_title)
+            _title = title + ('.' if title else '') + f'{pred_str}.{col}'
+            print(_title)
+            plot_distribution(data=df, x=col, title=_title + '.violin')
+            sort_idx = df[f'{col}_sort_idx']
+            y = df[col][sort_idx]
+            simple_plot(y=y, title=_title + '.line')
+
+    def plot_all_values(self, min_count=1000):
+        for pred_id in self.min_count_id(min_count):
+            self.plot_values(pred_id)

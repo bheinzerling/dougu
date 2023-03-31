@@ -19,6 +19,7 @@ from dougu import (
     groupby,
     cached_property,
     file_cached_property,
+    torch_cached_property,
     )
 from dougu.graph import graph_from_edges
 
@@ -113,8 +114,8 @@ class WikidataTypes(WikidataAttribute):
         assert set(id2types.keys()) == set(self.entity_ids)
         return [id2types[entity_id] for entity_id in self.entity_ids]
 
-    @file_cached_property
-    def tensor(self):
+    @torch_cached_property
+    def tensor_sparse(self):
         typess = self.raw
         n_types = torch.tensor(list(map(len, typess)))
         types = list(flatten(typess))
@@ -126,7 +127,11 @@ class WikidataTypes(WikidataAttribute):
         idxs = torch.stack([row_idxs, col_idxs])
         vals = torch.ones_like(col_idxs, dtype=torch.int8)
         size = torch.Size((len(typess), self.n_types))
-        return torch.sparse.ByteTensor(idxs, vals, size).to_dense()
+        return torch.sparse.ByteTensor(idxs, vals, size)
+
+    @torch_cached_property
+    def tensor(self):
+        return self.tensor_sparse.to_dense()
 
     def tensorize(self):
         return {
