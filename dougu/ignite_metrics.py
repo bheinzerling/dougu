@@ -4,6 +4,8 @@ from typing import Any, Callable, Optional, Sequence, Union
 
 import torch
 
+import numpy as np
+
 from ignite.engine import Engine
 
 from ignite.metrics import Metric, MetricUsage, EpochWise
@@ -856,3 +858,28 @@ class MeanReciprocalRank(Metric):
     def compute(self):
         rank = torch.cat(self.ranks)
         return (1 / rank.float()).mean()
+
+
+class MeanAbsolutePercentageError(Metric):
+    """
+    Calculates the mean absolute percentage error.
+    https://scikit-learn.org/stable/modules/generated/sklearn.metrics.mean_absolute_percentage_error.html
+    - ``update`` must receive output of the form ``(y_pred, y)`` or ``{'y_pred': y_pred, 'y': y}``.
+    """
+    epsilon = np.finfo(np.float64).eps
+
+    def reset(self) -> None:
+        self._sum_of_errors = 0.0
+        self._num_examples = 0
+
+    def update(self, output: Sequence[torch.Tensor]) -> None:
+        y_pred, y = output
+        absolute_errors = torch.abs(y_pred - y.view_as(y_pred))
+        abs_perc_errors = absolute_errors / y.clamp(self.epsilon)
+        self._sum_of_errors += torch.sum(abs_perc_errors).item()
+        self._num_examples += y.shape[0]
+
+    def compute(self) -> Union[float, torch.Tensor]:
+        if self._num_examples == 0:
+            raise NotComputableError("MeanAbsolutePercentageError must have at least one example before it can be computed.")
+        return self._sum_of_errors / self._num_examples
