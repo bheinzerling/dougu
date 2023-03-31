@@ -30,11 +30,18 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
         ('--exp-results-ignore-param', dict(type=str, nargs='+')),
         ]
 
-    def __init__(self, conf, exp_params, outdir=Path('out')):
+    def __init__(
+            self,
+            conf,
+            exp_params,
+            outdir=Path('out'),
+            results_patch_data=None,
+            ):
         super().__init__(conf)
         self.exp_params = exp_params
         self.outdir = outdir
         self.setup()
+        self.results_patch_data = results_patch_data or {}
 
     def setup(self):
         raise NotImplementedError
@@ -100,19 +107,33 @@ class FileLogger(ExperimentLogger):
 
     @cached_property
     def results(self):
+        return self._results(
+            results_dir=self.results_dir,
+            results_file=self.conf.exp_results_file,
+            log=self.log,
+            patch_data=self.results_patch_data,
+            )
+
+    @staticmethod
+    def _results(
+            *,
+            results_dir=None,
+            results_file=None,
+            log=print,
+            patch_data=None):
         import pandas as pd
         from tqdm import tqdm
-        if self.conf.exp_results_file:
-            results = list(flatten(map(
-                jsonlines_load, self.conf.exp_results_file)))
+        if results_file:
+            results = list(flatten(map(jsonlines_load, results_file)))
         else:
+            assert results_dir
             results = []
-            for f in (tqdm(self.results_dir.iterdir())):
+            for f in (tqdm(results_dir.iterdir())):
                 try:
                     result = json_load(f)
                     results.append(result)
                 except:
-                    self.log(f'Exception while loading result from file\n{f}')
+                    log(f'Exception while loading result from file\n{f}')
 
         # convert lists to tuples since tuples behave nicer in pandas
         results = [{
@@ -121,7 +142,13 @@ class FileLogger(ExperimentLogger):
             }
             for result in results
             ]
-        return pd.DataFrame(results)
+        df = pd.DataFrame(results)
+        for key, value in (patch_data or {}).items():
+            if key in df.columns:
+                df[key].fillna(value, inplace=True)
+            else:
+                df[key] = value
+        return df
 
     def remove_ignored_params(self, params):
         ignored = set(self.conf.exp_results_ignore_param or [])
@@ -138,6 +165,10 @@ class FileLogger(ExperimentLogger):
             # which is not equal to None
             if value is None:
                 return column.isna()
+            # pandas stores lists as tuples, so we have to convert
+            # lists to tuple to make equality checking work as intended
+            if isinstance(value, list):
+                value = tuple(value)
             return column == value
 
         df = self.results
