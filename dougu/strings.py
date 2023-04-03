@@ -208,7 +208,92 @@ def token_shapes(tokens, collapse=True):
     return shapes
 
 
+def bpe_demo(s, latex=False):
+    """Apply Byte-Pair Encoding to string s.
+    Returns learned BPE vocabulary and the result of encoding s
+    with it.
+    """
+    from collections import Counter
+    from collections import deque, defaultdict
+
+    space = ' '
+    s = s.replace(' ', space)
+
+    def chunks(items, size):
+        d = deque(items[:2], 2)
+        for item in items[2:]:
+            yield tuple(d)
+            d.append(item)
+        yield tuple(d)
+
+    enc = list(s)
+    vocab = []
+
+    def to_latex(prev_enc, enc, poss=None, step=None):
+        if latex and poss:
+            _enc = list(enc)
+            for p in poss:
+
+                if step is None:
+                    hl = '\\hl{{'
+                else:
+                    hl = f'\\hl<{step}>{{'
+                prev_enc[p] = hl + prev_enc[p] + '}'
+                prev_enc[p + 1] = hl + prev_enc[p + 1] + '}'
+
+                # if step is None:
+                #     hl = '\\hl{{'
+                # else:
+                #     hl = f'\\hl<{step + 1}>{{'
+                # _enc[p] = hl + _enc[p] + '}'
+            return _enc
+        else:
+            return enc
+
+    def format_enc(enc):
+        return " ".join(enc).replace('   ', ' \\_ ')
+
+    encs = [enc]
+    step = 3
+    enc = list(enc)
+    while True:
+        pairs = list(chunks(enc, 2))
+        pair2pos = defaultdict(list)
+        for pos, pair in enumerate(pairs):
+            pair2pos[pair].append(pos)
+        char_pairs = filter(lambda p: p[0] != space and p[1] != space, pairs)
+        most_freq, count = Counter(char_pairs).most_common(1)[0]
+        if count == 1:
+            break
+        prev_pos = -2
+        to_del_pos = []
+        poss = pair2pos[most_freq]
+        for pos in poss:
+            if pos == prev_pos + 1:
+                continue
+            enc[pos] = "".join(most_freq)
+            prev_pos = pos
+            to_del_pos.append(pos + 1)
+        _enc = to_latex(encs[-1], enc, poss, step)
+        for pos in reversed(to_del_pos):
+            del enc[pos]
+            del _enc[pos]
+        encs.append(_enc)
+        vocab.append((most_freq[0], most_freq[1], "".join(most_freq)))
+        step += 2
+    encs = list(map(format_enc, encs))
+    if latex:
+        encs = [f'\\item<{2 * (i + 1)}-> ' + enc for i, enc in enumerate(encs)]
+    return vocab, encs
+
+
 if __name__ == "__main__":
+    s = 'the netherlands are neither here nor there'
+    vocab, encs = bpe_demo(s, latex=True)
+    print(s)
+    for enc in encs:
+        print(enc)
+    print(", ".join([v[2] for v in vocab]))
     import numpy as np
     tokens = "return a string representing weights assigned to tokens".split()
     for _ in range(10):
