@@ -350,7 +350,7 @@ def df_to_latex(
     for i, (_, row) in enumerate(df.iterrows()):
         rows.append(" & ".join(row_to_strings(row)) + "\\\\\n")
         if midrule_after and i in midrule_after:
-            rows.append(r"\midrule\n")
+            rows.append("\\midrule\n")
     if supertabular:
 
         latex_tbl = (r"""\tablehead{
