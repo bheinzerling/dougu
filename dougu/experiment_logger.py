@@ -77,7 +77,15 @@ class FileLogger(ExperimentLogger):
 
     @property
     def log_dir_parent(self):
-        return self.conf.rundir.parent
+        try:
+            return self.conf.rundir.parent
+        except AttributeError:
+            for dirname in ('out_dir', 'outdir'):
+                try:
+                    return getattr(self.conf, dirname)
+                except:
+                    pass
+        raise ValueError()
 
     @property
     def log_dir(self):
@@ -109,7 +117,7 @@ class FileLogger(ExperimentLogger):
     def results(self):
         return self._results(
             results_dir=self.results_dir,
-            results_file=self.conf.exp_results_file,
+            results_file=getattr(self.conf, 'exp_results_file', None),
             log=self.log,
             patch_data=self.results_patch_data,
             )
