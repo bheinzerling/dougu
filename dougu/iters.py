@@ -264,3 +264,9 @@ def take_singleton(items):
     if not exactly_one_taken:
         raise ValueError('items does not contain exactly one item')
     return item
+
+
+def index_select(items, indexes):
+    """Select items by the specified indexes
+    """
+    return [items[idx] for idx in indexes]
