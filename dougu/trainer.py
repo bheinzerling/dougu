@@ -69,8 +69,8 @@ class TrainerBase(EntryPoint, WithLog):
         ('--max-grad-norm', dict(type=float, default=1.0)),
         ('--dist-backend', dict(type=str, default='nccl')),
         ('--dist-master-addr', dict(type=str, default='127.0.0.1')),
-        ('--dist-master-port', dict(type=str, default='29505')),
-        ("--dist-init-method", dict(type=str, default="tcp://127.0.0.1:29505")),
+        ('--dist-master-port', dict(type=str, default='29500')),
+        ("--dist-init-method", dict(type=str, default="tcp://127.0.0.1:29500")),
         ('--local-rank', dict(type=int, default=0)),
         ('--no-autoscale-lr', dict(action='store_true')),
         ('--no-setup', dict(action='store_true')),
@@ -86,6 +86,7 @@ class TrainerBase(EntryPoint, WithLog):
     def setup(
             self,
             setup_data=True,
+            setup_model=True,
             data_kwargs=None,
             add_event_handlers=True,
             ):
@@ -99,7 +100,8 @@ class TrainerBase(EntryPoint, WithLog):
 
         if setup_data:
             self.setup_data(**(data_kwargs or {}))
-        self.setup_model()
+        if setup_model:
+            self.setup_model()
         if not self.inference_only:
             self.setup_optim()
             self.setup_lr_scheduler()
@@ -136,7 +138,7 @@ class TrainerBase(EntryPoint, WithLog):
             self.data = self.load_data(**data_kwargs)
             if hasattr(self.data, 'log_size'):
                 self.data.log_size()
-            if self.conf.distributed:
+            if getattr(self.conf, 'distributed', False):
                 dist.barrier(device_ids=[self.conf.local_rank])
         if not self.is_dist_main():
             self.log('loading data')
@@ -206,6 +208,7 @@ class TrainerBase(EntryPoint, WithLog):
                 rank=self.conf.local_rank,
                 world_size=world_size,
                 )
+            self.log(f'done: init process group with world size {world_size}')
             os.environ['RANK'] = str(dist.get_rank())
             self.device = self.conf.local_rank
             self.log(
@@ -406,6 +409,10 @@ class TrainerBase(EntryPoint, WithLog):
                     self.log_metrics(self.test_engine.state.metrics)
                     self.save_results(engine=self.test_engine)
 
+            @engine.on(Events.COMPLETED)
+            def run_on_training_completed(_):
+                self.on_training_completed()
+
         return engine
 
     @cached_property
@@ -413,6 +420,8 @@ class TrainerBase(EntryPoint, WithLog):
         engine = Engine(self.make_eval_step())
         for metric_name, metric in self.dev_metrics.items():
             metric.attach(engine, metric_name)
+        engine.inputs = []
+        engine.outputs = []
         return engine
 
     @cached_property
@@ -659,6 +668,9 @@ class TrainerBase(EntryPoint, WithLog):
     def start_run(self):
         if self.is_dist_main():
             self.exp_logger.start_run()
+
+    def on_training_completed(self):
+        pass
 
     def end_run(self):
         if self.is_dist_main():
