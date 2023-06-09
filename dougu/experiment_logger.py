@@ -2,8 +2,6 @@ from pathlib import Path
 import time
 import json
 
-import mlflow
-
 from .log import WithLog
 from .argparser import Configurable
 from .misc import SubclassRegistry
@@ -24,7 +22,7 @@ logger.disabled = True
 
 class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
     args = [
-        ('--exp-logger', dict(type=str, default='mlflowlogger')),
+        ('--exp-logger', dict(type=str, default='filelogger')),
         ('--exp-name', dict(type=str, default='dev')),
         ('--exp-results-file', dict(type=Path, nargs='+')),
         ('--exp-results-ignore-param', dict(type=str, nargs='+')),
@@ -194,13 +192,19 @@ class MlflowLogger(ExperimentLogger):
         ('--mlflow-runid', dict(type=str)),
         ]
 
+    @cached_property
+    def mlflow(self):
+        import mlflow
+        return mlflow
+
+
     def setup(self):
         self.exp_name = self.conf.exp_name
         self.log(
             f'mlflow backend for exp {self.exp_name}: '
             f'{self.conf.backend_store_uri}')
-        mlflow.set_tracking_uri(self.conf.backend_store_uri)
-        mlflow.set_experiment(self.conf.exp_name)
+        self.mlflow.set_tracking_uri(self.conf.backend_store_uri)
+        self.mlflow.set_experiment(self.conf.exp_name)
         self.exp = mlflow.get_experiment_by_name(self.conf.exp_name)
 
     def start_run(self):
@@ -208,12 +212,12 @@ class MlflowLogger(ExperimentLogger):
         mlflow_runid = self.conf.mlflow_runid
         if mlflow_runid:
             mlflow.start_run(run_id=mlflow_runid)
-            old_runid = mlflow.active_run().data.tags['mlflow.runName']
+            old_runid = self.mlflow.active_run().data.tags['mlflow.runName']
             assert old_runid == runid, (
                 f'old run id {old_runid} != {runid}')
         else:
-            mlflow.set_experiment(self.exp_name)
-            mlflow.start_run(run_name=runid)
+            self.mlflow.set_experiment(self.exp_name)
+            self.mlflow.start_run(run_name=runid)
             self.log_params(self.exp_params)
         expid = self.exp.experiment_id
         mlflow_runid = mlflow.active_run().info.run_id
@@ -227,13 +231,13 @@ class MlflowLogger(ExperimentLogger):
                 mlflow.active_run().info._artifact_uri = artifact_uri
 
     def log_params(self, params):
-        mlflow.log_params(params)
+        self.mlflow.log_params(params)
 
     def log_metrics(self, metrics, step=None):
         n_tries = 0
         while True:
             try:
-                mlflow.log_metrics(metrics, step=step)
+                self.mlflow.log_metrics(metrics, step=step)
                 break
             except Exception as e:
                 if n_tries < 5:
@@ -246,12 +250,12 @@ class MlflowLogger(ExperimentLogger):
         for f in self.conf.rundir.iterdir():
             if f.suffix not in {'.pt', '.pth'}:
                 try:
-                    mlflow.log_artifact(f)
+                    self.mlflow.log_artifact(f)
                 except IOError:
                     print('failed to log artifact', f)
 
     def end_run(self):
-        mlflow.end_run()
+        self.mlflow.end_run()
         self.log(f'Ended run: {self.conf.mlflow_runid}')
 
     @property
@@ -265,4 +269,4 @@ class MlflowLogger(ExperimentLogger):
             pass
         query = ' and '.join(f'param.{k} = "{v}"' for k, v in params.items())
         self.log(query)
-        return mlflow.search_runs(self.exp.experiment_id, query)
+        return self.mlflow.search_runs(self.exp.experiment_id, query)
