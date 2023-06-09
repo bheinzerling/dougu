@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 from .iters import is_non_string_iterable
@@ -86,7 +87,10 @@ def submit_commands(
             stdout=PIPE,
             stderr=STDOUT,
             ).stdout
-        jobid = int(out.split()[2])
+        jobid_pattern = 'Your job ([0-9]+) '
+        match = re.search(jobid_pattern, out)
+        assert match.groups()
+        jobid = int(match.groups()[0])
         script_file = script_dir / f'{jobid}.sh'
         shutil.copy(tmp_script_file.name, str(script_file))
         print(script_file)

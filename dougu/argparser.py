@@ -31,8 +31,24 @@ class Configurable():
         ]
 
     @property
+    def all_conf_fields(self):
+        fields = self.conf_fields
+        added = set(fields)
+        for cls in self.__class__.__mro__:
+            if cls is Configurable or cls is self.__class__:
+                continue
+            if issubclass(cls, Configurable):
+                cls_conf_fields = super(cls, self).conf_fields
+                for field in cls_conf_fields:
+                    if field not in added:
+                        added.add(field)
+                        fields.append(field)
+        return fields
+
+    @property
     def conf_fields(self):
         return []
+
 
     @property
     def conf_str(self):
@@ -119,8 +135,8 @@ class WithRandomSeed(Configurable):
             'random_seed',
         ]
 
-    def __init__(self, conf, *args, random_seed=None, **kwargs):
-        super().__init__(conf, *args, **kwargs)
+    def __init__(self, *args, conf=None, random_seed=None, **kwargs):
+        super().__init__(*args, conf=conf, **kwargs)
         if random_seed is None:
             random_seed = self.conf.random_seed
         self.random_seed = random_seed

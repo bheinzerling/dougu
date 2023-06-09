@@ -48,6 +48,13 @@ def jsonlines_dump(items, outfile):
             out.write(json.dumps(item) + '\n')
 
 
+def jsonlines_dump_pandas(df, outfile):
+    """Write dataframe df to outfile in jsonlines format."""
+    jsonl = df.to_json(orient='records', lines=True)
+    with outfile.open('w') as out:
+        out.write(jsonl)
+
+
 def lines(file, max=None, skip=0, apply_func=str.strip, encoding="utf8"):
     """Iterate over lines in (text) file. Optionally skip first `skip`
     lines, only read the first `max` lines, and apply `apply_func` to

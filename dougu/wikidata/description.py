@@ -4,12 +4,12 @@ from dougu import (
     cached_property,
     file_cached_property,
     )
-from dougu.transformer_mixin import WithTransformerEncoder
+from dougu.transformer_mixin import TransformerEncoder
 
 from .wikidata_attribute import WikidataAttribute
 
 
-class WikidataDescription(WikidataAttribute, WithTransformerEncoder):
+class WikidataDescription(WikidataAttribute, TransformerEncoder):
     args = [
         ('--wikidata-desc-max-seq-len', dict(type=int, default=32)),
         ('--wikidata-desc-lang', dict(type=str, default='en')),

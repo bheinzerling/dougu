@@ -1,4 +1,5 @@
 from collections import defaultdict
+import re
 
 import torch
 
@@ -8,7 +9,7 @@ from dougu import (
     )
 
 
-class WithTransformerEncoder(Configurable):
+class TransformerEncoder(Configurable):
     args = [
         ('--max-seq-len', dict(type=int, default=64)),
         ('--max-new-tokens', dict(type=int, default=64)),
@@ -21,6 +22,14 @@ class WithTransformerEncoder(Configurable):
         ('--device-map', dict(type=str, default='balanced_low_0')),
         ('--custom-device-map', dict(action='store_true')),
         ('--show-reconstruction-error-examples', dict(action='store_true')),
+        ('--reconstruction-errors', dict(
+            type=str,
+            choices=[
+                'allow',
+                'allow_for_lossy_tokenizers',
+                'do_not_allow',
+                ],
+            default='allow_for_lossy_tokenizers')),
         ]
     _max_seq_len = None
 
@@ -275,7 +284,10 @@ class WithTransformerEncoder(Configurable):
             self.report_reconstruction_errors(texts, tensors)
         return tensors
 
-    def report_reconstruction_errors(self, texts, tensors):
+    def report_reconstruction_errors(
+            self, texts, tensors=None, **tokenize_kwargs):
+        if tensors is None:
+            tensors = self.tokenize(texts, **tokenize_kwargs)
         error_stats, diff_inst = self.reconstruction_error_stats(
             texts, tensors)
         print('tokenizer roundtrip reconstruction error report')
@@ -287,12 +299,32 @@ class WithTransformerEncoder(Configurable):
                 print('original:', t)
                 print('reconstr:', r)
                 print('---')
+        self.maybe_assert_no_tokenizer_reconstruction_errors(diff_inst)
+
+    @property
+    def lossy_tokenizers(self):
+        return {
+            'google/flan-t5-xxl',
+            }
+
+    def maybe_assert_no_tokenizer_reconstruction_errors(self, diff_inst):
+        match self.conf.reconstruction_errors:
+            case 'allow':
+                should_check = False
+            case 'do_not_allow':
+                should_check = True
+            case 'allow_for_lossy_tokenizers':
+                should_check = self.tokenizer.name_or_path not in self.lossy_tokenizers
+        if should_check:
+            assert not diff_inst, breakpoint()
 
     def reconstruction_error_stats(self, texts, tensors):
         reconstructed_texts = self.tokenizer.batch_decode(
             tensors['input_ids'], skip_special_tokens=True)
         stats = defaultdict(int)
         diff_inst = []
+        if self.tokenizer_treats_newlines_as_space:
+            texts = [re.sub('[\n ]+', ' ', text ) for text in texts]
         for t, r in zip(texts, reconstructed_texts):
             stats['n_inst'] += 1
             if t == r:
@@ -303,6 +335,12 @@ class WithTransformerEncoder(Configurable):
                 if t.startswith(r):
                     stats['truncated'] += 1
         return stats, diff_inst
+
+    @property
+    def tokenizer_treats_newlines_as_space(self):
+        return self.trf.config._name_or_path in {
+            'google/flan-t5-xxl',
+            }
 
     @cached_property
     def is_pad_left(self):
@@ -366,7 +404,7 @@ class WithTransformerEncoder(Configurable):
         return model
 
 
-class WithTransformerLM(WithTransformerEncoder):
+class TransformerLM(TransformerEncoder):
 
     @cached_property
     def trf(self):

@@ -173,23 +173,20 @@ class BokehFigure:
         return None
 
     def add_tooltips(self):
+        from bokeh.models import HoverTool
+        hover = self.figure.select(dict(type=HoverTool))
+        hover_entries = []
         if self.labels is not None:
-            from bokeh.models import HoverTool
-            hover = self.figure.select(dict(type=HoverTool))
-            hover_entries = [
-                ("label", "@label{safe}"),
-                ("(x, y)", "(@x, @y)"),
-                ]
-            if self.color is not None and self.color_category:
-                hover_entries.append((self.color_category, "@color"))
-            if self.classes is not None and self.class_category:
-                hover_entries.append((self.class_category, "@class"))
-            if self.tooltip_fields:
-                for field in self.tooltip_fields:
-                    hover_entries.append((field, "@" + field))
-            hover.tooltips = dict(hover_entries)
-            if self.hover_tool_names:
-                hover.names = self.hover_tool_names
+            hover_entries.append(("label", "@label{safe}"))
+        hover_entries.append(("(x, y)", "(@x, @y)"))
+        if self.color is not None and self.color_category:
+            hover_entries.append((self.color_category, "@color"))
+        if self.classes is not None and self.class_category:
+            hover_entries.append((self.class_category, "@class"))
+        if self.tooltip_fields:
+            for field in self.tooltip_fields:
+                hover_entries.append((field, "@" + field))
+        hover.tooltips = dict(hover_entries)
 
     def add_colorbar(
             self,

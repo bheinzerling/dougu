@@ -22,7 +22,7 @@ from .db import DB
 class Wikidata(Dataset, TrainOnly):
     args = [
         ('--wikidata-dir-name', dict(type=Path, default='wikidata')),
-        ('--wikidata-top-n', dict(type=int)),
+        ('--wikidata-top-n', dict(type=int, default=30)),
         ('--wikidata-fname', dict(type=str)),
         ('--wikidata-fname-tpl', dict(
             type=str,

@@ -1,12 +1,12 @@
 from dougu import (
     cached_property,
     )
-from dougu.transformer_mixin import WithTransformerEncoder
+from dougu.transformer_mixin import TransformerEncoder
 
 from .wikidata_attribute import WikidataAttribute
 
 
-class WikidataLabel(WikidataAttribute, WithTransformerEncoder):
+class WikidataLabel(WikidataAttribute, TransformerEncoder):
     key = 'label'
     args = [
         ('--wikidata-label-max-seq-len', dict(type=int, default=32)),

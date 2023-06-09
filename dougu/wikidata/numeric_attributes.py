@@ -10,10 +10,51 @@ from dougu import (
     dict_load,
     cached_property,
     file_cached_property,
+    take_singleton,
     )
 from dougu.codecs import LabelEncoder
 
 from .wikidata_attribute import WikidataAttribute
+
+
+def precision_and_type_for_pred_and_unit(pred_id, unit_id):
+    date_of_birth = 'P569'
+    date_of_death = 'P570'
+    inception = 'P571'
+    dissolved_date = 'P576'
+    publication_date = 'P577'
+    point_in_time = 'P585'
+    latitude = 'P625.lat'
+    longitude = 'P625.long'
+    population = 'P1082'
+    number_of_households = 'P1538'
+    work_period_start = 'P2031'
+    elevation = 'P2044'
+    area = 'P2046'
+    duration = 'P2047'
+
+    annum = 'Q1092296'
+    metre = 'Q11573'
+    square_km = 'Q712226'
+    minute = 'Q7727'
+    degree = 'Q28390'
+    no_unit = '1'
+
+    pred_id_and_unit_id2precision_and_type = {
+        (work_period_start, annum): (0, int),
+        (duration, minute): (0, int),
+        (date_of_birth, annum): (0, int),
+        (date_of_death, annum): (0, int),
+        (inception, annum): (0, int),
+        (dissolved_date, annum): (0, int),
+        (publication_date, annum): (0, int),
+        (point_in_time, annum): (0, int),
+        (population, no_unit): (0, int),
+        (number_of_households, no_unit): (0, int),
+        (elevation, metre): (0, int),
+        }
+    return pred_id_and_unit_id2precision_and_type.get(
+            (pred_id, unit_id), (None, None))
 
 
 class WikidataNumericAttributes(WikidataAttribute):
@@ -28,6 +69,8 @@ class WikidataNumericAttributes(WikidataAttribute):
             dict(type=Path, default='loc_quant_time.unit')),
         ('--wikidata-unit-labels-fname',
             dict(type=Path, default='loc_quant_time.unit.label_en')),
+        ('--wikidata-num-attributes-max-year', dict(type=int, default=10000)),
+        ('--wikidata-num-attributes-min-year', dict(type=int, default=-10000)),
         ]
 
     @cached_property
@@ -101,10 +144,18 @@ class WikidataNumericAttributes(WikidataAttribute):
     @staticmethod
     def transform_time(wikidata_time):
         t = wikidata_time
-        t = int(t[0] + t[1:].split("-")[0])
+        year = int(t[0] + t[1:].split("-")[0])
+        return year
+
         # a small number of  astronomical and geological events have
         # very large absolute values. Clip these for numerical reasons
-        return min(2100, max(-10000, t))
+        # return min(2100, max(-10000, t))
+
+    def time_is_in_allowed_range(self, wikidata_time):
+        year = self.transform_time(wikidata_time)
+        min_year = self.conf.wikidata_num_attributes_min_year
+        max_year = self.conf.wikidata_num_attributes_max_year
+        return min_year <= year <= max_year
 
     def filter_quantities(self, numvals, units):
         try:
@@ -140,7 +191,9 @@ class WikidataNumericAttributes(WikidataAttribute):
             tdict = inst['time']
             titems = [
                 [p, [[self.transform_time(v), self.year_unit]]]
-                for p, v in tdict.items()]
+                for p, v in tdict.items()
+                if self.time_is_in_allowed_range(v)
+                ]
             qdict.update(titems)
         if 'geocoordinate' in inst:
             if 'P625' in inst['geocoordinate']:
@@ -263,8 +316,9 @@ class WikidataNumericAttributes(WikidataAttribute):
         # scipy.stats.mode can ignore nan
         u = self.tensor['u'].float()
         u[u == self.no_unit_sentinel] = torch.nan
-        mode_out = scipy.stats.mode(u.numpy(), nan_policy='omit')
-        most_freq_units = mode_out.mode.data.astype(np.int)
+        mode_out = scipy.stats.mode(
+            u.numpy(), nan_policy='omit', keepdims=True)
+        most_freq_units = mode_out.mode.data.astype(np.int32)
         most_freq_units = torch.tensor(most_freq_units)
         most_freq_unit_mask = self.tensor['u'] == most_freq_units
         assert most_freq_unit_mask.shape == self.tensor['u'].shape
@@ -345,6 +399,15 @@ class WikidataNumericAttributes(WikidataAttribute):
             value_mask = self.tensor['u'][:, pred_idx] == unit_idx
         return value_mask
 
+    @property
+    def integer_units(self):
+        return {
+            '1',
+            'Q1092296',  # annum
+            'Q7727',  # minute
+            'Q712226',  # square_km
+            }
+
     def for_pred(
             self,
             pred_id,
@@ -354,6 +417,9 @@ class WikidataNumericAttributes(WikidataAttribute):
             most_freq_unit_only=True,
             with_entity_popularity=False,
             popularity_quantiles=0,
+            precision=None,
+            value_type=None,
+            lower_value_precision=False,
             **quantile_kwargs
             ):
         if entity_id is None:
@@ -396,23 +462,52 @@ class WikidataNumericAttributes(WikidataAttribute):
         df['value_sort_idx'] = np.argsort(df.value)
         df['value_z_score_sort_idx'] = np.argsort(df.value_z_score)
 
+        pred_id = str(pred_id)
+        unit_id = take_singleton(set(unit_id))
+        if lower_value_precision:
+            assert precision is None
+            assert value_type is None
+            precision, value_type = precision_and_type_for_pred_and_unit(pred_id, unit_id)
+        if precision is not None:
+            df['value'] = df['value'].round(precision)
+        if value_type is not None:
+            df['value'] = df['value'].astype(value_type)
+
         if with_entity_popularity:
-            popularities = self.wikidata.popularity[df.entity_id.tolist()]
-            popularity_df = pd.DataFrame(popularities).add_prefix('popularity_')
-            del popularity_df['popularity_outdegree']
-            del popularity_df['popularity_indegree']
-            if popularity_quantiles > 0:
-                for colname in popularity_df.columns:
-                    quantile_colname = colname + '_quantile'
-                    quantile_col = pd.qcut(
-                        popularity_df[colname],
-                        popularity_quantiles,
-                        labels=False,
-                        **quantile_kwargs,
-                        )
-                    popularity_df[quantile_colname] = quantile_col
+            entity_ids = df.entity_id.tolist()
+            popularity_df = self.wikidata.popularity.with_quantiles(
+                entity_ids,
+                n_quantiles=popularity_quantiles,
+                **quantile_kwargs,
+                )
             df = pd.concat([df, popularity_df], axis=1)
         return df
+
+    def pred_id2data(
+            self,
+            n_inst=10000,
+            ignored_preds=None,
+            with_entity_popularity=True,
+            popularity_quantiles=10,
+            duplicates='drop',
+            lower_value_precision=False,
+            ):
+        if ignored_preds is None:
+            ignored_preds = set()
+        freq_pred_mask = self.counts >= n_inst
+        freq_pred_idxs = freq_pred_mask.nonzero().view(-1)
+        freq_pred_ids = self.pred_enc.inverse_transform(freq_pred_idxs)
+        return {
+            pred_id: self.for_pred(
+                pred_id,
+                with_entity_popularity=with_entity_popularity,
+                popularity_quantiles=popularity_quantiles,
+                duplicates=duplicates,
+                lower_value_precision=lower_value_precision,
+                )
+            for pred_id in freq_pred_ids
+            if pred_id not in ignored_preds
+            }
 
     def plot_values(self, pred_id, title=''):
         df = self.for_pred(pred_id)
