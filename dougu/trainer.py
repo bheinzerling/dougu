@@ -47,7 +47,7 @@ class TrainerBase(EntryPoint, WithLog):
         ('--optim', dict(type=str, default='adam')),
         ('--lr', dict(type=float, default=0.001)),
         ('--lr-scheduler', dict(type=str, default='plateau')),
-        ('--lr-scheduler-patience', dict(type=int, default=10)),
+        ('--lr-scheduler-patience', dict(type=int, default=8)),
         ('--lr-metric-name', dict(type=str, default='loss')),
         ('--lr-metric-optimum', dict(type=str, default='min')),
         ('--momentum', dict(type=float, default=0.0)),
@@ -303,11 +303,14 @@ class TrainerBase(EntryPoint, WithLog):
         self.optim = self.make_optim()
 
     def setup_lr_scheduler(self):
+        if self.conf.lr_scheduler == 'plateau' and self.conf.early_stopping > 0:
+            assert self.conf.early_stopping > self.conf.lr_scheduler_patience
         self.lr_scheduler = get_lr_scheduler(
             self.conf,
             self.optim,
             optimum=self.conf.lr_metric_optimum,
             n_train_steps=self.n_train_steps)
+        self.log(str(self.lr_scheduler) + str(self.lr_scheduler.__dict__))
 
     def make_optim(self):
         return get_optim(
@@ -378,6 +381,11 @@ class TrainerBase(EntryPoint, WithLog):
             @engine.on(Events.EPOCH_COMPLETED)
             def log_train_metrics(_):
                 self.log_metrics(self.train_engine.state.metrics)
+
+            @engine.on(Events.EPOCH_COMPLETED)
+            def log_lr_scheduler_state(_):
+                if hasattr(self, 'lr_scheduler'):
+                    self.log(self.lr_scheduler.__dict__)
 
             @engine.on(self.eval_event)
             def run_eval(_):
