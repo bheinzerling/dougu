@@ -40,13 +40,13 @@ class TrainerBase(EntryPoint, WithLog):
         ('--device', dict(type=str, default='cuda:0')),
         ('--random-seed', dict(type=int, default=2)),
         ('--runid', dict(type=str)),
-        ('--batch-size', dict(type=int, default=128)),
+        ('--batch-size', dict(type=int, default=32)),
         ('--eval-batch-size', dict(type=int, default=128)),
         ('--eval-every', dict(type=int, default=1)),
         ('--first-eval-epoch', dict(type=int, default=1)),
         ('--optim', dict(type=str, default='adam')),
         ('--lr', dict(type=float, default=0.001)),
-        ('--lr-scheduler', dict(type=str, default='plateau')),
+        ('--lr-scheduler', dict(type=str)),
         ('--lr-scheduler-patience', dict(type=int, default=8)),
         ('--lr-metric-name', dict(type=str, default='loss')),
         ('--lr-metric-optimum', dict(type=str, default='min')),
@@ -56,7 +56,7 @@ class TrainerBase(EntryPoint, WithLog):
         ('--adam-eps', dict(type=float, default=1e-8)),
         ('--warmup-steps', dict(type=int, default=1000)),
         ('--n-train-steps', dict(type=int)),
-        ('--early-stopping', dict(type=int, default=10)),
+        ('--early-stopping', dict(type=int, default=0)),
         ('--early-stopping-burnin', dict(type=int, default=5)),
         ('--max-epochs', dict(type=int, default=1000)),
         ('--n-checkpoints', dict(type=int, default=1)),
@@ -75,6 +75,7 @@ class TrainerBase(EntryPoint, WithLog):
         ('--no-autoscale-lr', dict(action='store_true')),
         ('--no-setup', dict(action='store_true')),
         ('--inference-only', dict(action='store_true')),
+        ('--test', dict(action='store_true')),
         ]
 
     def __init__(self, *args, **kwargs):
@@ -149,8 +150,8 @@ class TrainerBase(EntryPoint, WithLog):
             if not self.inference_only:
                 for event, handler in self.event_handlers_train:
                     self.train_engine.add_event_handler(event, handler)
-            for event, handler in self.event_handlers_eval:
-                self.eval_engine.add_event_handler(event, handler)
+            for event, handler in self.event_handlers_dev:
+                self.dev_engine.add_event_handler(event, handler)
             for event, handler in self.event_handlers_test:
                 self.test_engine.add_event_handler(event, handler)
         if hasattr(self.model, 'get_train_handlers'):
@@ -248,7 +249,7 @@ class TrainerBase(EntryPoint, WithLog):
                 trainer=self.train_engine,
                 min_delta=1e-6,
                 burnin=self.conf.early_stopping_burnin)
-            self.eval_engine.add_event_handler(Events.COMPLETED, handler)
+            self.dev_engine.add_event_handler(Events.COMPLETED, handler)
             self.log(f'Early stopping patience: {self.conf.early_stopping}')
 
     @property
@@ -257,7 +258,7 @@ class TrainerBase(EntryPoint, WithLog):
 
         def score_function(engine):
             metric_name = self.checkpoint_metric_name
-            return sign * self.eval_engine.state.metrics[metric_name]
+            return sign * self.dev_engine.state.metrics[metric_name]
         return score_function
 
     @property
@@ -275,11 +276,12 @@ class TrainerBase(EntryPoint, WithLog):
     def model_file(self):
         return self.conf.model_file
 
-    def maybe_load_model(self):
-        if self.model_file:
+    def maybe_load_model(self, model_file=None):
+        model_file = model_file or self.model_file
+        if model_file:
             self.log(f'loading model {self.model_file}')
-            state_dict = torch.load(self.model_file, map_location='cpu')
-            if self.model_file.name.startswith('checkpoint'):
+            state_dict = torch.load(model_file, map_location='cpu')
+            if model_file.name.startswith('checkpoint'):
                 state_dict = state_dict['model']
                 state_dict = fix_dataparallel_statedict(self.model, state_dict)
             self.model.load_state_dict(state_dict)
@@ -310,7 +312,8 @@ class TrainerBase(EntryPoint, WithLog):
             self.optim,
             optimum=self.conf.lr_metric_optimum,
             n_train_steps=self.n_train_steps)
-        self.log(str(self.lr_scheduler) + str(self.lr_scheduler.__dict__))
+        if self.lr_scheduler:
+            self.log(str(self.lr_scheduler) + str(self.lr_scheduler.__dict__))
 
     def make_optim(self):
         return get_optim(
@@ -363,7 +366,7 @@ class TrainerBase(EntryPoint, WithLog):
         for metric_name, metric in self.train_metrics.items():
             metric.attach(engine, metric_name)
 
-        if not hasattr(self, 'lr_scheduler') or self.conf.lr_scheduler == 'plateau':
+        if not getattr(self, 'lr_scheduler', None) or self.conf.lr_scheduler == 'plateau':
             self.lr_scheduler_train_step = lambda: None
         else:
             if self.conf.lr_scheduler == 'warmup_linear':
@@ -382,31 +385,31 @@ class TrainerBase(EntryPoint, WithLog):
             def log_train_metrics(_):
                 self.log_metrics(self.train_engine.state.metrics)
 
-            @engine.on(Events.EPOCH_COMPLETED)
-            def log_lr_scheduler_state(_):
-                if hasattr(self, 'lr_scheduler'):
+            if getattr(self, 'lr_scheduler', None):
+                @engine.on(Events.EPOCH_COMPLETED)
+                def log_lr_scheduler_state(_):
                     self.log(self.lr_scheduler.__dict__)
 
             @engine.on(self.eval_event)
             def run_eval(_):
                 self.log_results('train', engine.state.metrics)
-                self.eval_engine.run(self.data.dev_loader)
-                self.log_results('dev', self.eval_engine.state.metrics)
-                self.log_metrics(self.eval_engine.state.metrics)
+                self.dev_engine.run(self.data.dev_loader)
+                self.log_results('dev', self.dev_engine.state.metrics)
+                self.log_metrics(self.dev_engine.state.metrics)
 
             if not self.conf.no_checkpoints:
-                self.eval_engine.add_event_handler(
+                self.dev_engine.add_event_handler(
                     Events.COMPLETED, self.checkpointer, self.checkpoint_dict)
-            self.eval_engine.add_event_handler(
+            self.dev_engine.add_event_handler(
                 Events.COMPLETED, self.log_checkpoint)
 
             if self.conf.lr_scheduler == 'plateau':
                 def plateau_step(_):
-                    metrics = self.eval_engine.state.metrics
+                    metrics = self.dev_engine.state.metrics
                     score = metrics[self.checkpoint_metric_name]
                     return self.lr_scheduler.step(score)
 
-                self.eval_engine.add_event_handler(
+                self.dev_engine.add_event_handler(
                     Events.COMPLETED, plateau_step)
 
             if hasattr(self.data, 'test_loader'):
@@ -424,18 +427,16 @@ class TrainerBase(EntryPoint, WithLog):
         return engine
 
     @cached_property
-    def eval_engine(self):
-        engine = Engine(self.make_eval_step())
-        for metric_name, metric in self.dev_metrics.items():
-            metric.attach(engine, metric_name)
-        engine.inputs = []
-        engine.outputs = []
-        return engine
+    def dev_engine(self):
+        return self.make_eval_engine(self.dev_metrics)
 
     @cached_property
     def test_engine(self):
+        return self.make_eval_engine(self.test_metrics)
+
+    def make_eval_engine(self, metrics):
         engine = Engine(self.make_eval_step())
-        for metric_name, metric in self.test_metrics.items():
+        for metric_name, metric in metrics.items():
             metric.attach(engine, metric_name)
         engine.inputs = []
         engine.outputs = []
@@ -447,7 +448,7 @@ class TrainerBase(EntryPoint, WithLog):
         except KeyError:
             pass
         try:
-            del self.eval_engine
+            del self.dev_engine
         except KeyError:
             pass
         try:
@@ -481,9 +482,9 @@ class TrainerBase(EntryPoint, WithLog):
 
     @property
     def checkpoint_dict(self):
-        to_save = {
-            'model': self.model,
-            'optim': self.optim}
+        to_save = {'model': self.model}
+        if hasattr(self, 'optim'):
+            to_save['optim'] = self.optim
         if getattr(self, 'lr_scheduler', None):
             to_save['lr_scheduler'] = self.lr_scheduler
         if getattr(self, 'amp', None):
@@ -554,7 +555,7 @@ class TrainerBase(EntryPoint, WithLog):
             ]
 
     @property
-    def event_handlers_eval(self):
+    def event_handlers_dev(self):
         return []
 
     @property
@@ -610,7 +611,7 @@ class TrainerBase(EntryPoint, WithLog):
         self.exp_logger.log_params(run_info)
         self.exp_logger.log_artifacts()
         if metrics is None:
-            metrics = self.eval_engine.state.metrics
+            metrics = self.dev_engine.state.metrics
             metrics |= self.test_engine.state.metrics
         self.results = dict(**params, **run_info, **metrics)
         print(self.results)
@@ -653,16 +654,21 @@ class TrainerBase(EntryPoint, WithLog):
         self.start_run()
         self.train_engine.run(
             self.data.train_loader, max_epochs=self.conf.max_epochs)
+        if self.conf.test:
+            if not self.conf.no_checkpoints:
+                model_file = self.best_checkpoint
+                self.maybe_load_model(model_file)
+            self.test()
         self.end_run()
         if self.is_dist_main():
             return self.results
 
     def test(self):
         self.start_run()
-        self.eval_engine.run(self.data.test_loader)
-        self.log_metrics(self.eval_engine.state.metrics)
-        self.log_results('test', self.eval_engine.state.metrics)
-        self.save_results(engine=self.eval_engine)
+        self.test_engine.run(self.data.test_loader)
+        self.log_metrics(self.test_engine.state.metrics)
+        self.log_results('test', self.test_engine.state.metrics)
+        self.save_results(engine=self.test_engine)
         self.end_run()
         if self.is_dist_main():
             return self.results
