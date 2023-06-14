@@ -822,6 +822,27 @@ class MeanAbsoluteError(Metric):
         return self._sum_of_absolute_errors / self._num_examples
 
 
+class MedianAbsoluteError(Metric):
+    """
+    Calculates the median absolute error.
+    - ``update`` must receive output of the form ``(y_pred, y)`` or ``{'y_pred': y_pred, 'y': y}``.
+    """
+
+    def reset(self) -> None:
+        self.batched_absolute_errors = []
+
+    def update(self, output: Sequence[torch.Tensor]) -> None:
+        y_pred, y = output
+        absolute_errors = torch.abs(y_pred - y.view_as(y_pred))
+        self.batched_absolute_errors.append(absolute_errors)
+
+    def compute(self) -> Union[float, torch.Tensor]:
+        if self._num_examples == 0:
+            raise NotComputableError("MedianAbsoluteError must have at least one example before it can be computed.")
+        absolute_errors = torch.cat(self.batched_absolute_errors)
+        return absolute_errors.median().item()
+
+
 class MeanReciprocalRank(Metric):
 
     def __init__(self, *args, mode='prob', **kwargs):
