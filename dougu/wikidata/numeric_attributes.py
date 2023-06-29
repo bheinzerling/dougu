@@ -290,15 +290,15 @@ class WikidataNumericAttributes(WikidataAttribute):
         entity_idx = torch.arange(len(v))
         return {'v': v, 'u': u, 'entity_idx': entity_idx, 'v_raw': v_raw}
 
-    @cached_property
+    @file_cached_property
     def tensor(self):
         return self.sparse_tensors_to_dense(self.sparse_tensors)
 
-    @cached_property
+    @file_cached_property
     def counts(self):
         return self.counts_with_most_freq_unit
 
-    @cached_property
+    @file_cached_property
     def _counts_with_any_unit(self):
         return (self.tensor['v'] != self.no_value_sentinel).sum(dim=0)
 
@@ -310,7 +310,7 @@ class WikidataNumericAttributes(WikidataAttribute):
     def no_unit_sentinel(self):
         return 0
 
-    @cached_property
+    @file_cached_property
     def counts_with_most_freq_unit(self):
         import scipy.stats
         # scipy.stats.mode can ignore nan
@@ -408,6 +408,13 @@ class WikidataNumericAttributes(WikidataAttribute):
             'Q712226',  # square_km
             }
 
+    @file_cached_property
+    def pred_id2std(self):
+        return {
+            pred_id: df.value_std[0]
+            for pred_id, df in self.pred_id2data().items()
+            }
+
     def for_pred(
             self,
             pred_id,
@@ -452,6 +459,7 @@ class WikidataNumericAttributes(WikidataAttribute):
                 'value_mode': _df.value.mode().mean(),  # mode can return multiple values
                 'value_std': _df.value.std(),
                 }
+
         if isinstance(stats, pd.DataFrame):
             stats = get_stats_from_df(stats)
         if stats is None:

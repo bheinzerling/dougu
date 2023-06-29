@@ -10,7 +10,7 @@ from .wikidata_attribute import WikidataAttribute
 
 
 class WikidataPopularity(WikidataAttribute):
-    @cached_property
+    @file_cached_property
     def raw(self):
         return [self.of(inst) for inst in self.wikidata.raw['train']]
 
