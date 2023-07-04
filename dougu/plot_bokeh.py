@@ -32,6 +32,8 @@ class BokehFigure:
     reuse_figure: add plot to this figure instead of creating a new one
     sizing_mode: layout parameter
         see: https://docs.bokeh.org/en/latest/docs/reference/layouts.html#layout
+    aspect_ratio: layout parameter
+        see: https://docs.bokeh.org/en/latest/docs/reference/models/layouts.html#bokeh.models.LayoutDOM
     width: the width of the figure in pixels
     height: the height of the figure in pixels
     figure_kwargs: additional arguments that will be passed to
@@ -66,6 +68,8 @@ class BokehFigure:
             plot_height=None,
             reuse_figure=None,
             sizing_mode='stretch_both',
+            aspect_ratio=None,
+            match_aspect=False,
             width=800,
             height=800,
             figure_kwargs=None,
@@ -115,6 +119,8 @@ class BokehFigure:
             plot_height=plot_height,
             reuse_figure=reuse_figure,
             sizing_mode=sizing_mode,
+            aspect_ratio=aspect_ratio,
+            match_aspect=match_aspect,
             width=width,
             height=height,
             **(figure_kwargs or {}),
@@ -140,6 +146,8 @@ class BokehFigure:
             plot_height=None,
             reuse_figure=None,
             sizing_mode='stretch_both',
+            aspect_ratio=None,
+            match_aspect=False,
             width=800,
             height=800,
             **figure_kwargs,
@@ -153,6 +161,8 @@ class BokehFigure:
             self.figure = figure(
                 tools=self.tools_str,
                 sizing_mode=sizing_mode,
+                aspect_ratio=aspect_ratio,
+                match_aspect=match_aspect,
                 width=width,
                 height=height,
                 **figure_kwargs,
@@ -185,7 +195,7 @@ class BokehFigure:
             hover_entries.append((self.class_category, "@class"))
         if self.tooltip_fields:
             for field in self.tooltip_fields:
-                hover_entries.append((field, "@" + field))
+                hover_entries.append((field, "@{" + field + '}'))
         hover.tooltips = dict(hover_entries)
 
     def add_colorbar(
