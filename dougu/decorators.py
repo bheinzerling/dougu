@@ -12,6 +12,7 @@ __all__ = [
     'pandas_cached_property',
     'datasets_cached_property',
     'with_file_cache',
+    'global_cached_property',
     ]
 
 
@@ -25,6 +26,8 @@ class _Missing(object):
 
 
 _missing = _Missing()
+
+_global_cache = dict()
 
 
 class _cached_property(property):
@@ -107,6 +110,16 @@ class _file_cached_property(_cached_property):
         self.enabled = bool(int(os.environ.get('FILE_CACHE', '1')))
         self.log = get_logger().info
 
+    def cache_file(self, obj):
+        conf_str = getattr(obj, 'conf_str', 'no_conf')
+        fname = (
+            obj.__class__.__name__.lower() + '.' +
+            self.func_name + '.' +
+            (self.fname_tpl or
+                '{conf_str}.pkl').format(conf_str=conf_str))
+        cache_file = self.cache_dir / fname
+        return cache_file
+
     def __get__(self, obj, type=None):
         if not self.enabled:
             return self.func(obj)
@@ -114,13 +127,7 @@ class _file_cached_property(_cached_property):
             return self
         value = obj.__dict__.get(self.__name__, _missing)
         if value is _missing:
-            conf_str = getattr(obj, 'conf_str', 'no_conf')
-            fname = (
-                obj.__class__.__name__.lower() + '.' +
-                self.func_name + '.' +
-                (self.fname_tpl or
-                    '{conf_str}.pkl').format(conf_str=conf_str))
-            cache_file = self.cache_dir / fname
+            cache_file = self.cache_file(obj)
             loaded = False
             if cache_file.exists():
                 try:
@@ -149,6 +156,36 @@ def file_cached_property(func=None, **kwargs):
     else:
         def wrapper(func):
             return _file_cached_property(func, **kwargs)
+        return wrapper
+
+
+class _global_cached_property(_file_cached_property):
+    def key(self, obj):
+        return str(self.cache_file(obj))
+
+    def __set__(self, obj, value):
+        _global_cache[self.key(obj)] = value
+
+    def __get__(self, obj, type=None):
+        key = self.key(obj)
+        if obj is None:
+            return self
+        value = _global_cache.get(key, _missing)
+        if value is _missing:
+            value = super().__get__(obj, type=type)
+            _global_cache[key] = value
+        return value
+
+    def __delete__(self, obj):
+        del _global_cache[self.key(obj)]
+
+
+def global_cached_property(func=None, **kwargs):
+    if func:
+        return _global_cached_property(func)
+    else:
+        def wrapper(func):
+            return _global_cached_property(func, **kwargs)
         return wrapper
 
 
