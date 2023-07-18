@@ -48,9 +48,6 @@ class BokehFigure:
     will be assigned a color (or the name of a column if `data` is supplied)
     raw_color: set this to true if `color` contains raw (RGB) color values
     instead of color indexes
-    color_categorical: set to True to force a categorical color map (use in
-    case the automatic colormap selection fails to select a categorical color
-    map)
     cmap_reverse: set to True to reverse the chosen colormap
     classes:  Optional class for each datapoint, according to which it will
     be colored in the plot (or the name of a column if `data` is supplied).
@@ -82,8 +79,8 @@ class BokehFigure:
             labels=None,
             color=None,
             color_category=None,
+            color_order=None,
             raw_colors=None,
-            color_categorical=False,
             cmap=None,
             cmap_reverse=False,
             classes=None,
@@ -106,8 +103,8 @@ class BokehFigure:
         self.class_category = class_category
         self.color = maybe_data_column(color)
         self.color_category = color_category
+        self.color_order = color_order
         self.raw_colors = raw_colors
-        self.color_categorical = color_categorical
         self._cmap = cmap
         self.cmap_reverse = cmap_reverse
         self.plot_kwargs = plot_kwargs
@@ -291,6 +288,11 @@ class BokehFigure:
             elif self.data is not None:
                 for f in self.tooltip_fields:
                     source_dict[f] = self.data[f]
+        other_fields = ['factor_marker_col', 'factor_color_col']
+        for field in other_fields:
+            f = getattr(self, field, None)
+            if f is not None:
+                source_dict[f] = self.data[f]
         source = ColumnDataSource(source_dict)
         return source
 
@@ -314,8 +316,9 @@ class BokehFigure:
         if self.color is not None and any(isinstance(c, str) for c in self.color):
             assert all(isinstance(c, str) for c in self.color)
             palette = get_palette(self.color, cmap=self.cmap)
+            color_order = self.color_order or sorted(set(self.color))
             return CategoricalColorMapper(
-                    factors=sorted(set(self.color)),
+                    factors=color_order,
                     palette=palette)
         else:
             cmap = self.cmap
@@ -371,9 +374,23 @@ class ScatterBokeh(BokehFigure):
     scatter_labels: set to True to scatter labels, i.e.,
     draw text instead of points
     data: Pandas dataframe or column dictionary
+    marker: The name of a bokeh marker method, such as 'circle' or 'cross'
     """
 
-    def __init__(self, *, x, y, scatter_labels=False, data=None, **kwargs):
+    def __init__(
+            self,
+            *,
+            x,
+            y,
+            scatter_labels=False,
+            data=None,
+            marker='circle',
+            factor_marker_col=None,
+            factor_marker_map=None,
+            factor_color_col=None,
+            factor_color_map=None,
+            **kwargs,
+            ):
         super().__init__(data=data, **kwargs)
         if data is not None:
             x = data[x]
@@ -382,6 +399,11 @@ class ScatterBokeh(BokehFigure):
         self.x = x
         self.y = y
         self.scatter_labels = scatter_labels
+        self.marker = marker
+        self.factor_marker_col = factor_marker_col
+        self.factor_marker_map = factor_marker_map
+        self.factor_color_col = factor_color_col
+        self.factor_color_map = factor_color_map
 
     @cached_property
     def source_dict(self):
@@ -423,14 +445,35 @@ class ScatterBokeh(BokehFigure):
             if self.classes is not None:
                 legend_field = 'class'
             else:
-                legend_field = None
+                legend_field = self.plot_kwargs.get('legend_field', None)
             if legend_field:
                 plot_kwargs['legend_field'] = legend_field
-                # sort by color field to order the legend entries nicely
-                sorted_source = self.source.to_df().sort_values(legend_field)
+                # sort by color field (default) or color_order (if provided)
+                if self.color_order:
+                    def key(series):
+                        color2idx = {c: idx for idx, c in enumerate(self.color_order)}
+                        return series.map(color2idx.__getitem__)
+                else:
+                    key = None
+                sorted_source = self.source.to_df().sort_values(legend_field, key=key)
                 plot_kwargs['source'] = self.source.from_df(sorted_source)
 
-            self.figure.circle(**plot_kwargs)
+        if self.factor_marker_map:
+            from bokeh.transform import factor_mark
+            factors, markers = list(zip(*self.factor_marker_map.items()))
+            marker = factor_mark(self.factor_marker_col, markers, factors)
+        else:
+            marker = None
+        if self.factor_color_map:
+            from bokeh.transform import factor_cmap
+            factors, colors = list(zip(*self.factor_color_map.items()))
+            color = factor_cmap(self.factor_color_col, colors, factors)
+            plot_kwargs['color'] = color
+        if marker is not None:
+            self.figure.scatter(marker=marker, **plot_kwargs)
+        else:
+            marker_fn = getattr(self.figure, self.marker)
+            marker_fn(**plot_kwargs)
 
 
 class CliqueScatterBokeh(ScatterBokeh):
