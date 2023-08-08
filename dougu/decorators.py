@@ -72,6 +72,15 @@ class _cached_property(property):
     def __delete__(self, obj):
         del obj.__dict__[self.__name__]
 
+    # https://www.ianlewis.org/en/pickling-objects-cached-properties
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        for key in state:
+            if (hasattr(self.__class__, key) and
+                    isinstance(getattr(self.__class__, key), _cached_property)):
+                del state[key]
+        return state
+
 
 def cached_property(func=None, **kwargs):
     # https://stackoverflow.com/questions/7492068/python-class-decorator-arguments
