@@ -42,7 +42,7 @@ class WikidataAliases(WikidataLabel):
     key = 'alias'
 
     args = WikidataLabel.args + [
-        ('--wikidaata-max-aliases', dict(type=int, default=32)),
+        ('--wikidata-max-aliases', dict(type=int, default=32)),
         ]
 
     def of(self, inst, lang):
