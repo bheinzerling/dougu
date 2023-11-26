@@ -11,7 +11,11 @@ import numpy as np
 
 from .embeddingutil import embed_2d
 from .plot_bokeh import plot_embeddings_bokeh  # NOQA
-from .plot_util import *
+from .plot_util import (
+    mpl_plot,
+    add_colorbar,
+    Figure,
+    )
 
 # from pylab import rcParams
 # rcParams['figure.figsize'] = (12, 12)
@@ -160,21 +164,33 @@ def plot_confusion_matrix(
 
 def simple_imshow(
         matrix,
-        cmap="viridis", figsize=(10, 10), aspect_equal=True, outfile=None,
-        title=None, xlabel=None, ylabel=None,
+        cmap="viridis",
+        figsize=(10, 10),
+        aspect_equal=True,
+        outfile=None,
+        title=None,
+        xlabel=None,
+        ylabel=None,
         xticks=True,
         yticks=True,
         xtick_labels=None,
         ytick_labels=None,
         xtick_locs_labels=None,
         ytick_locs_labels=None,
+        tick_labelsize=None,
         xtick_label_rotation='vertical',
         xgrid=None,
         ygrid=None,
-        colorbar=True, scale="lin", cbar_title=None,
+        colorbar=True,
+        scale="lin",
+        colorbar_range=None,
+        cbar_title=None,
         bad_color=None,
-        origin='upper'):
-    if aspect_equal and figsize[1] is None:
+        origin='upper',
+        cell_text=None,
+        cell_text_color='black',
+        ):
+    if aspect_equal and figsize is not None and figsize[1] is None:
         matrix_aspect = matrix.shape[0] / matrix.shape[1]
         width = figsize[0]
         height = max(3, width * matrix_aspect)
@@ -227,8 +243,16 @@ def simple_imshow(
             right=False,)         # ticks along the top edge are off
     if colorbar:
         cbar = add_colorbar(im)
+        if colorbar_range is not None:
+            plt.clim(*colorbar_range)
         if cbar_title:
-            cbar.ax.set_ylabel(cbar_title, rotation=270)
+            cbar.ax.set_ylabel(cbar_title, labelpad=3, rotation=90)
+    if tick_labelsize is not None:
+        ax.xaxis.set_tick_params(labelsize=tick_labelsize)
+        ax.yaxis.set_tick_params(labelsize=tick_labelsize)
+    if cell_text is not None:
+        for (i, j), _ in np.ndenumerate(matrix):
+            ax.text(j, i, cell_text[i, j], color=cell_text_color, ha='center', va='center')
     plt.tight_layout()
     if outfile:
         plt.savefig(outfile)
@@ -396,6 +420,8 @@ def plot(
         vcenter=None,
         vmax=None,
         with_marginals=False,
+        xlim=None,
+        ylim=None,
         fig_kwargs=None,
         **plot_kwargs,
         ):
@@ -430,7 +456,7 @@ def plot(
                 norm = plt.Normalize(vmin=vmin, vmax=vmax)
                 # data[colorbar_col].min(), data[colorbar_col].max())
 
-        if kind in {'scatter', 'joint'}:
+        if kind in {'scatter', 'joint'} or hue_col_is_numeric:
             style = None
         else:
             style = hue_col
@@ -461,15 +487,20 @@ def plot(
                 )
             cax = ax
 
-        if color_discrete:
+        if xlim is not None:
+            plt.xlim(*xlim)
+        if ylim is not None:
+            plt.ylim(*ylim)
+
+        if plot_kwargs.get('legend', True) and color_discrete and hue_col is not None:
             # sort labels in legend
             handles, labels = plt.gca().get_legend_handles_labels()
             label2handle = dict(zip(labels, handles))
             new_labels = list(map(str, hue_order))
             new_handles = [label2handle[label] for label in new_labels]
             cmap = sns.color_palette(palette, as_cmap=True)
-            for val, new_handle in zip(hue_order, new_handles):
-                color = cmap(norm(val))
+            for val, old_handle, new_handle in zip(hue_order, handles, new_handles):
+                color = old_handle._color
                 new_handle.set_color(color)
             plt.legend(
                 new_handles,
@@ -487,7 +518,7 @@ def plot(
                     legend.remove()
             cmap = sns.color_palette(palette, as_cmap=True)
             sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-            cbar = cax.figure.colorbar(sm, cax=cax)
+            cbar = plt.colorbar(sm)
             cbar.set_label(color_col, fontsize='small')
 
 
