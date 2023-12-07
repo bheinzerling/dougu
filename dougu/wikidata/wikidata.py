@@ -5,6 +5,7 @@ from dougu import (
     cached_property,
     file_cached_property,
     dict_load,
+    global_cached_property,
     )
 from dougu.dataset import Dataset, TrainOnly
 
@@ -85,6 +86,9 @@ class Wikidata(Dataset, TrainOnly):
     def entity_id2entity(self):
         return {inst['id']: inst for inst in self.raw['train']}
 
+    def entity_idxs_for_entity_ids(self, entity_ids):
+        return self.entity_id_enc.transform(entity_ids)
+
     def __getitem__(self, entity_id):
         return self.entity_id2entity[entity_id]
 
@@ -92,13 +96,13 @@ class Wikidata(Dataset, TrainOnly):
     def n_entities(self):
         return len(self.entity_ids)
 
-    @file_cached_property
+    @global_cached_property
     def entity_id_enc(self):
         from dougu.codecs import LabelEncoder
         return LabelEncoder(
             backend='dict', to_torch=True, device='cpu').fit(self.entity_ids)
 
-    @file_cached_property
+    @global_cached_property
     def entity_id2label(self):
         label_lang = self.conf.wikidata_label_lang
         if self.raw_data_loaded:
@@ -122,7 +126,7 @@ class Wikidata(Dataset, TrainOnly):
             self.entity_id2label.get(entity_id, entity_id)
             for entity_id in entity_ids]
 
-    @file_cached_property
+    @global_cached_property
     def property_id2label(self):
         return dict_load(self.conf.wikidata_property_label_file, splitter='\t')
 
