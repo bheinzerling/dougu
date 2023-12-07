@@ -36,6 +36,8 @@ class Figure:
             invert_xaxis=False,
             invert_yaxis=False,
             out_dir=None,
+            tight_layout=True,
+            savefig_kwargs=None,
             **kwargs,
             ):
         self.fig = plt.figure()
@@ -55,6 +57,8 @@ class Figure:
         self.plt_calls = {**kwargs}
         self.invert_xaxis = invert_xaxis
         self.invert_yaxis = invert_yaxis
+        self.tight_layout = tight_layout
+        self.savefig_kwargs = savefig_kwargs or {}
         self._out_dir = out_dir
         for attr, val in self.default_plt_calls.items():
             if attr not in self.plt_calls:
@@ -68,7 +72,7 @@ class Figure:
                 getattr(plt, attr)(val)
             except:
                 getattr(plt, attr)(*val)
-        return self.fig
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         for attr in self.late_calls:
@@ -78,11 +82,13 @@ class Figure:
             plt.gca().invert_xaxis()
         if self.invert_yaxis:
             plt.gca().invert_yaxis()
-        plt.tight_layout()
+        if self.tight_layout:
+            plt.tight_layout()
         for file_type in self.file_types:
             fname = f"{self.name}.{file_type}".replace(' ', '_')
             outfile = self.out_dir / fname
-            plt.savefig(outfile)
+            print(outfile, self.savefig_kwargs)
+            plt.savefig(outfile, **self.savefig_kwargs)
         plt.clf()
 
     @classmethod
