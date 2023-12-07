@@ -3,6 +3,8 @@ from collections import Counter
 
 import numpy as np
 
+import pandas as pd
+
 import torch
 
 from dougu import (
@@ -10,6 +12,7 @@ from dougu import (
     dict_load,
     cached_property,
     file_cached_property,
+    global_cached_property,
     take_singleton,
     )
 from dougu.codecs import LabelEncoder
@@ -263,7 +266,7 @@ class WikidataNumericAttributes(WikidataAttribute):
                 ).fit(v_raw_csc[:, col_idx])
             for col_idx in range(v_raw_csc.shape[1])]
 
-    @file_cached_property(fname_tpl='unit_enc.{conf_str}.pkl')
+    @global_cached_property(fname_tpl='unit_enc.{conf_str}.pkl')
     def unit_enc(self):
         unit_enc = LabelEncoder.from_file(
             self.allowed_units_file,
@@ -290,7 +293,7 @@ class WikidataNumericAttributes(WikidataAttribute):
         entity_idx = torch.arange(len(v))
         return {'v': v, 'u': u, 'entity_idx': entity_idx, 'v_raw': v_raw}
 
-    @file_cached_property
+    @global_cached_property
     def tensor(self):
         return self.sparse_tensors_to_dense(self.sparse_tensors)
 
@@ -419,6 +422,8 @@ class WikidataNumericAttributes(WikidataAttribute):
             self,
             pred_id,
             entity_id=None,
+            entity_idx=None,
+            entity_label=None,
             raw=True,
             stats=None,
             most_freq_unit_only=True,
@@ -429,14 +434,17 @@ class WikidataNumericAttributes(WikidataAttribute):
             lower_value_precision=False,
             **quantile_kwargs
             ):
-        if entity_id is None:
+        if entity_id is None and entity_idx is None:
             mask = self.value_mask(
                 pred_id, most_freq_unit_only=most_freq_unit_only)
-            entity_idx = self.wikidata.entity_idxs[mask]
             entity_id = self.wikidata.entity_id_enc.inverse_transform(entity_idx)
-        else:
+            entity_idx = self.wikidata.entity_idxs[mask]
+        elif entity_idx is None:
             entity_idx = self.wikidata.entity_id_enc.transform(entity_id)
-        entity_label = self.wikidata.entity_ids2labels(entity_id)
+        elif entity_id is None:
+            entity_id = self.wikidata.entity_id_enc.inverse_transform(entity_idx)
+        if entity_label is None:
+            entity_label = self.wikidata.entity_ids2labels(entity_id)
         value = self.values(pred_id, raw=raw)[entity_idx]
         unit_idx = self.units_for_pred(pred_id)[entity_idx]
         unit_id = self.unit_enc.inverse_transform(unit_idx)
@@ -450,7 +458,6 @@ class WikidataNumericAttributes(WikidataAttribute):
             unit_id=unit_id,
             unit_label=unit_label,
             )
-        import pandas as pd
         df = pd.DataFrame(data)
 
         def get_stats_from_df(_df):
@@ -470,11 +477,11 @@ class WikidataNumericAttributes(WikidataAttribute):
         df['value_sort_idx'] = np.argsort(df.value)
         df['value_z_score_sort_idx'] = np.argsort(df.value_z_score)
 
-        pred_id = str(pred_id)
-        unit_id = take_singleton(set(unit_id))
         if lower_value_precision:
             assert precision is None
             assert value_type is None
+            pred_id = str(pred_id)
+            unit_id = take_singleton(set(unit_id))
             precision, value_type = precision_and_type_for_pred_and_unit(pred_id, unit_id)
         if precision is not None:
             df['value'] = df['value'].round(precision)
