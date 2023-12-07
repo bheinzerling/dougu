@@ -529,44 +529,6 @@ def get_optim_and_lr_scheduler(
     return optimizer, lr_scheduler
 
 
-def get_bert_optim(args, model, n_train_instances):
-    from pytorch_pretrained_bert.optimization import BertAdam
-    num_train_optimization_steps = int(
-            n_train_instances /
-            args.batch_size /
-            args.gradient_accumulation_steps) * args.max_epochs
-    if args.bert_half_precision:
-        param_optimizer = [
-            (n, param.clone().detach().to('cpu').float().requires_grad_())
-            for n, param in model.named_parameters()]
-    elif args.optimize_on_cpu:
-        param_optimizer = [
-            (n, param.clone().detach().to('cpu').requires_grad_())
-            for n, param in model.named_parameters()]
-    else:
-        param_optimizer = list(model.named_parameters())
-
-    no_decay = ['bias', 'gamma', 'beta']
-    optimizer_grouped_parameters = [{
-        'params': [
-            p for n, p in param_optimizer
-            if not any(nd in n for nd in no_decay)],
-        'weight_decay_rate': 0.01}, {
-        'params': [
-            p for n, p in param_optimizer
-            if any(nd in n for nd in no_decay)],
-        'weight_decay_rate': 0.0}]
-    t_total = num_train_optimization_steps
-    if args.local_rank != -1:
-        t_total = t_total // torch.distributed.get_world_size()
-
-    return BertAdam(
-        optimizer_grouped_parameters,
-        lr=args.learning_rate,
-        warmup=args.warmup_proportion,
-        t_total=t_total)
-
-
 def tensorize_varlen_items(
         items,
         item_dtype=torch.int64,
