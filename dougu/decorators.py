@@ -78,7 +78,9 @@ class _cached_property(property):
         for key in state:
             if (hasattr(self.__class__, key) and
                     isinstance(getattr(self.__class__, key), _cached_property)):
-                del state[key]
+                pass
+                # del state[key]
+                # state[key] = self.func(key)
         return state
 
 
