@@ -135,8 +135,8 @@ class WithRandomSeed(Configurable):
             'random_seed',
         ]
 
-    def __init__(self, *args, conf=None, random_seed=None, **kwargs):
-        super().__init__(*args, conf=conf, **kwargs)
+    def __init__(self, *args, random_seed=None, **kwargs):
+        super().__init__(*args, **kwargs)
         if random_seed is None:
             random_seed = self.conf.random_seed
         self.random_seed = random_seed
@@ -169,12 +169,16 @@ class WithRandomState(WithRandomSeed):
         return RandomState(self.random_seed)
 
     @cached_property
+    def numpy_rng(self):
+        import numpy.random
+        return numpy.random.default_rng(self.random_seed)
+
+    @cached_property
     def pytorch_random_state(self):
         import torch
         rng = torch.Generator()
         rng.manual_seed(self.random_seed)
         return rng
-        rng = self.pytorch_random_state
 
     def sample(self, items, sample_size):
         import torch
