@@ -28,10 +28,13 @@ class TransformerEncoder(Configurable):
                 'allow',
                 'allow_for_lossy_tokenizers',
                 'do_not_allow',
+                'allow_one_percent',
+                'allow_lossy_or_one_percent',
                 ],
             default='allow_for_lossy_tokenizers')),
         ]
     _max_seq_len = None
+    default_device_map = 'balanced_low_0'
 
     def __init__(self, *args, transformer=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -48,16 +51,23 @@ class TransformerEncoder(Configurable):
 
     @cached_property
     def tokenizer(self):
+        tokenizer = self.load_tokenizer(
+            tokenizer_name=self.conf.transformer,
+            )
+        self.trf_config.pad_token_id = tokenizer.pad_token_id
+        return tokenizer
+
+    @staticmethod
+    def load_tokenizer(tokenizer_name):
         import os
         from transformers import AutoTokenizer
         os.environ["TOKENIZERS_PARALLELISM"] = "true"
         tokenizer = AutoTokenizer.from_pretrained(
-            self.conf.transformer,
+            tokenizer_name,
             )
         if tokenizer.pad_token_id is None:
             tokenizer.pad_token = tokenizer.eos_token
             tokenizer.pad_token_id = tokenizer.eos_token_id
-            self.trf_config.pad_token_id = self.trf_config.eos_token_id
         return tokenizer
 
     @cached_property
@@ -70,7 +80,7 @@ class TransformerEncoder(Configurable):
         from accelerate import infer_auto_device_map
         trf2device_map = {}
         n_gpus = torch.cuda.device_count()
-        if self.conf.custom_device_map:
+        if getattr(self.conf, 'custom_device_map', False):
             trf2device_map = {
                 ('google/flan-t5-xxl', 4): infer_auto_device_map(
                     self.trf_empty,
@@ -84,8 +94,11 @@ class TransformerEncoder(Configurable):
                     )
                 }
         key = (self.conf.transformer, n_gpus)
-        device_map = trf2device_map.get(key, self.conf.device_map)
-        if self.conf.custom_device_map:
+        device_map = trf2device_map.get(
+            key,
+            getattr(self.conf, 'device_map', self.default_device_map)
+            )
+        if getattr(self.conf, 'custom_device_map', False):
             if hasattr(self, 'log'):
                 self.log(f'device map for {key}: {device_map}')
         if device_map == 'balanced_low_0' and n_gpus == 1:
@@ -118,7 +131,7 @@ class TransformerEncoder(Configurable):
         if self._transformer is not None:
             return self._transformer
         from transformers import AutoModel
-        if self.conf.trf_rand_init:
+        if getattr(self.conf, 'trf_rand_init', False):
             model = AutoModel.from_config(self.trf_config, torch_dtype='auto')
         else:
             if hasattr(self, 'log'):
@@ -172,9 +185,17 @@ class TransformerEncoder(Configurable):
             hidden_states_layer=None,
             add_word_start_end_indices=False,
             report_reconstruction_errors=True,
+            remove_tensor_keys=None,
             ):
         from tqdm import tqdm
         from boltons.iterutils import chunked
+
+        if remove_tensor_keys is None:
+            remove_tensor_keys = set()
+        elif isinstance(remove_tensor_keys, str):
+            remove_tensor_keys = set([remove_tensor_keys])
+        else:
+            remove_tensor_keys = set(remove_tensor_keys)
 
         if isinstance(texts, str):
             texts = [texts]
@@ -235,28 +256,29 @@ class TransformerEncoder(Configurable):
                 keys = [
                     'hidden_states',
                     'encoder_hidden_states',
-                    'decoder_hidden_states',
                     ]
+                if self.conf.trf_include_dec_states:
+                    keys.append('decoder_hidden_states')
                 for key in keys:
-                    try:
-                        states = trf_out[key]
-                        if isinstance(states[0], tuple):
-                            if len(states) == 1:
-                                raise NotImplementedError('TODO: select best decoder_hidden_state from trf.generate() output')
-                            states = states[0]
-                        device = states[0].device
-                        states = [state.to(device=device) for state in states]
-                        states = torch.stack(states, dim=1)
-                        if hidden_states_layer is not None:
-                            idx = hidden_states_layer
-                            if idx == -1:
-                                idx = states.shape[1] - 1
-                            states = states[:, idx:idx + 1]
-                        trf_out[key] = states
-                        if not self.conf.trf_include_dec_states:
-                            break
-                    except KeyError:
-                        pass
+                    states = trf_out.get(key, None)
+                    if states is None:
+                        continue
+                    if isinstance(states[0], tuple):
+                        if len(states) != 1:
+                            raise NotImplementedError('TODO: select best decoder_hidden_state from trf.generate() output')
+                        states = states[0]
+                    device = states[0].device
+                    states = [state.to(device=device) for state in states]
+                    # stack states so that the shape becomes:
+                    # (batch_size, n_layers, seq_len, hidden_size)
+                    states = torch.stack(states, dim=1)
+                    if hidden_states_layer is not None:
+                        idx = hidden_states_layer
+                        if idx == -1:
+                            idx = states.shape[1] - 1
+                        assert 0 <= idx < states.shape[1]
+                        states = states[:, idx:idx + 1]
+                    trf_out[key] = states
 
             chunk_tensors.update(dict(trf_out))
             if output_fp16:
@@ -272,6 +294,9 @@ class TransformerEncoder(Configurable):
                     k: to_half(v) for k, v in chunk_tensors.items()}
 
             for k, v in chunk_tensors.items():
+                if k in remove_tensor_keys:
+                    continue
+
                 if isinstance(v, torch.Tensor):
                     v = v.to(device=output_device)
                     if output_device == 'cpu':
@@ -299,24 +324,40 @@ class TransformerEncoder(Configurable):
                 print('original:', t)
                 print('reconstr:', r)
                 print('---')
-        self.maybe_assert_no_tokenizer_reconstruction_errors(diff_inst)
+        self.maybe_assert_no_tokenizer_reconstruction_errors(error_stats, diff_inst)
 
     @property
     def lossy_tokenizers(self):
         return {
+            'google/flan-t5-xl',
             'google/flan-t5-xxl',
             }
 
-    def maybe_assert_no_tokenizer_reconstruction_errors(self, diff_inst):
+    @property
+    def is_lossy_tokenizer(self):
+        return self.tokenizer.name_or_path in self.lossy_tokenizers
+
+    def maybe_assert_no_tokenizer_reconstruction_errors(self, error_stats, diff_inst):
+        tolerance = 0.0
         match self.conf.reconstruction_errors:
             case 'allow':
                 should_check = False
             case 'do_not_allow':
                 should_check = True
             case 'allow_for_lossy_tokenizers':
-                should_check = self.tokenizer.name_or_path not in self.lossy_tokenizers
+                should_check = not self.is_lossy_tokenizer
+            case 'allow_one_percent':
+                should_check = True
+                tolerance = 0.01
+            case 'allow_lossy_or_one_percent':
+                should_check = not self.is_lossy_tokenizer
+                tolerance = 0.01
         if should_check:
-            assert not diff_inst, breakpoint()
+            if tolerance > 0:
+                diff_ratio = error_stats['different'] / error_stats['n_inst']
+                assert diff_ratio <= tolerance
+            else:
+                assert error_stats['different'] == 0, diff_inst[:5]
 
     def reconstruction_error_stats(self, texts, tensors):
         reconstructed_texts = self.tokenizer.batch_decode(
@@ -339,6 +380,7 @@ class TransformerEncoder(Configurable):
     @property
     def tokenizer_treats_newlines_as_space(self):
         return self.trf.config._name_or_path in {
+            'google/flan-t5-xl',
             'google/flan-t5-xxl',
             }
 
@@ -411,7 +453,7 @@ class TransformerLM(TransformerEncoder):
         if self._transformer is not None:
             return self._transformer
         model_cls = self.model_cls
-        if self.conf.trf_rand_init:
+        if getattr(self.conf, 'trf_rand_init', False):
             from transformers import AutoConfig
             config = AutoConfig.from_pretrained(self.conf.transformer)
             try:
