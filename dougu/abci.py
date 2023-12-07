@@ -89,7 +89,7 @@ def submit_commands(
             ).stdout
         jobid_pattern = 'Your job ([0-9]+) '
         match = re.search(jobid_pattern, out)
-        assert match.groups()
+        assert match.groups(), out
         jobid = int(match.groups()[0])
         script_file = script_dir / f'{jobid}.sh'
         shutil.copy(tmp_script_file.name, str(script_file))
