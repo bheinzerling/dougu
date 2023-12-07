@@ -323,3 +323,16 @@ def an_or_a(text):
         'an' if not CONSONANT_SOUND.match(text) and VOWEL_SOUND.match(text)
         else 'a'
         )
+
+
+def longest_prefix_match(prefix, targets):
+    from os.path import commonprefix
+    max_len = 0
+    longest_match = None
+    for target in targets:
+        match = commonprefix([prefix, target])
+        match_len = len(match)
+        if match_len > max_len:
+            max_len = match_len
+            longest_match = target
+    return longest_match
