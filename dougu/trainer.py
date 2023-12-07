@@ -74,6 +74,8 @@ class TrainerBase(EntryPoint, WithLog):
         ('--local-rank', dict(type=int, default=0)),
         ('--no-autoscale-lr', dict(action='store_true')),
         ('--no-setup', dict(action='store_true')),
+        ('--no-setup-model', dict(action='store_true')),
+        ('--no-setup-data', dict(action='store_true')),
         ('--inference-only', dict(action='store_true')),
         ('--test', dict(action='store_true')),
         ]
@@ -82,7 +84,10 @@ class TrainerBase(EntryPoint, WithLog):
         super().__init__(*args, **kwargs)
         self.setup_done = False
         if not self.conf.no_setup:
-            self.setup()
+            self.setup(
+                setup_data=not self.conf.no_setup_data,
+                setup_model=not self.conf.no_setup_model,
+                )
 
     def setup(
             self,
@@ -109,7 +114,6 @@ class TrainerBase(EntryPoint, WithLog):
         self.distribute_model()
         if self.is_dist_main():
             self.setup_bookkeeping()
-            self.setup_exp_logger()
             self.log_jobid()
             if not self.inference_only:
                 self.setup_early_stopping()
@@ -117,15 +121,16 @@ class TrainerBase(EntryPoint, WithLog):
             self.add_event_handlers()
         self.setup_done = True
 
-    def setup_exp_logger(self):
-        if self.requires_exp_log:
+    @cached_property
+    def exp_logger(self):
+        if self.is_dist_main():
             exp_logger_cls = ExperimentLogger.get(self.conf.exp_logger)
-            self.exp_logger = exp_logger_cls(
+            return exp_logger_cls(
                 self.conf,
-                self.exp_params,
                 outdir=self.conf.outdir,
                 results_patch_data=self.results_patch_data,
                 )
+        return None
 
     @property
     def results_patch_data(self):
@@ -154,8 +159,9 @@ class TrainerBase(EntryPoint, WithLog):
                 self.dev_engine.add_event_handler(event, handler)
             for event, handler in self.event_handlers_test:
                 self.test_engine.add_event_handler(event, handler)
-        if hasattr(self.model, 'get_train_handlers'):
-            handlers = self.model.get_train_handlers(
+        model = getattr(self, 'model', None)
+        if model is not None and hasattr(model, 'get_train_handlers'):
+            handlers = model.get_train_handlers(
                 self.train_engine, self.log)
             for event, handler in handlers:
                 self.train_engine.add_event_handler(event, handler)
@@ -412,14 +418,6 @@ class TrainerBase(EntryPoint, WithLog):
                 self.dev_engine.add_event_handler(
                     Events.COMPLETED, plateau_step)
 
-            if hasattr(self.data, 'test_loader'):
-                @engine.on(Events.COMPLETED)
-                def run_test(_):
-                    self.test_engine.run(self.data.test_loader)
-                    self.log_results('test', self.test_engine.state.metrics)
-                    self.log_metrics(self.test_engine.state.metrics)
-                    self.save_results(engine=self.test_engine)
-
             @engine.on(Events.COMPLETED)
             def run_on_training_completed(_):
                 self.on_training_completed()
@@ -562,6 +560,13 @@ class TrainerBase(EntryPoint, WithLog):
     def event_handlers_test(self):
         return []
 
+    def to_device(self, tensor_dict, device=None):
+        device = device or self.conf.device
+        return {
+            name: tensor.to(device=device)
+            for name, tensor in tensor_dict.items()
+            }
+
     def load_state(self):
         objs_and_state_files = [
             (self.train_engine.state, self.conf.trainer_state_file),
@@ -595,8 +600,8 @@ class TrainerBase(EntryPoint, WithLog):
         torch.save(
             self.checkpointer.state_dict(), self.conf.checkpointer_state_file)
 
-    def save_results(self, engine=None, metrics=None):
-        params = self.exp_logger.exp_params
+    def save_results(self, *, exp_params, engine=None, metrics=None):
+        assert exp_params
         if self.inference_only:
             final_epoch = 0
             checkpoint_file = 'no_checkpoint'
@@ -613,7 +618,7 @@ class TrainerBase(EntryPoint, WithLog):
         if metrics is None:
             metrics = self.dev_engine.state.metrics
             metrics |= self.test_engine.state.metrics
-        self.results = dict(**params, **run_info, **metrics)
+        self.results = dict(**exp_params, **run_info, **metrics)
         print(self.results)
         results_file = self.exp_logger.results_dir / self.results_fname
         results = ensure_serializable(self.results)
@@ -657,6 +662,7 @@ class TrainerBase(EntryPoint, WithLog):
         if self.conf.test:
             if not self.conf.no_checkpoints:
                 model_file = self.best_checkpoint
+                self.log(f'running test with checkpoint: {model_file}')
                 self.maybe_load_model(model_file)
             self.test()
         self.end_run()
@@ -681,7 +687,7 @@ class TrainerBase(EntryPoint, WithLog):
 
     def start_run(self):
         if self.is_dist_main():
-            self.exp_logger.start_run()
+            self.exp_logger.start_run(self.exp_params)
 
     def on_training_completed(self):
         pass
