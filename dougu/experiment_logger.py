@@ -1,6 +1,9 @@
 from pathlib import Path
 import time
 import json
+from numbers import Number
+
+import numpy as np
 
 from .log import WithLog
 from .argparser import Configurable
@@ -9,8 +12,9 @@ from .decorators import cached_property
 from .io import (
     mkdir,
     json_load,
-    jsonlines_load,
     json_dump,
+    jsonlines_load,
+    jsonlines_dump,
     ensure_serializable,
     )
 from .iters import flatten
@@ -23,6 +27,7 @@ logger.disabled = True
 class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
     args = [
         ('--exp-logger', dict(type=str, default='filelogger')),
+        ('--exp-logger-no-log', dict(action='store_true')),
         ('--exp-name', dict(type=str, default='dev')),
         ('--exp-results-file', dict(type=Path, nargs='+')),
         ('--exp-results-ignore-param', dict(type=str, nargs='+')),
@@ -31,20 +36,21 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
     def __init__(
             self,
             conf,
-            exp_params,
+            *,
             outdir=Path('out'),
             results_patch_data=None,
             ):
         super().__init__(conf)
-        self.exp_params = exp_params
         self.outdir = outdir
-        self.setup()
+        if not conf.exp_logger_no_log:
+            self.setup()
         self.results_patch_data = results_patch_data or {}
 
     def setup(self):
         raise NotImplementedError
 
-    def start_run(self):
+    def start_run(self, exp_params):
+        self.exp_params = exp_params
         self.log_params(self.exp_params)
 
     def end_run(self):
@@ -62,6 +68,20 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
     @property
     def results_dir(self):
         return mkdir(self.outdir / 'results' / self.conf.exp_name)
+
+    @property
+    def results_file(self):
+        fname = f'{self.conf.exp_name}.jsonl'
+        results_file = mkdir(self.outdir / 'results') / fname
+        if not results_file.exists():
+            self.cache_results(results_file)
+        assert results_file.exists()
+        return results_file
+
+    def cache_results(self, cache_file):
+        results = self.collect_results(self.results_dir, log=self.log)
+        jsonlines_dump(results, cache_file)
+        self.log(f'{len(results)} results written to {cache_file}')
 
 
 class FileLogger(ExperimentLogger):
@@ -81,7 +101,7 @@ class FileLogger(ExperimentLogger):
             for dirname in ('out_dir', 'outdir'):
                 try:
                     return getattr(self.conf, dirname)
-                except:
+                except Exception:
                     pass
         raise ValueError()
 
@@ -118,29 +138,40 @@ class FileLogger(ExperimentLogger):
             results_file=getattr(self.conf, 'exp_results_file', None),
             log=self.log,
             patch_data=self.results_patch_data,
+            recollect_results=getattr(self.conf, 'recollect_results', False),
             )
 
     @staticmethod
+    def collect_results(results_dir, log=print):
+        assert results_dir
+        results = []
+        from tqdm import tqdm
+        for f in tqdm(results_dir.iterdir()):
+            try:
+                result = json_load(f)
+                results.append(result)
+            except Exception:
+                log(f'Exception while loading result from file\n{f}')
+        return results
+
     def _results(
+            self,
             *,
             results_dir=None,
             results_file=None,
             log=print,
-            patch_data=None):
+            patch_data=None,
+            recollect_results=False,
+            ):
         import pandas as pd
-        from tqdm import tqdm
-        if results_file:
-            results = list(flatten(map(jsonlines_load, results_file)))
-        else:
-            assert results_dir
-            results = []
-            for f in (tqdm(results_dir.iterdir())):
-                try:
-                    result = json_load(f)
-                    results.append(result)
-                except:
-                    log(f'Exception while loading result from file\n{f}')
-
+        if not recollect_results:
+            results_file = results_file or [self.results_file]
+            if results_file:
+                results = list(flatten(map(jsonlines_load, results_file)))
+                log(f'loaded {len(results)} results from {results_file}')
+                recollect_results = False
+        if recollect_results:
+            results = FileLogger.collect_results(results_dir, log=log)
         # convert lists to tuples since tuples behave nicer in pandas
         results = [{
             k: tuple(v) if isinstance(v, list) else v
@@ -151,7 +182,7 @@ class FileLogger(ExperimentLogger):
         df = pd.DataFrame(results)
         for key, value in (patch_data or {}).items():
             if key in df.columns:
-                df[key].fillna(value, inplace=True)
+                df[key].fillna(value or '', inplace=True)
             else:
                 df[key] = value
         return df
@@ -161,7 +192,6 @@ class FileLogger(ExperimentLogger):
         return {k: v for k, v in params.items() if k not in ignored}
 
     def results_with_params(self, params):
-        import numpy as np
         params = ensure_serializable(params)
         params = self.remove_ignored_params(params)
 
@@ -180,18 +210,59 @@ class FileLogger(ExperimentLogger):
         df = self.results
         if df.empty:
             return df
-        column_masks = [equal(df[k], v) for k, v in params.items()]
-        mask = np.logical_and.reduce(column_masks)
-        return df[mask]
+
+        num_params = {k: v for k, v in params.items() if isinstance(v, Number)}
+        if num_params:
+            num_query = ' and '.join(f'{k}=={v}' for k, v in num_params.items())
+            df = df.query(num_query)
+            params = dict(params.items() - num_params.items())
+
+        none_params = {k: v for k, v in params.items() if v is None}
+        if none_params:
+            column_masks = [equal(df[k], v) for k, v in none_params.items()]
+            mask = np.logical_and.reduce(column_masks)
+            df = df[mask]
+            params = dict(params.items() - none_params.items())
+
+        string_params = {k: v for k, v in params.items() if isinstance(v, str)}
+        params = dict(params.items() - string_params.items())
+
+        if params:
+            column_masks = [equal(df[k], v) for k, v in params.items()]
+            mask = np.logical_and.reduce(column_masks)
+            df = df[mask]
+
+        # string comparisons seem to be slowest, so do them last when the dataframe
+        # has been filtered down the most
+        if string_params:
+            string_query = ' and '.join(f'{k}=="{v}"' for k, v in string_params.items())
+            df = df.query(string_query)
+
+        # mask = None
+        # for k, v in params.items():
+        #     column_mask = equal(df[k], v)
+        #     if mask is None:
+        #         mask = column_mask
+        #     else:
+        #         mask &= column_mask
+        #     if not mask.any():
+        #         break
+        return df
 
     def is_done(self, params, metrics=None):
-        import numpy as np
         results = self.results_with_params(params)
         if metrics is not None:
             column_masks = [~results[metric].isna() for metric in metrics]
             metrics_mask = np.logical_and.reduce(column_masks)
             results = results[metrics_mask]
         return not results.empty
+
+    def missing_params(self, params):
+        missing = {}
+        for k, v in params.items():
+            if not self.is_done({k: v}):
+                missing[k] = v
+        return missing
 
 
 class MlflowLogger(ExperimentLogger):
