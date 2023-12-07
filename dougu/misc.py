@@ -105,9 +105,13 @@ def get_and_increment_runid(file=Path("runid")):
     return runid
 
 
-def next_rundir(basedir=Path("out"), runid_fname="runid", log=None):
+def next_rundir(basedir=Path("out"), use_uuid=True, runid_fname="runid", log=None):
     """Create a directory for running an experiment."""
-    runid = get_and_increment_runid(basedir / runid_fname)
+    if use_uuid:
+        import uuid
+        runid = str(uuid.uuid4())
+    else:
+        runid = get_and_increment_runid(basedir / runid_fname)
     rundir = basedir / str(runid)
     rundir.mkdir(exist_ok=True, parents=True)
     if log:
