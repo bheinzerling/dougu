@@ -83,6 +83,7 @@ class BokehFigure:
             raw_colors=None,
             cmap=None,
             cmap_reverse=False,
+            cmap_eq_hist=False,
             classes=None,
             class_category=None,
             tooltip_fields=None,
@@ -107,8 +108,10 @@ class BokehFigure:
         self.raw_colors = raw_colors
         self._cmap = cmap
         self.cmap_reverse = cmap_reverse
+        self.cmap_eq_hist = cmap_eq_hist
         self.plot_kwargs = plot_kwargs
         self.tooltip_fields = tooltip_fields
+        figure_kwargs = figure_kwargs or {}
 
         self.labels = maybe_data_column(labels)
         self.make_figure(
@@ -120,11 +123,12 @@ class BokehFigure:
             match_aspect=match_aspect,
             width=width,
             height=height,
-            **(figure_kwargs or {}),
+            **figure_kwargs,
             )
         self.add_title(title)
         self.add_axis_labels(xaxis_label=xaxis_label, yaxis_label=yaxis_label)
-        self.add_tooltips()
+        if 'tooltips' not in figure_kwargs:
+            self.add_tooltips()
         self.add_colorbar(
             colorbar=colorbar,
             colorbar_ticks=colorbar_ticks,
@@ -254,6 +258,24 @@ class BokehFigure:
         show(self.figure)
 
     @cached_property
+    def color_conf(self):
+        if self.raw_colors is not None:
+            assert self.color is None
+            if any(isinstance(c, str) for c in self.raw_colors):
+                assert all(isinstance(c, str) for c in self.raw_colors)
+            else:
+                assert all(len(c) == 3 for c in self.raw_colors)
+                assert self.cmap is None
+            color_conf = {"field": "color"}
+        elif self.color is not None:
+            color_conf = {
+                "field": "color",
+                "transform": self.color_mapper}
+        else:
+            color_conf = "red"
+        return color_conf
+
+    @cached_property
     def source(self):
         from bokeh.models import ColumnDataSource
         source_dict = self.source_dict
@@ -267,17 +289,11 @@ class BokehFigure:
             else:
                 assert all(len(c) == 3 for c in self.raw_colors)
                 assert self.cmap is None
-                from bokeh.colors import RGB
-                raw_colors = [RGB(*c) for c in self.raw_colors]
+            from bokeh.colors import RGB
+            raw_colors = [RGB(*c) for c in self.raw_colors]
             source_dict["color"] = raw_colors
-            self.color_conf = {"field": "color"}
         elif self.color is not None:
-            self.color_conf = {
-                "field": "color",
-                "transform": self.color_mapper}
             source_dict["color"] = self.color
-        else:
-            self.color_conf = "red"
 
         if self.classes is not None:
             source_dict["class"] = self.classes
@@ -293,6 +309,10 @@ class BokehFigure:
             f = getattr(self, field, None)
             if f is not None:
                 source_dict[f] = self.data[f]
+        if self.data is not None:
+            for col in self.data.columns:
+                if col not in source_dict:
+                    source_dict[col] = self.data[col]
         source = ColumnDataSource(source_dict)
         return source
 
@@ -312,6 +332,7 @@ class BokehFigure:
         from bokeh.models import (
             CategoricalColorMapper,
             LinearColorMapper,
+            EqHistColorMapper,
             )
         if self.color is not None and any(isinstance(c, str) for c in self.color):
             assert all(isinstance(c, str) for c in self.color)
@@ -326,6 +347,8 @@ class BokehFigure:
                 cmap = self.cmap_default
             elif isinstance(self.cmap, dict):
                 cmap = self.cmap[max(self.cmap.keys())]
+            if self.cmap_eq_hist:
+                return EqHistColorMapper(cmap)
             return LinearColorMapper(cmap)
 
     @cached_property
@@ -471,7 +494,7 @@ class ScatterBokeh(BokehFigure):
             plot_kwargs['color'] = color
         if marker is not None:
             self.figure.scatter(marker=marker, **plot_kwargs)
-        else:
+        elif self.marker is not None:
             marker_fn = getattr(self.figure, self.marker)
             marker_fn(**plot_kwargs)
 
