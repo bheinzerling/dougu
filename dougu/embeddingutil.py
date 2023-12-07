@@ -146,6 +146,8 @@ def embed_2d(
         umap_min_dist=0.1,
         return_proj=False,
         random_state=None,
+        densmap=True,
+        y=None,
         ):
     if hasattr(emb_method, 'fit_transform'):
         proj = emb_method
@@ -161,11 +163,16 @@ def embed_2d(
             init="random",
             n_neighbors=umap_n_neighbors,
             min_dist=umap_min_dist,
-            random_state=random_state)
+            random_state=random_state,
+            densmap=densmap,
+            )
     else:
         import sklearn.manifold
         proj = getattr(sklearn.manifold, emb_method)()
-    emb_2d = proj.fit_transform(emb)
+    if y is not None:
+        emb_2d = proj.fit_transform(emb, y=y)
+    else:
+        emb_2d = proj.fit_transform(emb)
     if return_proj:
         return emb_2d, proj
     return emb_2d
