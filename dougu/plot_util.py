@@ -30,7 +30,7 @@ class Figure:
     def __init__(
             self,
             name,
-            figwidth=6,
+            figwidth=None,
             figheight=None,
             fontsize=12,
             invert_xaxis=False,
@@ -41,9 +41,10 @@ class Figure:
             **kwargs,
             ):
         self.fig = plt.figure()
-        self.fig.set_figwidth(figwidth)
-        phi = 1.6180
-        self.fig.set_figheight(figheight or figwidth / phi)
+        if figwidth is not None:
+            self.fig.set_figwidth(figwidth)
+            phi = 1.6180
+            self.fig.set_figheight(figheight or figwidth / phi)
         # params = {
         #     'figure.figsize': (figwidth, figheight or figwidth / phi),
         #     'axes.labelsize': fontsize,

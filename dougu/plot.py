@@ -8,6 +8,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
 import itertools
 import numpy as np
+from seaborn.utils import relative_luminance
 
 from .embeddingutil import embed_2d
 from .plot_bokeh import plot_embeddings_bokeh  # NOQA
@@ -19,16 +20,16 @@ from .plot_util import (
 
 # from pylab import rcParams
 # rcParams['figure.figsize'] = (12, 12)
-fontsize = 12
-params = {
-    'figure.figsize': (12, 12),
-    'axes.labelsize': fontsize,
-    'axes.titlesize': fontsize,
-    'legend.fontsize': fontsize,
-    'xtick.labelsize': fontsize - 1,
-    'ytick.labelsize': fontsize - 1,
-}
-mpl.rcParams.update(params)
+# fontsize = 12
+# params = {
+#     'figure.figsize': (12, 12),
+#     'axes.labelsize': fontsize,
+#     'axes.titlesize': fontsize,
+#     'legend.fontsize': fontsize,
+#     'xtick.labelsize': fontsize - 1,
+#     'ytick.labelsize': fontsize - 1,
+# }
+# mpl.rcParams.update(params)
 
 
 def histogram(
@@ -185,10 +186,10 @@ def simple_imshow(
         scale="lin",
         colorbar_range=None,
         cbar_title=None,
-        bad_color=None,
+        bad_color='white',
         origin='upper',
         cell_text=None,
-        cell_text_color='black',
+        cell_text_color=None,
         ):
     if aspect_equal and figsize is not None and figsize[1] is None:
         matrix_aspect = matrix.shape[0] / matrix.shape[1]
@@ -251,8 +252,15 @@ def simple_imshow(
         ax.xaxis.set_tick_params(labelsize=tick_labelsize)
         ax.yaxis.set_tick_params(labelsize=tick_labelsize)
     if cell_text is not None:
-        for (i, j), _ in np.ndenumerate(matrix):
-            ax.text(j, i, cell_text[i, j], color=cell_text_color, ha='center', va='center')
+        for (i, j), val in np.ndenumerate(matrix):
+            color = cmap(val)
+            # source: https://github.com/mwaskom/seaborn/blob/6890b315d00b74f372bc91f3929c803837b2ddf1/seaborn/matrix.py#L258
+            lum = relative_luminance(color)
+            if cell_text_color is None:
+                _cell_text_color = ".15" if lum > .408 else "w"
+            else:
+                _cell_text_color = cell_text_color
+            ax.text(j, i, cell_text[i, j], color=_cell_text_color, ha='center', va='center')
     plt.tight_layout()
     if outfile:
         plt.savefig(outfile)
