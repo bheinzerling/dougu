@@ -20,9 +20,12 @@ class Configurable():
         super().__init__()
         if conf is None:
             conf = self.get_conf()
-            for k, v in kwargs.items():
-                if k in conf.__dict__:
-                    conf.__dict__[k] = v
+        if conf is not None and kwargs:
+            from copy import deepcopy
+            conf = deepcopy(conf)
+        for k, v in kwargs.items():
+            if k in conf.__dict__:
+                conf.__dict__[k] = v
         self.conf = conf
 
     def arg_keys(self):
