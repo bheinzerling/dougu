@@ -336,3 +336,9 @@ def longest_prefix_match(prefix, targets):
             max_len = match_len
             longest_match = target
     return longest_match
+
+
+def clean_filename(s):
+    for c in '/ ()':
+        s = s.replace(c, '_')
+    return s
