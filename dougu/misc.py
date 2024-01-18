@@ -428,6 +428,14 @@ class SubclassRegistry:
     def get_subclasses(cls):
         return SubclassRegistry.registered_subclasses.get(cls, {})
 
+    @classmethod
+    def get_subclass_names(cls, snakecase=False):
+        names = [subcls.__name__ for subcls in cls.get_subclasses()]
+        if snakecase:
+            import stringcase
+            names = list(map(stringcase.snakecase, names))
+        return names
+
 
 def auto_debug():
     """Automatically start a debugger when an exception occurs."""
@@ -498,3 +506,17 @@ def load_kge_model(model_file_path):
     from kge.util.io import load_checkpoint
     checkpoint = load_checkpoint(str(model_file_path))
     return KgeModel.create_from(checkpoint)
+
+
+class LazyDict(dict):
+    def __init__(self, getter, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.getter = getter
+
+    def __getitem__(self, key):
+        if key in self:
+            value = super().__getitem__(key)
+        else:
+            value = self.getter(key)
+            super().__setitem__(key, value)
+        return value
