@@ -164,14 +164,15 @@ class FileLogger(ExperimentLogger):
             recollect_results=False,
             ):
         import pandas as pd
-        if not recollect_results:
+        if recollect_results:
+            results = FileLogger.collect_results(results_dir, log=log)
+            self.cache_results(self.results_file)
+        else:
             results_file = results_file or [self.results_file]
             if results_file:
                 results = list(flatten(map(jsonlines_load, results_file)))
                 log(f'loaded {len(results)} results from {results_file}')
                 recollect_results = False
-        if recollect_results:
-            results = FileLogger.collect_results(results_dir, log=log)
         # convert lists to tuples since tuples behave nicer in pandas
         results = [{
             k: tuple(v) if isinstance(v, list) else v
