@@ -55,7 +55,7 @@ class Configurable():
 
     @property
     def conf_str(self):
-        return conf_hash(self.conf, self.conf_fields)
+        return conf_hash(self.conf, self.all_conf_fields)
 
     def conf_str_for_fields(self, fields):
         return '.'.join([
