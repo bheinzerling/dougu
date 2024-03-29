@@ -236,12 +236,14 @@ def simple_imshow(
             which='both',      # both major and minor ticks are affected
             bottom=False,      # ticks along the bottom edge are off
             top=False,)         # ticks along the top edge are off
+        ax.set_xticks([])
     if yticks is not True:
         plt.tick_params(
             axis='y',          # changes apply to the y-axis
             which='both',      # both major and minor ticks are affected
             left=False,      # ticks along the bottom edge are off
             right=False,)         # ticks along the top edge are off
+        ax.set_yticks([])
     if colorbar:
         cbar = add_colorbar(im)
         if colorbar_range is not None:
