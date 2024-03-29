@@ -11,7 +11,6 @@ from torch import nn, optim, tensor, arange
 from torch.utils.data import (
     Subset,
     Dataset,
-    random_split,
     DataLoader,
     RandomSampler,
     BatchSampler,
