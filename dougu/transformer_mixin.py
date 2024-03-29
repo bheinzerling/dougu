@@ -11,11 +11,11 @@ from dougu import (
 
 class TransformerEncoder(Configurable):
     args = [
-        ('--max-seq-len', dict(type=int, default=64)),
+        ('--max-seq-len', dict(type=int, default=48)),
         ('--max-new-tokens', dict(type=int, default=64)),
-        ('--trf-enc-batch-size', dict(type=int, default=32)),
+        ('--trf-enc-batch-size', dict(type=int, default=8)),
         ('--trf-enc-device', dict(type=str, default='cuda:0')),
-        ('--transformer', dict(type=str, default='roberta-base')),
+        ('--transformer', dict(type=str, default='meta-llama/Llama-2-7b-hf')),
         ('--trf-include-dec-states', dict(action='store_true')),
         ('--trf-no-generate', dict(action='store_true')),
         ('--trf-rand-init', dict(action='store_true')),
@@ -31,7 +31,7 @@ class TransformerEncoder(Configurable):
                 'allow_one_percent',
                 'allow_lossy_or_one_percent',
                 ],
-            default='allow_for_lossy_tokenizers')),
+            default='allow_lossy_or_one_percent')),
         ]
     _max_seq_len = None
     default_device_map = 'balanced_low_0'
