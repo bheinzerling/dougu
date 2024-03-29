@@ -25,6 +25,25 @@ def json_dump(obj, json_file, **kwargs):
         out.write("\n")
 
 
+def json_dump_pandas(df, outfile, roundtrip_check=True, log=None, index=False):
+    """Dump Pandas dataframe `df` to `outfile` in JSON format."""
+    if index:
+        raise NotImplementedError('TODO')
+    df = df.reset_index()
+    df_json = df.to_json(orient='table', index=False)
+
+    if roundtrip_check:
+        import pandas as pd
+        from pandas.testing import assert_frame_equal
+        assert_frame_equal(df, pd.read_json(df_json, orient='table'))
+
+    with outfile.open('w') as out:
+        out.write(df_json)
+
+    if log is not None:
+        log(outfile)
+
+
 def jsonlines_load(jsonlines_file, max=None, skip=None, filter_fn=None):
     """Load objects from json lines file, i.e. a file with one
     serialized object per line."""
