@@ -1,4 +1,5 @@
-from collections.abc import Sequence, Iterable
+from collections.abc import Sequence, Iterable, Mapping
+
 from functools import reduce
 import six
 
@@ -270,3 +271,21 @@ def index_select(items, indexes):
     """Select items by the specified indexes
     """
     return [items[idx] for idx in indexes]
+
+
+class LazyDict(Mapping):
+    def __init__(self, *args, **kw):
+        self._raw_dict = dict(*args, **kw)
+        self._cache = dict()
+
+    def __getitem__(self, key):
+        if key not in self._cache:
+            func, arg = self._raw_dict.__getitem__(key)
+            self._cache[key] = func(arg)
+        return self._cache[key]
+
+    def __iter__(self):
+        return iter(self._raw_dict)
+
+    def __len__(self):
+        return len(self._raw_dict)
