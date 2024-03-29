@@ -298,9 +298,12 @@ def df_to_latex(
         header="",
         caption="",
         bold_max_cols=None,
+        bold_max_row_idxs=None,
         na_rep="-",
         supertabular=False,
-        midrule_after=None):
+        midrule_after=None,
+        colname_escape=True,
+        ):
     """Converts a pandas dataframe into a latex table.
 
         :col_aligns: Optional format string for column alignments in the
@@ -308,13 +311,17 @@ def df_to_latex(
                      to right-align for numeric columns and left-align
                      for everthing else.
         :header: Optional header row. Default is the df column names.
-        :bold_max_cols: Indexes of the columns among which the maximum
+        :bold_max_cols: Names of the columns among which the maximum
                         value will be bolded.
+        :bold_max_row_idxs: Indexes of the rows in which maximum values
+                        will be bolded.
         :na_rep: string representation of missing values.
         :supertabular: Whether to use the supertabular package (for long
                        tables).
         :midrule_after: Indexes of the rows after which a midrule should
                         be inserted.
+        :colname_escape: Whether special latex characters in the column names
+        should be escaped or not.
     """
     import numpy as np
     if bold_max_cols:
@@ -325,8 +332,9 @@ def df_to_latex(
         if not hasattr(midrule_after, "__contains__"):
             midrule_after = set(midrule_after)
 
-    def row_to_strings(row):
-        if bold_max_cols is not None:
+    def row_to_strings(row, i=None):
+        is_bold_max_row = bold_max_row_idxs is None or i in bold_max_row_idxs
+        if is_bold_max_row and bold_max_cols is not None:
             max_val = row[bold_max_cols].max()
         else:
             max_val = np.NaN
@@ -348,11 +356,17 @@ def df_to_latex(
         col_aligns = "".join([
             dtype2align.get(df[colname].dtype, "l")
             for colname in df.columns])
+    if header:
+        if not header.endswith(r"\\"):
+            header += r" \\"
     if not header:
-        header = " & ".join(map(tex_escape, df.columns)) + r"\\"
+        colnames = list(df.columns)
+        if colname_escape:
+            colnames = map(tex_escape, colnames)
+        header = " & ".join(colnames) + r"\\"
     rows = []
     for i, (_, row) in enumerate(df.iterrows()):
-        rows.append(" & ".join(row_to_strings(row)) + "\\\\\n")
+        rows.append(" & ".join(row_to_strings(row, i)) + "\\\\\n")
         if midrule_after and i in midrule_after:
             rows.append("\\midrule\n")
     if supertabular:
@@ -368,7 +382,7 @@ def df_to_latex(
 """)
 
     else:
-
+        assert not caption
         latex_tbl = (r"\begin{tabular}{" + col_aligns + r"""}
 \toprule
 """ + header + r"""
@@ -506,17 +520,3 @@ def load_kge_model(model_file_path):
     from kge.util.io import load_checkpoint
     checkpoint = load_checkpoint(str(model_file_path))
     return KgeModel.create_from(checkpoint)
-
-
-class LazyDict(dict):
-    def __init__(self, getter, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.getter = getter
-
-    def __getitem__(self, key):
-        if key in self:
-            value = super().__getitem__(key)
-        else:
-            value = self.getter(key)
-            super().__setitem__(key, value)
-        return value
