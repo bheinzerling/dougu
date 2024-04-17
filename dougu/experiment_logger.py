@@ -2,6 +2,7 @@ from pathlib import Path
 import time
 import json
 from numbers import Number
+from itertools import product
 
 import numpy as np
 
@@ -31,6 +32,10 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
         ('--exp-name', dict(type=str, default='dev')),
         ('--exp-results-file', dict(type=Path, nargs='+')),
         ('--exp-results-ignore-param', dict(type=str, nargs='+')),
+        ('--results-plot-x', dict(type=str, nargs='+')),
+        ('--results-plot-y', dict(type=str, nargs='+')),
+        ('--results-plot-hue', dict(type=str, nargs='+')),
+        ('--results-plot-style', dict(type=str, nargs='+')),
         ]
 
     def __init__(
@@ -42,7 +47,7 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
             ):
         super().__init__(conf)
         self.outdir = outdir
-        if not conf.exp_logger_no_log:
+        if not getattr(conf, 'exp_logger_no_log', False):
             self.setup()
         self.results_patch_data = results_patch_data or {}
 
@@ -83,11 +88,61 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
         jsonlines_dump(results, cache_file)
         self.log(f'{len(results)} results written to {cache_file}')
 
+    @cached_property
+    def results(self):
+        raise NotImplementedError()
+
+
+    def plot(
+            self,
+            *,
+            x_col=None,
+            y_col=None,
+            hue_col=None,
+            style_col=None,
+            kind='lineplot',
+            xlabel=None,
+            ylabel=None,
+            ):
+        import seaborn as sns
+        from dougu.plot import Figure
+        col_dict = {}
+        for col_key in ['x', 'y', 'hue', 'style']:
+            col_val = locals()[col_key + '_col']
+            if col_val is None:
+                col_vals = getattr(self.conf, f'results_plot_{col_key}')
+                if not col_vals:
+                    col_vals = [None]
+            else:
+                if isinstance(col_val, str):
+                    col_vals = [col_val]
+            col_dict[col_key] = [(col_key, col_val) for col_val in col_vals]
+
+        df = self.results
+        for keys_vals in map(dict, product(*col_dict.values())):
+            plot_dict = {
+                'data': df,
+                **keys_vals,
+                }
+            values = filter(lambda v: v is not None, keys_vals.values())
+            values = map(str, values)
+            title = '.'.join([
+                self.conf.exp_name,
+                *values,
+                ])
+            plot_fn = getattr(sns, kind)
+            with Figure(title):
+                ax = plot_fn(**plot_dict)
+                for label in 'x', 'y':
+                    label_val = locals()[label + 'label']
+                    if label_val is not None:
+                        getattr(ax, f'set_{label}label')(label_val)
+
+
 
 class FileLogger(ExperimentLogger):
     def setup(self):
-        mkdir(self.log_dir)
-        self.log(f'log dir: {self.log_dir}')
+        pass
 
     @property
     def log_dir_prefix(self):
@@ -105,10 +160,12 @@ class FileLogger(ExperimentLogger):
                     pass
         raise ValueError()
 
-    @property
+    @cached_property
     def log_dir(self):
         dirname = f'{self.log_dir_prefix}runid_' + self.conf.runid
-        return self.log_dir_parent / dirname
+        log_dir = mkdir(self.log_dir_parent / dirname)
+        self.log(f'log dir: {log_dir}')
+        return log_dir
 
     def log_params(self, params):
         params_file = self.log_dir / 'params.json'
