@@ -289,3 +289,19 @@ class LazyDict(Mapping):
 
     def __len__(self):
         return len(self._raw_dict)
+
+
+class HashableDict(dict):
+    def __init__(self, hashkey, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.hashkey = hashkey
+
+    @property
+    def _key(self):
+        return self[self.hashkey]
+
+    def __hash__(self):
+        return hash(self._key)
+
+    def __eq__(self, other):
+        return self._key == other._key
