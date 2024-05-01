@@ -52,21 +52,21 @@ class Configurable():
     def conf_fields(self):
         return []
 
-
     @property
     def conf_str(self):
         return conf_hash(self.conf, self.all_conf_fields)
 
     def conf_str_for_fields(self, fields):
-        return '.'.join([
-            field + str(getattr(self.conf, field))
-            for field in fields])
+        sub_conf = self.sub_conf(fields)
+        return '.'.join(f'{k}_{v}' for k, v in sub_conf.items())
+
+    def sub_conf(self, fields):
+        return {field: getattr(self.conf, field) for field in fields}
 
     @staticmethod
     def get_conf(desc='TODO'):
         a = Configurable.get_argparser(desc=desc)
         args = a.parse_args()
-        add_jobid(args)
         return args
 
     @staticmethod
