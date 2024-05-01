@@ -44,6 +44,14 @@ def json_dump_pandas(df, outfile, roundtrip_check=True, log=None, index=False):
         log(outfile)
 
 
+def json_load_pandas(json_file):
+    """Load a dumped Pandas dataframe from `json_file`."""
+    import pandas as pd
+    with to_path(json_file).open() as f:
+        json_str = f.read()
+    return pd.read_json(json_str, orient='table')
+
+
 def jsonlines_load(jsonlines_file, max=None, skip=None, filter_fn=None):
     """Load objects from json lines file, i.e. a file with one
     serialized object per line."""
