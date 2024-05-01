@@ -422,6 +422,9 @@ class ScatterBokeh(BokehFigure):
         self.x = x
         self.y = y
         self.scatter_labels = scatter_labels
+        # https://discourse.bokeh.org/t/glyphs-not-showing-after-upgrade-from-bokeh-1-4-0-to-2-4-3/9479/2
+        if marker == 'circle':
+            marker = 'scatter'
         self.marker = marker
         self.factor_marker_col = factor_marker_col
         self.factor_marker_map = factor_marker_map
@@ -444,6 +447,12 @@ class ScatterBokeh(BokehFigure):
         if self.scatter_labels:
             assert self.labels is not None
             from bokeh.models import Text
+            text_kwargs = dict(self.plot_kwargs)
+            for key in ['size', 'fill_alpha', 'line_alpha']:
+                try:
+                    text_kwargs.pop(key)
+                except KeyError:
+                    pass
             glyph = Text(
                 x="x",
                 y="y",
@@ -453,7 +462,7 @@ class ScatterBokeh(BokehFigure):
                 text_alpha=0.95,
                 text_font_size="8pt",
                 name=self.glyph_name,
-                **self.plot_kwargs,
+                **text_kwargs,
                 )
             self.figure.add_glyph(self.source, glyph)
         else:
