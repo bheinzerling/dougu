@@ -8,7 +8,10 @@ import numpy as np
 
 from .log import WithLog
 from .argparser import Configurable
-from .misc import SubclassRegistry
+from .misc import (
+    SubclassRegistry,
+    get_uuid,
+    )
 from .decorators import cached_property
 from .io import (
     mkdir,
@@ -31,11 +34,13 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
         ('--exp-logger-no-log', dict(action='store_true')),
         ('--exp-name', dict(type=str, default='dev')),
         ('--exp-results-file', dict(type=Path, nargs='+')),
+        ('--recollect-results', dict(action='store_true')),
         ('--exp-results-ignore-param', dict(type=str, nargs='+')),
-        ('--results-plot-x', dict(type=str, nargs='+')),
-        ('--results-plot-y', dict(type=str, nargs='+')),
-        ('--results-plot-hue', dict(type=str, nargs='+')),
-        ('--results-plot-style', dict(type=str, nargs='+')),
+        ('--plot-x', dict(type=str, nargs='+')),
+        ('--plot-y', dict(type=str, nargs='+')),
+        ('--plot-hue', dict(type=str, nargs='+')),
+        ('--plot-style', dict(type=str, nargs='+')),
+        ('--plot-legend-pos', dict(type=str, default='lower right')),
         ]
 
     def __init__(
@@ -52,7 +57,8 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
         self.results_patch_data = results_patch_data or {}
 
     def setup(self):
-        raise NotImplementedError
+        if getattr(self.conf, 'runid', None) is None:
+            self.conf.runid = get_uuid()
 
     def start_run(self, exp_params):
         self.exp_params = exp_params
@@ -92,7 +98,6 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
     def results(self):
         raise NotImplementedError()
 
-
     def plot(
             self,
             *,
@@ -110,7 +115,7 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
         for col_key in ['x', 'y', 'hue', 'style']:
             col_val = locals()[col_key + '_col']
             if col_val is None:
-                col_vals = getattr(self.conf, f'results_plot_{col_key}')
+                col_vals = getattr(self.conf, f'plot_{col_key}')
                 if not col_vals:
                     col_vals = [None]
             else:
@@ -120,8 +125,11 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
 
         df = self.results
         for keys_vals in map(dict, product(*col_dict.values())):
+            order = sorted(df[keys_vals['hue']].unique())
             plot_dict = {
                 'data': df,
+                'hue_order': order,
+                'style_order': order,
                 **keys_vals,
                 }
             values = filter(lambda v: v is not None, keys_vals.values())
@@ -137,7 +145,18 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
                     label_val = locals()[label + 'label']
                     if label_val is not None:
                         getattr(ax, f'set_{label}label')(label_val)
-
+                group_col = keys_vals.get('hue', keys_vals.get('style'))
+                if group_col is not None:
+                    group_df = df.groupby(group_col).max().reset_index()
+                    groups_sorted = group_df.sort_values(
+                        keys_vals['y'], ascending=False)
+                    group2sort_idx = {group: i for i, group in enumerate(groups_sorted[group_col])}
+                    legend_order = groups_sorted[group_col]
+                    handles, labels = ax.get_legend_handles_labels()
+                    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: group2sort_idx[t[0]]))
+                    ax.legend(handles, labels)
+                    legend_pos = getattr(self.conf, 'plot_legend_pos')
+                    sns.move_legend(ax, legend_pos)
 
 
 class FileLogger(ExperimentLogger):
@@ -205,8 +224,11 @@ class FileLogger(ExperimentLogger):
         from tqdm import tqdm
         for f in tqdm(results_dir.iterdir()):
             try:
-                result = json_load(f)
-                results.append(result)
+                if f.suffix == '.jsonl':
+                    results.extend(jsonlines_load(f))
+                else:
+                    result = json_load(f)
+                    results.append(result)
             except Exception:
                 log(f'Exception while loading result from file\n{f}')
         return results
