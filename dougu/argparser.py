@@ -3,12 +3,11 @@ from argparse import ArgumentParser
 
 from . import (
     conf_hash,
-    add_jobid,
 )
 from .decorators import cached_property
 
 
-class Configurable():
+class Configurable:
     classes = set()
     args = []
 
@@ -157,6 +156,8 @@ class WithRandomSeed(Configurable):
 
 
 class WithRandomState(WithRandomSeed):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def set_random_seed(self, seed):
         # do not set any global random seed
@@ -193,3 +194,9 @@ class WithRandomState(WithRandomSeed):
             sample = list(map(items.__getitem__, rnd_idxs))
         assert len(sample) == sample_size
         return sample
+
+    def random_bool(self, true_prob):
+        # random() "generates a random float uniformly in the half-open
+        # range 0.0 <= X < 1.0"
+        # https://docs.python.org/3/library/random.html
+        return self.random_state.random() < true_prob
