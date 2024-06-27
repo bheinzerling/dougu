@@ -183,6 +183,10 @@ class BokehFigure:
     def hover_tool_names(self):
         return None
 
+    @property
+    def hover_max_width_px(self):
+        return 800
+
     def add_tooltips(self):
         from bokeh.models import HoverTool
         hover = self.figure.select(dict(type=HoverTool))
@@ -197,7 +201,19 @@ class BokehFigure:
         if self.tooltip_fields:
             for field in self.tooltip_fields:
                 hover_entries.append((field, "@{" + field + '}'))
-        hover.tooltips = dict(hover_entries)
+
+        def hover_row(hover_entry):
+            k, v = hover_entry
+            return f'<span style="font-weight: bold;">{k}:</span>{v}'
+
+        rows = '<br>'.join(map(hover_row, hover_entries))
+        html = f"""
+<div style="width:{self.hover_max_width_px}px;">'
+{rows}
+</div>
+<hr>
+"""
+        hover.tooltips = html
 
     def add_colorbar(
             self,
