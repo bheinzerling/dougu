@@ -504,18 +504,31 @@ class TransformerLM(TransformerEncoder):
             **kwargs,
             ).to(self.trf.device)
 
-    def generate(self, prompt, *args, **kwargs):
+    def generate(
+            self,
+            prompt,
+            *args,
+            temperature=1e-8,
+            return_new_tokens_only=True,
+            **kwargs,
+            ):
         tok_out = self.tokenize(prompt)
         trf_out = self.trf.generate(
             tok_out.input_ids,
             *args,
             pad_token_id=self.tokenizer.pad_token_id,
+            temperature=temperature,
             **kwargs,
             )
-        return self.tokenizer.batch_decode(
+        text = self.tokenizer.batch_decode(
             trf_out,
             skip_special_tokens=True,
             )
+        assert len(text) == 1
+        text = text[0]
+        if return_new_tokens_only and text.startswith(prompt):
+            text = text[len(prompt):]
+        return text
 
     def encode(self, texts, labels=None, **kwargs):
         tok_out = self.tokenize(texts)
