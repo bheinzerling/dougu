@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from .misc import conf_hash, get_logger
+from .io import mkdir
 
 
 __all__ = [
@@ -128,6 +129,7 @@ class _file_cached_property(_cached_property):
             self.func_name + '.' +
             (self.fname_tpl or
                 '{conf_str}.pkl').format(conf_str=conf_str))
+        mkdir(self.cache_dir)
         cache_file = self.cache_dir / fname
         return cache_file
 
