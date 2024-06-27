@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 
 from pathlib import Path
 
+from .iters import is_non_string_iterable
+
 
 class Figure:
     """Provides a context manager that automatically saves and closes
@@ -40,6 +42,8 @@ class Figure:
             savefig_kwargs=None,
             **kwargs,
             ):
+        if is_non_string_iterable(name):
+            name = '.'.join(map(str, name))
         self.fig = plt.figure()
         if figwidth is not None:
             self.fig.set_figwidth(figwidth)
@@ -71,7 +75,7 @@ class Figure:
                 continue
             try:
                 getattr(plt, attr)(val)
-            except:
+            except Exception:
                 getattr(plt, attr)(*val)
         return self
 
