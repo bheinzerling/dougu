@@ -437,35 +437,14 @@ def get_optim(
         optimizer = optim.Adam(
             params, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
     elif optim_name == "adamw":
-        from transformers import AdamW
-        no_decay = ['bias', 'LayerNorm.weight']
-        grouped_params = [
-            {
-                'params': [
-                    p for n, p in model.named_parameters()
-                    if not any(nd in n for nd in no_decay)
-                    and p not in additional_params],
-                'weight_decay': conf.weight_decay},
-            {
-                'params': [
-                    p for n, p in model.named_parameters()
-                    if any(nd in n for nd in no_decay)
-                    and p not in additional_params],
-                'weight_decay': 0.0}]
-        optimizer = AdamW(
-            grouped_params,
-            betas=betas,
-            weight_decay=weight_decay,
-            lr=lr,
-            eps=eps)
+        optimizer = optim.AdamW(
+            params, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
     elif optim_name == "sgd":
         optimizer = optim.SGD(
             params,
             lr=conf.lr,
             momentum=conf.momentum,
             weight_decay=conf.weight_decay)
-    elif optim_name == 'bertadam':
-        optimizer = get_bert_optim(conf, model, n_train_instances)
     elif optim_name == 'radam':
         from .radam import RAdam
         optimizer = RAdam(params, lr=lr)
