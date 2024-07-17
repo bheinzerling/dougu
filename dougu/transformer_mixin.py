@@ -15,7 +15,7 @@ class TransformerEncoder(Configurable):
         ('--max-new-tokens', dict(type=int, default=64)),
         ('--trf-enc-batch-size', dict(type=int, default=8)),
         ('--trf-enc-device', dict(type=str, default='cuda:0')),
-        ('--transformer', dict(type=str, default='meta-llama/Llama-2-7b-hf')),
+        ('--transformer', dict(type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')),
         ('--trf-include-dec-states', dict(action='store_true')),
         ('--trf-no-generate', dict(action='store_true')),
         ('--trf-rand-init', dict(action='store_true')),
