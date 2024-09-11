@@ -6,6 +6,8 @@ from itertools import product
 
 import numpy as np
 
+import pandas as pd
+
 from .log import WithLog
 from .argparser import Configurable
 from .misc import (
@@ -20,6 +22,8 @@ from .io import (
     jsonlines_load,
     jsonlines_dump,
     ensure_serializable,
+    json_load_pandas,
+    json_dump_pandas,
     )
 from .iters import flatten
 
@@ -36,6 +40,8 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
         ('--exp-results-file', dict(type=Path, nargs='+')),
         ('--recollect-results', dict(action='store_true')),
         ('--exp-results-ignore-param', dict(type=str, nargs='+')),
+        ('--exp-results-pandas', dict(action='store_true')),
+        ('--exp-logger-verbose', dict(action='store_true')),
         ('--plot-x', dict(type=str, nargs='+')),
         ('--plot-y', dict(type=str, nargs='+')),
         ('--plot-hue', dict(type=str, nargs='+')),
@@ -82,7 +88,11 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
 
     @property
     def results_file(self):
-        fname = f'{self.conf.exp_name}.jsonl'
+        if self.conf.exp_results_pandas:
+            ext = 'df.json'
+        else:
+            ext = 'jsonl'
+        fname = f'{self.conf.exp_name}.{ext}'
         results_file = mkdir(self.outdir / 'results') / fname
         if not results_file.exists():
             self.cache_results(results_file)
@@ -90,9 +100,21 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
         return results_file
 
     def cache_results(self, cache_file):
-        results = self.collect_results(self.results_dir, log=self.log)
-        jsonlines_dump(results, cache_file)
+        results = self.collect_results(
+            self.results_dir,
+            log=self.log,
+            expect_pandas=self.conf.exp_results_pandas,
+            )
+        if self.conf.exp_results_pandas:
+            if results:
+                results = pd.concat(results)
+            else:
+                results = pd.DataFrame([])
+            json_dump_pandas(results, cache_file, roundtrip_check=not results.empty)
+        else:
+            jsonlines_dump(results, cache_file)
         self.log(f'{len(results)} results written to {cache_file}')
+        return results
 
     @cached_property
     def results(self):
@@ -218,7 +240,7 @@ class FileLogger(ExperimentLogger):
             )
 
     @staticmethod
-    def collect_results(results_dir, log=print):
+    def collect_results(results_dir, log=print, expect_pandas=False):
         assert results_dir
         results = []
         from tqdm import tqdm
@@ -227,7 +249,10 @@ class FileLogger(ExperimentLogger):
                 if f.suffix == '.jsonl':
                     results.extend(jsonlines_load(f))
                 else:
-                    result = json_load(f)
+                    if expect_pandas:
+                        result = json_load_pandas(f)
+                    else:
+                        result = json_load(f)
                     results.append(result)
             except Exception:
                 log(f'Exception while loading result from file\n{f}')
@@ -242,10 +267,49 @@ class FileLogger(ExperimentLogger):
             patch_data=None,
             recollect_results=False,
             ):
+        kwargs = dict(
+            results_dir=results_dir,
+            results_file=results_file,
+            log=log,
+            patch_data=patch_data,
+            recollect_results=recollect_results,
+            )
+        if self.conf.exp_results_pandas:
+            df = self._results_pandas(**kwargs)
+        else:
+            df = self._results_json(**kwargs)
+        for key, value in (patch_data or {}).items():
+            if key in df.columns:
+                df[key].fillna(value or '', inplace=True)
+            else:
+                df[key] = value
+        return df
+
+    def _results_pandas(
+            self,
+            *,
+            results_dir=None,
+            results_file=None,
+            log=print,
+            patch_data=None,
+            recollect_results=False,
+            ):
+        if recollect_results:
+            return self.cache_results(self.results_file)
+        return json_load_pandas(self.results_file)
+
+    def _results_json(
+            self,
+            *,
+            results_dir=None,
+            results_file=None,
+            log=print,
+            patch_data=None,
+            recollect_results=False,
+            ):
         import pandas as pd
         if recollect_results:
-            results = FileLogger.collect_results(results_dir, log=log)
-            self.cache_results(self.results_file)
+            results = self.cache_results(self.results_file)
         else:
             results_file = results_file or [self.results_file]
             if results_file:
@@ -260,11 +324,6 @@ class FileLogger(ExperimentLogger):
             for result in results
             ]
         df = pd.DataFrame(results)
-        for key, value in (patch_data or {}).items():
-            if key in df.columns:
-                df[key].fillna(value or '', inplace=True)
-            else:
-                df[key] = value
         return df
 
     def remove_ignored_params(self, params):
@@ -291,14 +350,21 @@ class FileLogger(ExperimentLogger):
         if df.empty:
             return df
 
+        def check_missing(category_params, category):
+            missing_cols = set(category_params.keys()) - set(df.columns)
+            if missing_cols:
+                self.log(f'missing {category} columns: {missing_cols}')
+
         num_params = {k: v for k, v in params.items() if isinstance(v, Number)}
         if num_params:
+            check_missing(num_params, 'numeric')
             num_query = ' and '.join(f'{k}=={v}' for k, v in num_params.items())
             df = df.query(num_query)
             params = dict(params.items() - num_params.items())
 
         none_params = {k: v for k, v in params.items() if v is None}
         if none_params:
+            check_missing(none_params, 'none')
             column_masks = [equal(df[k], v) for k, v in none_params.items()]
             mask = np.logical_and.reduce(column_masks)
             df = df[mask]
@@ -308,6 +374,7 @@ class FileLogger(ExperimentLogger):
         params = dict(params.items() - string_params.items())
 
         if params:
+            check_missing(params, 'misc')
             column_masks = [equal(df[k], v) for k, v in params.items()]
             mask = np.logical_and.reduce(column_masks)
             df = df[mask]
@@ -315,6 +382,7 @@ class FileLogger(ExperimentLogger):
         # string comparisons seem to be slowest, so do them last when the dataframe
         # has been filtered down the most
         if string_params:
+            check_missing(string_params, 'string')
             string_query = ' and '.join(f'{k}=="{v}"' for k, v in string_params.items())
             df = df.query(string_query)
 
