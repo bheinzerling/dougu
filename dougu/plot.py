@@ -266,9 +266,6 @@ def simple_imshow(
     plt.tight_layout()
     if outfile:
         plt.savefig(outfile)
-    else:
-        plt.show()
-    plt.clf()
 
 
 def plot_embeddings(
