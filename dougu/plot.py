@@ -186,10 +186,12 @@ def simple_imshow(
         scale="lin",
         colorbar_range=None,
         cbar_title=None,
+        cbar_aspect=20,
         bad_color='white',
         origin='upper',
         cell_text=None,
         cell_text_color=None,
+        imshow_aspect=None,
         ):
     if aspect_equal and figsize is not None and figsize[1] is None:
         matrix_aspect = matrix.shape[0] / matrix.shape[1]
@@ -211,7 +213,13 @@ def simple_imshow(
     if bad_color is not None:
         cmap.set_bad(bad_color)
     im = plt.imshow(
-        matrix, interpolation='nearest', cmap=cmap, norm=norm, origin=origin)
+        matrix,
+        interpolation='nearest',
+        cmap=cmap,
+        norm=norm,
+        origin=origin,
+        aspect=imshow_aspect,
+        )
     if xtick_labels is not None:
         assert xtick_locs_labels is None
         locs = np.arange(0, len(xtick_labels))
@@ -245,7 +253,7 @@ def simple_imshow(
             right=False,)         # ticks along the top edge are off
         ax.set_yticks([])
     if colorbar:
-        cbar = add_colorbar(im)
+        cbar = add_colorbar(im, aspect=cbar_aspect)
         if colorbar_range is not None:
             plt.clim(*colorbar_range)
         if cbar_title:
