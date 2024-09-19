@@ -43,9 +43,14 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
         ('--exp-results-pandas', dict(action='store_true')),
         ('--exp-logger-verbose', dict(action='store_true')),
         ('--plot-x', dict(type=str, nargs='+')),
+        ('--plot-x-label', dict(type=str, nargs='+')),
         ('--plot-y', dict(type=str, nargs='+')),
+        ('--plot-y-label', dict(type=str, nargs='+')),
+        ('--plot-y-min', dict(type=float)),
+        ('--plot-y-max', dict(type=float)),
         ('--plot-hue', dict(type=str, nargs='+')),
         ('--plot-style', dict(type=str, nargs='+')),
+        ('--plot-groupby', dict(type=str, nargs='+')),
         ('--plot-legend-pos', dict(type=str, default='lower right')),
         ]
 
@@ -130,9 +135,13 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
             kind='lineplot',
             xlabel=None,
             ylabel=None,
+            y_min=None,
+            y_max=None,
             ):
         import seaborn as sns
+        import matplotlib.pyplot as plt
         from dougu.plot import Figure
+
         col_dict = {}
         for col_key in ['x', 'y', 'hue', 'style']:
             col_val = locals()[col_key + '_col']
@@ -145,40 +154,80 @@ class ExperimentLogger(Configurable, SubclassRegistry, WithLog):
                     col_vals = [col_val]
             col_dict[col_key] = [(col_key, col_val) for col_val in col_vals]
 
-        df = self.results
-        for keys_vals in map(dict, product(*col_dict.values())):
-            order = sorted(df[keys_vals['hue']].unique())
-            plot_dict = {
-                'data': df,
-                'hue_order': order,
-                'style_order': order,
-                **keys_vals,
-                }
-            values = filter(lambda v: v is not None, keys_vals.values())
-            values = map(str, values)
-            title = '.'.join([
-                self.conf.exp_name,
-                *values,
-                ])
-            plot_fn = getattr(sns, kind)
-            with Figure(title):
-                ax = plot_fn(**plot_dict)
-                for label in 'x', 'y':
-                    label_val = locals()[label + 'label']
-                    if label_val is not None:
-                        getattr(ax, f'set_{label}label')(label_val)
-                group_col = keys_vals.get('hue', keys_vals.get('style'))
-                if group_col is not None:
-                    group_df = df.groupby(group_col).max().reset_index()
-                    groups_sorted = group_df.sort_values(
-                        keys_vals['y'], ascending=False)
-                    group2sort_idx = {group: i for i, group in enumerate(groups_sorted[group_col])}
-                    legend_order = groups_sorted[group_col]
-                    handles, labels = ax.get_legend_handles_labels()
-                    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: group2sort_idx[t[0]]))
-                    ax.legend(handles, labels)
-                    legend_pos = getattr(self.conf, 'plot_legend_pos')
-                    sns.move_legend(ax, legend_pos)
+        if y_min is None:
+            y_min = self.conf.plot_y_min
+        if y_max is None:
+            y_max = self.conf.plot_y_max
+        if y_min is not None and y_max is not None:
+            ylim = (y_min, y_max)
+        else:
+            ylim = None
+
+        axis2col2label = {'x': {}, 'y': {}}
+        for axis in axis2col2label.keys():
+            if getattr(self.conf, f'plot_{axis}_label'):
+                axis2col2label[axis] = dict(zip(
+                    getattr(self.conf, f'plot_{axis}'),
+                    getattr(self.conf, f'plot_{axis}_label')
+                    ))
+
+        _df = self.results
+        if self.conf.plot_groupby:
+            groups = list(_df.groupby(self.conf.plot_groupby))
+            group_str_fn = lambda parts: '.'.join(parts)
+        else:
+            groups = [('', _df)]
+            group_str_fn = lambda x: x
+        for group_key, df in groups:
+            group_str = group_str_fn(group_key)
+            for keys_vals in map(dict, product(*col_dict.values())):
+                plot_dict = {
+                    'data': df,
+                    **keys_vals,
+                    }
+                if keys_vals['hue'] is not None:
+                    order = sorted(df[keys_vals['hue']].unique())
+                    plot_dict.update({
+                        'hue_order': order,
+                        'style_order': order,
+                        })
+                values = filter(lambda v: v is not None, keys_vals.values())
+                values = map(str, values)
+                title = '.'.join([
+                    self.conf.exp_name,
+                    group_str,
+                    *values,
+                    ])
+                plot_fn = getattr(sns, kind)
+                with Figure(title):
+                    ax = plot_fn(**plot_dict)
+                    for label in 'x', 'y':
+                        label_val = locals()[label + 'label']
+                        if label_val is None:
+                            label_val = axis2col2label[label].get(keys_vals[label], None)
+                        if label_val is not None:
+                            getattr(ax, f'set_{label}label')(label_val)
+                    group_col = keys_vals.get('hue', keys_vals.get('style', None))
+                    if group_col is not None:
+                        group_df = df.groupby(group_col).max().reset_index()
+                        groups_sorted = group_df.sort_values(
+                            keys_vals['y'], ascending=False)
+                        group2sort_idx = {str(group): i for i, group in enumerate(groups_sorted[group_col])}
+                        legend_order = groups_sorted[group_col]
+                        handles, labels = ax.get_legend_handles_labels()
+                        labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: group2sort_idx[t[0]]))
+                        ax.legend(handles, labels, title=group_col)
+                        legend_pos = getattr(self.conf, 'plot_legend_pos')
+                        sns.move_legend(ax, legend_pos)
+
+                        print_cols = [group_col, plot_dict['x'], plot_dict['y']]
+                        print_df = plot_dict['data'][print_cols]
+                        print_df_sorted = print_df.sort_values(plot_dict['y'], ascending=False)
+                        print_df_best = print_df_sorted.drop_duplicates(group_col).sort_values(group_col)
+                        print(print_df_best)
+
+                    if ylim is not None:
+                        plt.ylim(*ylim)
 
 
 class FileLogger(ExperimentLogger):
