@@ -510,14 +510,18 @@ class TransformerLM(TransformerEncoder):
             *args,
             temperature=1e-8,
             return_new_tokens_only=True,
+            max_new_tokens=None,
             **kwargs,
             ):
         tok_out = self.tokenize(prompt)
+        if max_new_tokens is None:
+            max_new_tokens = self.conf.max_new_tokens
         trf_out = self.trf.generate(
             tok_out.input_ids,
             *args,
             pad_token_id=self.tokenizer.pad_token_id,
             temperature=temperature,
+            max_new_tokens=max_new_tokens,
             **kwargs,
             )
         text = self.tokenizer.batch_decode(
