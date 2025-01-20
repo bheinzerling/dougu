@@ -14,8 +14,7 @@ from ignite.handlers import Checkpoint, DiskSaver
 
 
 from dougu import (
-    EntryPoint,
-    WithLog,
+    Configurable,
     mkdir,
     next_rundir,
     dump_args,
@@ -35,11 +34,12 @@ from dougu.torchutil import (
 from dougu.experiment_logger import ExperimentLogger
 
 
-class TrainerBase(EntryPoint, WithLog):
+class Trainer(Configurable):
     args = [
         ('--device', dict(type=str, default='cuda:0')),
         ('--random-seed', dict(type=int, default=2)),
         ('--runid', dict(type=str)),
+        ('--model-file', dict(type=str)),
         ('--batch-size', dict(type=int, default=32)),
         ('--eval-batch-size', dict(type=int, default=128)),
         ('--eval-every', dict(type=int, default=1)),
@@ -64,7 +64,7 @@ class TrainerBase(EntryPoint, WithLog):
         ('--checkpoint-metric-name', dict(type=str, default='dev_acc')),
         ('--checkpoint-metric-optimum', dict(type=str, default='max')),
         ('--no-fp16', dict(action='store_true')),
-        ('--outdir', dict(type=Path, default='out')),
+        ('--outdir', dict(type=Path, default=Path('out'))),
         ('--gradient-accumulation-steps', dict(type=int, default=1)),
         ('--max-grad-norm', dict(type=float, default=1.0)),
         ('--dist-backend', dict(type=str, default='nccl')),
@@ -80,8 +80,32 @@ class TrainerBase(EntryPoint, WithLog):
         ('--test', dict(action='store_true')),
         ]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+            self,
+            *args,
+            log=print,
+            load_data_fn=None,
+            data=None,
+            make_model_fn=None,
+            model=None,
+            metrics_fn,
+            eval_step,
+            train_step=None,
+            exp_params,
+            **kwargs,
+            ):
         super().__init__(*args, **kwargs)
+        self.load_data = load_data_fn
+        self.data = data
+        self.make_model = make_model_fn
+        self.model = model
+        self.metrics = metrics_fn
+        self.log = log
+        self.eval_step = eval_step
+        if train_step is None:
+            train_step = self.make_train_step()
+        self.train_step = train_step
+        self.exp_params = exp_params
         self.setup_done = False
         if not self.conf.no_setup:
             self.setup(
@@ -137,6 +161,8 @@ class TrainerBase(EntryPoint, WithLog):
         return {}
 
     def setup_data(self, **data_kwargs):
+        if self.data is not None:
+            return
         if not self.is_dist_main():
             dist.barrier(device_ids=[self.conf.local_rank])
         else:
@@ -231,7 +257,8 @@ class TrainerBase(EntryPoint, WithLog):
             self.conf.local_rank = 0
 
     def setup_model(self):
-        self.model = self.make_model()
+        if self.model is None:
+            self.model = self.make_model()
         self.maybe_load_model()
         self.model = self.model.to(self.device)
 
@@ -275,9 +302,6 @@ class TrainerBase(EntryPoint, WithLog):
     def checkpoint_metric_optimum(self):
         return self.conf.checkpoint_metric_optimum
 
-    def make_model(self):
-        raise NotImplementedError()
-
     @property
     def model_file(self):
         return self.conf.model_file
@@ -285,11 +309,16 @@ class TrainerBase(EntryPoint, WithLog):
     def maybe_load_model(self, model_file=None):
         model_file = model_file or self.model_file
         if model_file:
-            self.log(f'loading model {self.model_file}')
+            self.log(f'loading model {model_file}')
             state_dict = torch.load(model_file, map_location='cpu')
+            model_file = Path(model_file)
             if model_file.name.startswith('checkpoint'):
                 state_dict = state_dict['model']
                 state_dict = fix_dataparallel_statedict(self.model, state_dict)
+            state_dict = {
+                k: v for k, v in state_dict.items()
+                if isinstance(v, torch.Tensor)
+                }
             self.model.load_state_dict(state_dict)
 
     @property
@@ -331,9 +360,6 @@ class TrainerBase(EntryPoint, WithLog):
     def additional_params_dict(self):
         return None
 
-    def load_data(self):
-        raise NotImplementedError()
-
     @property
     def n_train_steps(self):
         if self.conf.lr_scheduler == 'plateau':
@@ -366,7 +392,7 @@ class TrainerBase(EntryPoint, WithLog):
 
     @cached_property
     def train_engine(self):
-        engine = Engine(self.make_train_step())
+        engine = Engine(self.train_step)
         if not self.is_dist_main():
             engine.logger.disabled = True
         for metric_name, metric in self.train_metrics.items():
@@ -433,7 +459,7 @@ class TrainerBase(EntryPoint, WithLog):
         return self.make_eval_engine(self.test_metrics)
 
     def make_eval_engine(self, metrics):
-        engine = Engine(self.make_eval_step())
+        engine = Engine(self.eval_step)
         for metric_name, metric in metrics.items():
             metric.attach(engine, metric_name)
         engine.inputs = []
@@ -528,16 +554,9 @@ class TrainerBase(EntryPoint, WithLog):
             return result
         return train_step
 
-    def make_eval_step(self):
-        raise NotImplementedError()
-
     @property
     def epoch(self):
         return self.train_engine.state.epoch
-
-    @property
-    def exp_params(self):
-        raise NotImplementedError
 
     def log_metrics(self, metrics):
         self.exp_logger.log_metrics(metrics, step=self.epoch)
@@ -666,7 +685,7 @@ class TrainerBase(EntryPoint, WithLog):
                 self.maybe_load_model(model_file)
             self.test()
         self.end_run()
-        if self.is_dist_main():
+        if self.is_dist_main() and self.conf.test:
             return self.results
 
     def test(self):
@@ -674,7 +693,7 @@ class TrainerBase(EntryPoint, WithLog):
         self.test_engine.run(self.data.test_loader)
         self.log_metrics(self.test_engine.state.metrics)
         self.log_results('test', self.test_engine.state.metrics)
-        self.save_results(engine=self.test_engine)
+        self.save_results(exp_params=self.exp_params, engine=self.test_engine)
         self.end_run()
         if self.is_dist_main():
             return self.results
