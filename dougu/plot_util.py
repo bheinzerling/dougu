@@ -201,6 +201,7 @@ def get_cluster_colors(vectors, **clusterer_kwargs):
     """
     import hdbscan
     import seaborn as sns
+    import numpy as np
     clusterer = hdbscan.HDBSCAN(**clusterer_kwargs).fit(vectors)
     palette = sns.color_palette(n_colors=max(clusterer.labels_) + 1)
     cluster_colors = [
@@ -209,3 +210,10 @@ def get_cluster_colors(vectors, **clusterer_kwargs):
         ]
     # convert from [0, 1] floats to 8-bit RGB values
     return (np.array(cluster_colors) * 256).astype(int)
+
+
+def plot_figures_with_cmaps(plot_fn, cmaps, title):
+    for cmap in cmaps:
+        _title = f'{title}.{cmap}'
+        with Figure(_title):
+            plot_fn(cmap)
