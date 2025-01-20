@@ -460,43 +460,51 @@ def get_optim(
 
 def get_lr_scheduler(conf, optimizer, optimum='max', n_train_steps=None):
     sched_name = getattr(conf, 'learning_rate_scheduler', conf.lr_scheduler)
-    if sched_name == "plateau":
-        from torch.optim.lr_scheduler import ReduceLROnPlateau
-        lr_scheduler = ReduceLROnPlateau(
-            optimizer, factor=0.5,
-            patience=conf.lr_scheduler_patience,
-            mode=optimum,
-            verbose=True)
-        lr_scheduler.requires_metric = True
-    elif sched_name == 'warmup_linear':
-        from transformers.optimization import get_linear_schedule_with_warmup
-        assert n_train_steps
-        lr_scheduler = get_linear_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=conf.warmup_steps,
-            num_training_steps=n_train_steps)
-        lr_scheduler.requires_metric = False
-    elif sched_name == 'cyclic':
-        from torch.optim.lr_scheduler import CyclicLR
-        lr_scheduler = CyclicLR(
-            optimizer,
-            base_lr=conf.lr,
-            max_lr=10 * conf.lr,
-            # cycle_momentum='momentum' in optimizer.defaults)
-            step_size_up=100,
-            cycle_momentum=False)
-        lr_scheduler.requires_metric = False
-    elif sched_name == 'polynomial_decay':
-        from transformers.optimization import get_polynomial_decay_schedule_with_warmup
-        lr_scheduler = get_polynomial_decay_schedule_with_warmup(
-            optimizer,
-            conf.warmup_steps,
-            conf.n_train_steps or n_train_steps)
-    elif sched_name:
-        raise ValueError(
-            "Unknown lr_scheduler: " + sched_name)
-    else:
-        lr_scheduler = None
+    match sched_name:
+        case 'plateau':
+            from torch.optim.lr_scheduler import ReduceLROnPlateau
+            lr_scheduler = ReduceLROnPlateau(
+                optimizer, factor=0.5,
+                patience=conf.lr_scheduler_patience,
+                mode=optimum,
+                verbose=True)
+            lr_scheduler.requires_metric = True
+        case 'warmup_linear':
+            from transformers import get_linear_schedule_with_warmup
+            assert n_train_steps
+            lr_scheduler = get_linear_schedule_with_warmup(
+                optimizer,
+                num_warmup_steps=conf.warmup_steps,
+                num_training_steps=n_train_steps)
+            lr_scheduler.requires_metric = False
+        case 'cyclic':
+            from torch.optim.lr_scheduler import CyclicLR
+            lr_scheduler = CyclicLR(
+                optimizer,
+                base_lr=conf.lr,
+                max_lr=10 * conf.lr,
+                # cycle_momentum='momentum' in optimizer.defaults)
+                step_size_up=100,
+                cycle_momentum=False)
+            lr_scheduler.requires_metric = False
+        case 'polynomial_decay':
+            from transformers import get_polynomial_decay_schedule_with_warmup
+            lr_scheduler = get_polynomial_decay_schedule_with_warmup(
+                optimizer,
+                conf.warmup_steps,
+                conf.n_train_steps or n_train_steps,
+                )
+        case 'cosine_warmup':
+            from transformers import get_cosine_schedule_with_warmup
+            lr_scheduler = get_cosine_schedule_with_warmup(
+                optimizer,
+                conf.warmup_steps,
+                conf.n_train_steps or n_train_steps,
+                )
+        case None:
+            lr_scheduler = None
+        case _:
+            raise ValueError("Unknown lr_scheduler: " + sched_name)
     return lr_scheduler
 
 
