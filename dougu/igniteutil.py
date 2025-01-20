@@ -5,7 +5,6 @@ from dougu.torchutil import get_lr_scheduler
 
 from ignite.engine import Engine, Events
 from ignite.handlers import ModelCheckpoint, EarlyStopping
-from ignite.contrib.handlers import CustomPeriodicEvent
 
 
 def attach_lr_scheduler(
@@ -54,17 +53,13 @@ def log_results(trainer, evaluator, eval_name):
         trainer.state.last_acc = metrics['acc']
 
 
-def custom_periodic_events(engine, **event_kwargs):
-    events = CustomPeriodicEvent(**event_kwargs)
-    engine.register_events(*events.Events)
-    events.attach(engine)
-    return events
-
-
 def attach_result_log(
-        trainer, evaluators, data_loaders,
+        trainer,
+        evaluators,
+        data_loaders,
         eval_every=1,
-        first_eval_epoch=1):
+        first_eval_epoch=1,
+        ):
     def _log_results(_trainer):
         if _trainer.state.epoch < first_eval_epoch:
             return
@@ -73,14 +68,7 @@ def attach_result_log(
             evaluator.run(data_loader)
             log_results(_trainer, evaluator, split_name)
 
-    if eval_every != 1:
-        eval_events = CustomPeriodicEvent(n_epochs=eval_every)
-        trainer.register_events(*eval_events.Events)
-        eval_events.attach(trainer)
-        eval_event = getattr(
-            eval_events.Events, f'EPOCHS_{eval_every}_COMPLETED')
-    else:
-        eval_event = Events.EPOCH_COMPLETED
+    eval_event = Events.EPOCH_COMPLETED(every=eval_every)
     trainer.add_event_handler(eval_event, _log_results)
 
 
