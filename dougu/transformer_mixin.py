@@ -19,6 +19,7 @@ class TransformerEncoder(Configurable):
         ('--trf-include-dec-states', dict(action='store_true')),
         ('--trf-no-generate', dict(action='store_true')),
         ('--trf-rand-init', dict(action='store_true')),
+        ('--trf-include-all-activations', dict(action='store_true')),
         ('--device-map', dict(type=str, default='balanced_low_0')),
         ('--custom-device-map', dict(action='store_true')),
         ('--show-reconstruction-error-examples', dict(action='store_true')),
@@ -32,6 +33,7 @@ class TransformerEncoder(Configurable):
                 'allow_lossy_or_one_percent',
                 ],
             default='allow_lossy_or_one_percent')),
+        ('--hooked-trf-first-n-layers', dict(type=int)),
         ]
     _max_seq_len = None
     default_device_map = 'balanced_low_0'
@@ -110,8 +112,13 @@ class TransformerEncoder(Configurable):
     def model_cls(self):
         import transformers
         architectures = self.trf_config.architectures
-        assert len(architectures) == 1
-        architecture = architectures[0]
+        if architectures is None:
+            if self.trf_config.model_type == 'llama':
+                architecture = 'LlamaForCausalLM'
+        else:
+            assert len(architectures) == 1
+            architecture = architectures[0]
+        assert architecture is not None
         architecture = {
             'BloomModel': 'BloomForCausalLM',
             }.get(architecture, architecture)
@@ -142,6 +149,15 @@ class TransformerEncoder(Configurable):
                 )
         return self.to_gpu(model)
 
+    @cached_property
+    def hooked_trf(self):
+        from transformer_lens import HookedTransformer
+        return HookedTransformer.from_pretrained(
+            self.trf.config._name_or_path,
+            hf_model=self.trf,
+            first_n_layers=self.conf.hooked_trf_first_n_layers,
+            )
+
     @property
     def transformer(self):
         return self.trf
@@ -152,18 +168,17 @@ class TransformerEncoder(Configurable):
 
     @property
     def bos_offset(self):
-        # use ._bos_token instead of .bos_token to avoid warning
         uses_bos = (
-            (self.tokenizer._bos_token is not None) and
+            (self.tokenizer.special_tokens_map.get('bos_token') is not None) and
             (self.tokenizer('test')['input_ids'][0] == self.tokenizer.bos_token_id)
             )
-        uses_cls = (self.tokenizer._cls_token is not None)
+        uses_cls = (self.tokenizer.special_tokens_map.get('cls_token') is not None)
         return int(uses_bos or uses_cls)
 
     @property
     def eos_offset(self):
         uses_eos = (
-            (self.tokenizer._eos_token is not None) and
+            (self.tokenizer.special_tokens_map.get('eos_token') is not None) and
             (self.tokenizer('test')['input_ids'][-1] == self.tokenizer.eos_token_id)
             )
         return int(uses_eos)
@@ -186,6 +201,7 @@ class TransformerEncoder(Configurable):
             add_word_start_end_indices=False,
             report_reconstruction_errors=True,
             remove_tensor_keys=None,
+            remove_tensor_key_fn=None,
             ):
         from tqdm import tqdm
         from boltons.iterutils import chunked
@@ -237,11 +253,21 @@ class TransformerEncoder(Configurable):
                     enc_fn = self.trf
                     add_kwargs = dict()
 
+                try:
+                    use_cache = tok_out.pop('use_cache')
+                except KeyError:
+                    use_cache = False
+
                 trf_out = enc_fn(
                     **tok_out.to(self.conf.trf_enc_device),
+                    use_cache=use_cache,
                     output_hidden_states=output_hidden_states,
                     **add_kwargs,
                     )
+
+                if self.conf.trf_include_all_activations:
+                    _, chunk_act = self.hooked_trf.run_with_cache(chunk)
+                    chunk_tensors.update(chunk_act)
 
                 if self.is_generator:
                     bs, seq_len = trf_out.sequences.shape
@@ -296,6 +322,10 @@ class TransformerEncoder(Configurable):
             for k, v in chunk_tensors.items():
                 if k in remove_tensor_keys:
                     continue
+
+                if remove_tensor_key_fn is not None:
+                    if remove_tensor_key_fn(k):
+                        continue
 
                 if isinstance(v, torch.Tensor):
                     v = v.to(device=output_device)

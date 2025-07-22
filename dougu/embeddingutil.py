@@ -139,19 +139,18 @@ def mu_postproc(V, D=1):
     return V_ - s
 
 
-def embed_2d(
-        emb,
-        emb_method="UMAP",
+def get_dim_reduction_model(
+        method="UMAP",
         umap_n_neighbors=15,
         umap_min_dist=0.1,
         return_proj=False,
         random_state=None,
-        densmap=True,
-        y=None,
+        densmap=False,
+        **method_kwargs,
         ):
-    if hasattr(emb_method, 'fit_transform'):
-        proj = emb_method
-    elif emb_method.lower() == "umap":
+    if hasattr(method, 'fit_transform'):
+        proj = method
+    elif method.lower() == "umap":
         try:
             from umap import UMAP
         except ImportError:
@@ -165,10 +164,25 @@ def embed_2d(
             min_dist=umap_min_dist,
             random_state=random_state,
             densmap=densmap,
+            **method_kwargs,
             )
     else:
-        import sklearn.manifold
-        proj = getattr(sklearn.manifold, emb_method)()
+        try:
+            import sklearn.manifold
+            proj = getattr(sklearn.manifold, method)(**method_kwargs)
+        except AttributeError:
+            import sklearn.decomposition
+            proj = getattr(sklearn.decomposition, method)(**method_kwargs)
+    return proj
+
+
+def embed(
+        emb,
+        y=None,
+        return_proj=False,
+        **method_kwargs,
+        ):
+    proj = get_dim_reduction_model(**method_kwargs)
     if y is not None:
         emb_2d = proj.fit_transform(emb, y=y)
     else:
@@ -176,6 +190,10 @@ def embed_2d(
     if return_proj:
         return emb_2d, proj
     return emb_2d
+
+
+def embed_2d(emb, **kwargs):
+    return embed(emb, n_components=2, **kwargs)
 
 
 def plot_emb(emb, n=1000):

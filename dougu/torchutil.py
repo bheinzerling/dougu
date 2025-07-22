@@ -467,7 +467,7 @@ def get_lr_scheduler(conf, optimizer, optimum='max', n_train_steps=None):
                 optimizer, factor=0.5,
                 patience=conf.lr_scheduler_patience,
                 mode=optimum,
-                verbose=True)
+                )
             lr_scheduler.requires_metric = True
         case 'warmup_linear':
             from transformers import get_linear_schedule_with_warmup
@@ -765,7 +765,7 @@ class Splits(Loaders):
 
     def _split(self, dataset):
         return self._apply_max_lengths(
-            split_by_ratios(dataset, self.split_ratios))
+            split_by_ratios(dataset, *self.split_ratios))
 
     def _apply_max_lengths(self, splits):
         truncated_splits = []
@@ -935,3 +935,10 @@ class LambdaLayer(nn.Module):
 
     def forward(self, x):
         return self.func(x)
+
+
+def to_numpy(tensor):
+    try:
+        return tensor.detach().cpu().numpy()
+    except Exception:
+        return tensor
