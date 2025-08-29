@@ -180,18 +180,18 @@ def simple_imshow(
         ytick_locs_labels=None,
         tick_labelsize=None,
         xtick_label_rotation='vertical',
+        xlim=None,
+        ylim=None,
         xgrid=None,
         ygrid=None,
         colorbar=True,
         scale="lin",
         colorbar_range=None,
         cbar_title=None,
-        cbar_aspect=20,
         bad_color='white',
         origin='upper',
         cell_text=None,
         cell_text_color=None,
-        imshow_aspect=None,
         ):
     if aspect_equal and figsize is not None and figsize[1] is None:
         matrix_aspect = matrix.shape[0] / matrix.shape[1]
@@ -213,13 +213,7 @@ def simple_imshow(
     if bad_color is not None:
         cmap.set_bad(bad_color)
     im = plt.imshow(
-        matrix,
-        interpolation='nearest',
-        cmap=cmap,
-        norm=norm,
-        origin=origin,
-        aspect=imshow_aspect,
-        )
+        matrix, interpolation='nearest', cmap=cmap, norm=norm, origin=origin)
     if xtick_labels is not None:
         assert xtick_locs_labels is None
         locs = np.arange(0, len(xtick_labels))
@@ -252,8 +246,12 @@ def simple_imshow(
             left=False,      # ticks along the bottom edge are off
             right=False,)         # ticks along the top edge are off
         ax.set_yticks([])
+    if xlim is not None:
+        plt.xlim(*xlim)
+    if ylim is not None:
+        plt.ylim(*ylim)
     if colorbar:
-        cbar = add_colorbar(im, aspect=cbar_aspect)
+        cbar = add_colorbar(im)
         if colorbar_range is not None:
             plt.clim(*colorbar_range)
         if cbar_title:
@@ -274,6 +272,9 @@ def simple_imshow(
     plt.tight_layout()
     if outfile:
         plt.savefig(outfile)
+    else:
+        plt.show()
+    plt.clf()
 
 
 def plot_embeddings(
